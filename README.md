@@ -2,7 +2,7 @@
 
 Roblox corn-harvesting simulator foundation. The official repository is https://github.com/matt-tran2026/Popcorn-Tycoon and current development uses main directly.
 
-Read GAME_DESIGN.md, ROADMAP.md, ARCHITECTURE.md, and AGENTS.md before development. The current slice is an in-memory owned field with nine Normal Corn stalks, manual harvesting, and timestamp regrowth. There is no save/rejoin progression yet.
+Read GAME_DESIGN.md, ROADMAP.md, ARCHITECTURE.md, and AGENTS.md before development. The current slice is an in-memory owned field with twelve Normal Corn stalks, an owner label, manual harvesting, and timestamp regrowth. Successful harvests update the raw-corn HUD and briefly flash its background. There is no save/rejoin progression yet.
 
 ## Studio source setup
 
@@ -28,13 +28,25 @@ In Edit mode, after connecting the folders, append a temporary comment to Growth
 
 Press Play in Studio. Walk forward from spawn to the field. Press E near a ready corn prompt, or tap its native prompt on touch devices. Raw corn appears in the HUD. Harvesting consumes all available yields on that stalk, resets its growth, and yields again after the configured cycle. Capacity is initially three; the first starter field begins with one yield per stalk. Play sessions reset on leave.
 
-Tuning lives in src/shared/ReplicatedStorage/PopcornTycoon/Config.luau. The 10-second growth cycle and nine-stalk layout are temporary prototype choices. Do not infer final economy balance from them.
+Tuning lives in src/shared/ReplicatedStorage/PopcornTycoon/Config.luau. The 10-second growth cycle and twelve-stalk layout are temporary prototype choices. Do not infer final economy balance from them.
 
 ## Tests
 
 tests/StarterField.server.luau is a Studio-only integration runner. During a disposable Play session, install its exact source as a temporary Server RunContext Script in ServerScriptService named PopcornMilestoneTests. It runs against a live player and the real server services, checks growth boundaries, ownership rejection, range/tool validation, duplicate/immature harvesting, inventory changes, and real-time regrowth, and writes JSON evidence to its Results attribute. It creates and removes a second synthetic owner fixture. It is not a real two-client test. Stop Play to remove the runner and all test mutations. Do not place it in the normal source sync folders.
 
 Use native input separately to verify the ProximityPrompt → server transaction → client HUD path. Results and known limitations are documented in docs/testing/STARTER_FIELD.md.
+
+The latest gameplay verification is in docs/testing/FIRST_GAMEPLAY.md. The focused runner now checks twelve stalks, visible stages, owner labels, disjoint slots, and inventory replication attributes as well as the original growth/security cases.
+
+tests/Multiplayer.server.luau is a separate StudioTestService runner. Install it temporarily as a Server RunContext Script named PopcornMultiplayerProbe in Workspace (outside the synced source trees). From plugin context invoke StudioTestService:ExecuteMultiplayerTestAsync(2, { test = "PopcornOwnership" }) asynchronously. The server runner returns nine checks through EndTest; the plugin caller must collect that return value and remove the Edit-mode temporary probe afterward. It passed with two actual simulated clients in this milestone. Do not leave the temporary test object in a saved place.
+
+### Manual restart and multiplayer checks
+
+Stop Play. Use File → Save to File / Save to File As and save `places/PopcornTycoon-foundation.rbxl` locally (not Publish to Roblox). Close Studio, reopen that exact file, and let native Script Sync resume. Do not stop/recreate/reorganize the existing connections. Inspect conflict previews instead of blindly discarding either version. Ask the agent to repeat a harmless round trip on the existing paths after reopening; a normal Play/Stop cycle is not a Studio restart.
+
+For a manual two-client test, choose Server & Clients in Studio's testing-mode dropdown, set two clients, then press Play or F7. Each player should have a different labelled field and independent inventory. Approach the other player's ripe corn: it must grant nothing. Each player should be able to harvest their own corn, wait ten seconds for regrowth, and harvest it again. End Session closes the simulated clients/server. See [Roblox testing modes](https://create.roblox.com/docs/studio/testing-modes).
+
+On a phone or touch emulator, tap the native harvest prompt and confirm the count changes once, the stalk shrinks/loses its ripe ear, and corn becomes available after ten seconds. Landscape and portrait HUD layout were inspected in the iPhone 17 Pro emulator; a successful touch tap still requires manual verification.
 
 ## Git workflow
 

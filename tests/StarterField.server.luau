@@ -36,7 +36,7 @@ local ok, err = pcall(function()
 	local field = profile.fields.Starter
 	local count = 0
 	for _ in field.stalks do count += 1 end
-	check("nine individually timed stalks", count == 9)
+	check("twelve individually timed stalks", count == 12 and count == Config.Starter.rows * Config.Starter.columns)
 	local fixture = State.load(fixtureId, DateTime.now().UnixTimestampMillis / 1000)
 	Farms.create(fixtureId, fixture.fields.Starter)
 	check("second profile starts harvestable", Growth.yields(fixture.fields.Starter.stalks["1"].growthStartedAt, DateTime.now().UnixTimestampMillis / 1000, crop) >= 1)
@@ -45,6 +45,17 @@ local ok, err = pcall(function()
 	check("profiles do not alias", profile.rawCorn.Normal == before and profile.rawCorn ~= fixture.rawCorn)
 	local ownTarget = assert(Farms.target(player.UserId, "Starter", "1"))
 	local foreignTarget = assert(Farms.target(fixtureId, "Starter", "1"))
+	check("farm slots do not overlap", math.abs(ownTarget.Position.X - foreignTarget.Position.X) >= Config.Farm.separation)
+	check("field owners remain distinct", field.ownerUserId == player.UserId and fixture.fields.Starter.ownerUserId == fixtureId)
+	local ownFarm = workspace.PopcornFarms:FindFirstChild("Farm_" .. tostring(player.UserId))
+	check("farm displays owner name", ownFarm ~= nil and ownFarm.Soil.OwnerLabel.OwnerName.Text == player.DisplayName .. "'s cornfield")
+	local now = DateTime.now().UnixTimestampMillis / 1000
+	field.stalks["1"].growthStartedAt = now - crop.growthSeconds * 0.5
+	Farms.update(now)
+	check("middle growth stage is visible without ripe ear", ownTarget:GetAttribute("GrowthStage") == 1 and ownFarm.Ear_1.Transparency == 1)
+	field.stalks["1"].growthStartedAt = now - crop.growthSeconds * 0.8
+	Farms.update(now)
+	check("late growth stage grows taller", ownTarget:GetAttribute("GrowthStage") == 2 and ownTarget.Size.Y == 3.25)
 	player.Character:PivotTo(CFrame.new(foreignTarget.Position + Vector3.new(0, 2, -2)))
 	local response = Harvest.attempt(player, fixtureId, "Starter", "1")
 	check("foreign field rejected even in reach", not response.ok and response.reason == "Not your field" and fixture.rawCorn.Normal == 7)
@@ -66,6 +77,7 @@ local ok, err = pcall(function()
 	Farms.update(DateTime.now().UnixTimestampMillis / 1000)
 	response = Harvest.attempt(player, player.UserId, "Starter", "1")
 	check("capped harvest grants exactly three", response.ok and response.amount == 3 and profile.rawCorn.Normal == before + 3)
+	check("inventory attribute matches profile", player:GetAttribute("RawCorn") == profile.rawCorn.Normal)
 	local harvestedAt = field.stalks["1"].growthStartedAt
 	response = Harvest.attempt(player, player.UserId, "Starter", "1")
 	check("immediate replay rate limited", not response.ok and response.reason == "Too fast" and profile.rawCorn.Normal == before + 3)

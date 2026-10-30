@@ -18,7 +18,7 @@ remotes.Parent = Shared
 
 local function joined(player: Player)
 	local profile = State.load(player.UserId, DateTime.now().UnixTimestampMillis / 1000)
-	Farms.create(player.UserId, profile.fields.Starter)
+	Farms.create(player.UserId, profile.fields.Starter, player.DisplayName)
 	player:SetAttribute("RawCorn", 0)
 	player:SetAttribute("Popcorn", profile.popcorn)
 	Farms.update(DateTime.now().UnixTimestampMillis / 1000)

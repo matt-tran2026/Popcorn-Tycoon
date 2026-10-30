@@ -1,6 +1,6 @@
 # Popcorn Tycoon — Development Roadmap
 
-Established October 29, 2026. Documentation upload is complete. The starter-field foundation has been implemented and playtested; native Script Sync and complete M1/M2 acceptance remain pending as recorded below.
+Established October 29, 2026. Documentation upload and current native Script Sync verification are complete. The first harvesting gameplay slice is implemented and playtested; outstanding M1/M2 acceptance checks are recorded below.
 
 ## Milestones
 
@@ -54,11 +54,15 @@ The creator authorized M1 plus the starter-field portion of M2 after GitHub init
 - D1: official GitHub remote established; native Script Sync passed automatic round trips for all three current connections on October 30, 2026. The eight active files reside under src/shared/ReplicatedStorage/PopcornTycoon, src/server/ServerScriptService/PopcornTycoon, and src/client/StarterPlayerScripts/PopcornTycoon. Place backup/reopen verification remains outstanding.
 - D2 and initial D7: individual stalk timestamps; one yield/cycle; cap three; harvest all and restart timer; starter corn immediately ready. Field-buffer proposal superseded.
 - D3: version 1 in-memory profile and load/get/release boundary implemented; no durable storage or cross-session offline growth.
-- Implemented M2 foundation: one owned 3-by-3 placeholder field, Normal Corn, manual native prompts, raw-corn inventory, centralized visual growth updates, server ownership/range/tool/maturity/cadence validation, and basic HUD feedback.
+- Implemented M2 foundation: one owned 3-by-4 placeholder field with owner label, Normal Corn, manual native prompts, raw-corn inventory, centralized visual growth updates, server ownership/range/tool/maturity/cadence validation, and basic HUD feedback with a confirmed-harvest flash.
 - Studio verification: native E-key harvesting updated raw-corn HUD; the server integration runner passed 24 checks including real-time regrowth and foreign-owner rejection. Ownership fixture is simulated, not a real multi-client playtest.
 - Two small follow-up refinements add explicit crop dictionary typing and center the configurable grid; the final source revision also passed all 24 Studio checks with only expected bootstrap/test messages in Output.
-- M1's native-sync gate has passed; M1 remains incomplete until place backup/reopen checks pass. M2 remains incomplete until real two-player and mobile input checks pass. No claim of complete prototype readiness.
+- M1's native-sync gate has passed; M1 remains incomplete until place backup/reopen checks pass. M2's real two-client ownership/independent harvesting checks have passed; actual touch input remains unverified. No claim of complete prototype readiness.
 
 Next: save/reopen a local place snapshot and verify sync auto-resumes, then run real two-player and touch checks. After those gates, select the M3 microwave/conversion slice and settle D4–D5 before coding it. No microwave or advanced systems belong in the current task.
 
 Mapping repair completed: after reconnection, the actual service/container-based export paths above passed both directions. The inactive folder-only copies were identical and archived outside src/. Source content is unchanged. Current sync verification is complete; reopened-place behavior remains unverified.
+
+October 30 gameplay follow-up: reused existing services and expanded to twelve stalks without changing any sync connection or source root. Thirty server integration checks passed, including real-time regrowth, visible stages, owner labels, separate slots, foreign-field rejection, duplicate rejection, and profile/attribute updates. Native E-key harvests and the HUD flash were observed. iPhone 17 Pro landscape and portrait HUD layouts fit; a GUI mouse-click probe did not trigger a harvest, so actual touch tapping remains unverified. See docs/testing/FIRST_GAMEPLAY.md for full evidence and outstanding checks. Do not equate phone layout inspection with successful touch gameplay or a real-device performance test.
+
+A subsequent native StudioTestService two-client session passed nine further checks with two actual simulated client DataModels: distinct profiles, owned fields, disjoint slots, bidirectional foreign-field rejection, independent successful harvesting, and correct inventory attributes. The test returned to Edit mode and its temporary Workspace runner was removed. This supersedes the earlier single-client-only limitation for ownership and inventory isolation; manual cross-client UI/input observation is still useful.

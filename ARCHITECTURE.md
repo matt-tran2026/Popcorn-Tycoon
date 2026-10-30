@@ -190,7 +190,7 @@ Each stalk has an ID and growthStartedAt. At server time now, available yields a
 
 For a 10-second cycle, a stalk started at 100 yields 0 at 109.99, 1 at 110, 2 at 125, and 3 at 140 or much later. Harvest at 125 transfers 2, resets start to 125, and yields 0 immediately and 1 at 135. Future timestamps yield 0 until time catches up. Persisting these timestamps later enables offline accrual without simulating offline players. Current in-memory sessions reset on leave, so cross-session offline growth is not implemented.
 
-One shared server task refreshes all stalk visuals every 0.25 seconds, updating only changed stages/yields. No stalk contains a script or its own loop. The first field is a configurable 3-by-3 grid with provisional Normal Corn growth of 10 seconds. Future crop switching/upgrades must settle migration/overflow behavior before development.
+One shared server task refreshes all stalk visuals every 0.25 seconds, updating only changed stages/yields. No stalk contains a script or its own loop. The first field is now a configurable 3-by-4 grid with provisional Normal Corn growth of 10 seconds. Future crop switching/upgrades must settle migration/overflow behavior before development.
 
 ### D3: schema version 1 and memory adapter
 
@@ -207,7 +207,7 @@ PlayerStateService.load(userId, now), get(userId), and release(userId) isolate p
 
 FarmService generates and owns placeholder geometry, resolves registered prompts, updates visible stages, and cleans up reusable farm slots. HarvestService validates actual player identity, target types, ownership, equipped/owned manual tool, living character, distance, request cadence, and computed maturity, then grants raw corn and resets the timer. Server Bootstrap handles lifecycle and one centralized ProximityPromptService event. HarvestResult is a server-to-client RemoteEvent; clients do not supply rewards. The client Bootstrap renders a small native HUD and server-confirmed feedback; native prompts provide keyboard and touch interactions.
 
-Runtime geometry is Workspace.PopcornFarms/Farm_<userId>. Each farm has Soil and nine Stalk/Ear pairs. Prompts reside on stalks. ReplicatedStorage.PopcornTycoon.Remotes and PopcornHUD are runtime-created. No unrelated baseplate, spawn, lighting, or assets were replaced.
+Runtime geometry is Workspace.PopcornFarms/Farm_<userId>. Each farm has Soil, twelve Stalk/Ear pairs, and a BillboardGui owner label attached to Soil. Prompts reside on stalks. ReplicatedStorage.PopcornTycoon.Remotes and PopcornHUD are runtime-created. No unrelated baseplate, spawn, lighting, or assets were replaced. A single cancellable client tween flashes the HUD for a confirmed harvest; it does not grant resources.
 
 The larger service hierarchy remains a future recommendation; inventory is updated in the small harvest transaction until conversion/economy requirements justify separate services. No microwave, flamethrower, shops, mutations, quests, or persistence were introduced.
 

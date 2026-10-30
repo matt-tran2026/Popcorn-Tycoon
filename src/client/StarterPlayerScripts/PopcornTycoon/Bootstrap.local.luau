@@ -1,5 +1,6 @@
 --!strict
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local player = Players.LocalPlayer
 local feedback = Shared:WaitForChild("Remotes"):WaitForChild("HarvestResult") :: RemoteEvent
@@ -26,8 +27,15 @@ local function render()
 		.. "\n" .. message .. "\nPrototype · progress resets when you leave"
 end
 player:GetAttributeChangedSignal("RawCorn"):Connect(render)
+local harvestFlash: Tween? = nil
 feedback.OnClientEvent:Connect(function(response)
 	message = if response.ok then "+" .. tostring(response.amount) .. " corn · stalk regrowing" else response.reason
+	if response.ok then
+		if harvestFlash then harvestFlash:Cancel() end
+		panel.BackgroundColor3 = Color3.fromRGB(78, 111, 44)
+		harvestFlash = TweenService:Create(panel, TweenInfo.new(0.4), { BackgroundColor3 = Color3.fromRGB(47, 40, 29) })
+		harvestFlash:Play()
+	end
 	render()
 end)
 render()

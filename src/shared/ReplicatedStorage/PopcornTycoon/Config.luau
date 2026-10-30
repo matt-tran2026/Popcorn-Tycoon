@@ -7,7 +7,7 @@ local crops: { [string]: Types.CropDefinition } = {
 local Config = {
 	SchemaVersion = 1,
 	Crops = crops,
-	Starter = { cropId = "Normal", rows = 3, columns = 3, spacing = 5 },
+	Starter = { cropId = "Normal", rows = 3, columns = 4, spacing = 5 },
 	Manual = { range = 10, cooldownSeconds = 0.25 },
 	Farm = { origin = Vector3.new(0, 0, 24), separation = 32, size = Vector3.new(20, 0.5, 20) },
 	VisualUpdateSeconds = 0.25,

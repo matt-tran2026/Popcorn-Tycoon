@@ -29,7 +29,7 @@ function FarmService.init()
 	root = folder
 end
 
-function FarmService.create(userId: number, field: Types.Field)
+function FarmService.create(userId: number, field: Types.Field, ownerName: string?)
 	assert(root and not farms[userId], "Farm lifecycle error")
 	local slot = 0
 	while occupied[slot] do slot += 1 end
@@ -39,7 +39,19 @@ function FarmService.create(userId: number, field: Types.Field)
 	model.Name = "Farm_" .. tostring(userId)
 	model:SetAttribute("OwnerUserId", userId)
 	model:SetAttribute("FieldId", field.id)
-	part("Soil", Config.Farm.size, origin, Color3.fromRGB(100, 66, 41), model)
+	local soil = part("Soil", Config.Farm.size, origin, Color3.fromRGB(100, 66, 41), model)
+	local ownerLabel = Instance.new("BillboardGui")
+	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", soil
+	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 6, 0)
+	ownerLabel.MaxDistance = 60
+	local title = Instance.new("TextLabel")
+	title.Name = "OwnerName"
+	title.Size, title.BackgroundTransparency = UDim2.fromScale(1, 1), 0.2
+	title.BackgroundColor3, title.TextColor3 = Color3.fromRGB(47, 40, 29), Color3.fromRGB(255, 231, 155)
+	title.Font, title.TextScaled = Enum.Font.GothamMedium, true
+	title.Text = (ownerName or tostring(userId)) .. "'s cornfield"
+	title.Parent = ownerLabel
+	ownerLabel.Parent = soil
 	local views: { [string]: StalkView } = {}
 	for row = 1, Config.Starter.rows do
 		for col = 1, Config.Starter.columns do

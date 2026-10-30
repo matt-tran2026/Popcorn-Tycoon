@@ -39,7 +39,7 @@ Adopted growth rules for the starter foundation:
 - Harvesting collects all accumulated yields from that stalk and resets its timestamp to the harvest time. Fractional progress and production beyond capacity are discarded when harvested.
 - Corn automatically regrows; newly created starter fields begin with one immediately harvestable yield per stalk.
 - Growth is calculated centrally from timestamps, with no per-stalk scripts or continuous per-stalk loops. Advanced tools will eventually target several stalks in one action.
-- Growth duration, crop value, and storage capacity are configurable. The first foundation uses nine Normal stalks and a provisional 10-second cycle.
+- Growth duration, crop value, and storage capacity are configurable. The first gameplay milestone uses twelve Normal stalks in a 3-by-4 field and a provisional 10-second cycle.
 - Storage contains raw corn, not popcorn currency. A 25-second-old stalk yields two with a 10-second cycle; after harvesting it at time 25, its next yield is ready at time 35. A 100-second-old stalk yields only three and also restarts from zero when harvested.
 
 This supersedes the initial field-buffer proposal. There is no additional offline elapsed-time cap in the foundation calculation; the per-stalk yield cap bounds production. Offline accrual uses the same formula once persistent timestamps exist. The current in-memory layer resets on leave and does not provide cross-session offline progression. Crop switching and capacity-upgrade policies remain future decisions before those features are implemented.
