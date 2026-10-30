@@ -1,0 +1,26 @@
+# Local scratch and generated review exports
+/work/
+/outputs/
+# Credentials and machine-local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.token
+/.vscode/
+/.idea/
+# Logs, caches and generated dependencies
+*.log
+*.tmp
+*.bak
+*.lock
+node_modules/
+__pycache__/
+.DS_Store
+Thumbs.db
+# Studio recovery files; deliberate place snapshots remain trackable
+*.rbxl.autosave
+*.rbxlx.autosave
+*.rbxl.lock
+*.rbxlx.lock

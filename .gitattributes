@@ -1,0 +1,5 @@
+* text=auto
+*.md text eol=lf
+*.luau text eol=lf
+*.rbxl binary
+*.rbxm binary
