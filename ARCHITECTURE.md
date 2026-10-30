@@ -174,13 +174,13 @@ Source mapping is now concrete:
 
 | Local path | Studio root | Files |
 | --- | --- | --- |
-| src/shared/PopcornTycoon | ReplicatedStorage.PopcornTycoon | Config.luau, Types.luau, Growth.luau |
-| src/server/PopcornTycoon | ServerScriptService.PopcornTycoon | Bootstrap.server.luau, PlayerStateService.luau, FarmService.luau, HarvestService.luau |
-| src/client/PopcornTycoon | StarterPlayer.StarterPlayerScripts.PopcornTycoon | Bootstrap.local.luau |
+| src/shared/ReplicatedStorage/PopcornTycoon | ReplicatedStorage.PopcornTycoon | Config.luau, Types.luau, Growth.luau |
+| src/server/ServerScriptService/PopcornTycoon | ServerScriptService.PopcornTycoon | Bootstrap.server.luau, PlayerStateService.luau, FarmService.luau, HarvestService.luau |
+| src/client/StarterPlayerScripts/PopcornTycoon | StarterPlayer.StarterPlayerScripts.PopcornTycoon | Bootstrap.local.luau |
 
-The observed native chooser adds the Explorer folder name under the selected directory. Select src/shared, src/server, and src/client as parent directories; the actual source roots are the nested paths above. Following a partial-sync check, the creator stopped all three connections, and the eight unchanged source files were consolidated into this layout with backup/hash verification. This supersedes earlier assumptions that scripts would be written directly inside each selected parent. Reconnection and fresh three-root round trips are required before calling the repaired setup verified.
+After the creator reconnected all three trees, probes identified the actual source roots above, including service/container names. All three passed disk-to-Studio and Studio-to-disk tests on October 30, 2026. Preserve these working connections. Earlier direct-root and folder-name-only layout assumptions are superseded by this observed mapping. Inactive duplicate files were hash-compared and archived under ignored work/; only the eight active files remain under src/.
 
-Native Script Sync is selected, but connection and bidirectional round-trip verification remain pending. Windows UI capture failed twice after window recovery with capture/channel timeout errors. The source was installed through MCP as a deliberate initial copy; this is not evidence of native sync. Local files under Git are the intended code authority. Until native sync is confirmed, reconcile every MCP change back to disk, compare full source, and never edit competing versions concurrently.
+Native Script Sync is now verified for current Edit-mode connections. The initial MCP installation was only a source copy; the later automatic round trips establish live synchronization. Local files under Git are the code authority. Avoid concurrent conflicting edits and repeat the probes after remapping. Studio reopen/automatic-resume has not yet been tested.
 
 See README.md for manual setup, conflict handling, round-trip acceptance, and Studio asset backups. Script Sync covers code/folders, not models/terrain/settings. No local place snapshot has yet been confirmed saved. The current farm geometry is generated from tracked source, but that does not replace a complete place backup.
 
@@ -194,7 +194,7 @@ One shared server task refreshes all stalk visuals every 0.25 seconds, updating 
 
 ### D3: schema version 1 and memory adapter
 
-The implemented contract is declared in src/shared/PopcornTycoon/Types.luau:
+The implemented contract is declared in src/shared/ReplicatedStorage/PopcornTycoon/Types.luau:
 
 - schemaVersion = 1; popcorn: number; rawCorn: crop-ID-to-quantity dictionary.
 - ownedTools: ID-to-boolean dictionary; equippedTool: ID; unlockedCrops: ID-to-boolean dictionary.

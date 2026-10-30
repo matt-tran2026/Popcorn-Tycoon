@@ -60,7 +60,7 @@ MCP installation and full source comparison are separate checks from native sync
 
 A disk-only smoke probe appended a temporary comment to one shared, server, and client file while in Edit mode. None of the three comments appeared in the corresponding Studio source, so disk-to-Studio syncing was not active for any root at that check. The temporary disk comments were removed. A final exact comparison confirmed all eight local/Studio source pairs matched through the deliberate MCP installation, with no leftover test runner or runtime farms in Edit mode. This equality result does not change the failed native-sync probe result.
 
-## Remaining verification
+## Sync follow-up history and remaining verification
 
 ### Follow-up: creator connected folders
 
@@ -77,11 +77,25 @@ Native sync therefore remains incomplete for the intended repository layout. Sha
 
 The creator confirmed all three sync connections were stopped with local files retained. Before filesystem changes, source copies were backed up under ignored work/. The three duplicated shared files were hash-identical. Eight source files were consolidated into src/{shared,server,client}/PopcornTycoon with identical before/after hashes; no gameplay edits were made. This adopts the observed native export convention rather than fighting the extra folder level. The chooser should select src/shared, src/server, or src/client; the resulting script root includes one PopcornTycoon directory. Updated instructions distinguish the chooser's parent from the final source root. Reconnection and fresh two-way tests remain pending.
 
+### October 30, 2026: three connections verified
+
+After the creator confirmed reconnection, the exports included additional service/container directories. Distinct disk-only comments in the old and newly exported paths identified the active paths without assuming the chooser's behavior. The following table supersedes earlier mapping assumptions and pending-sync status:
+
+| Active file tested | Disk → Studio | Studio → disk |
+| --- | --- | --- |
+| src/shared/ReplicatedStorage/PopcornTycoon/Growth.luau | PASS | PASS |
+| src/server/ServerScriptService/PopcornTycoon/Bootstrap.server.luau | PASS | PASS |
+| src/client/StarterPlayerScripts/PopcornTycoon/Bootstrap.local.luau | PASS | PASS |
+
+Disk comments arrived automatically in their corresponding Studio scripts; separate Studio comments written with UpdateSourceAsync returned automatically to the active files. Neither direction was established by manually copying a matching source. Old folder-only copies did not drive Studio. All probes were removed and the eight Studio files matched their unchanged gameplay sources. A cleanup command initially returned two values from string.gsub and was rejected by UpdateSourceAsync; disk cleanup subsequently propagated successfully and final checks confirmed no markers remained.
+
+The eight inactive duplicate files were compared against active files by hash, then archived under ignored work/ instead of moving or renaming any active sync root. Only eight canonical source files remain under src/. Gameplay was not changed and no playtest was needed for source relocation/comment cleanup. Current Edit-mode native Script Sync is verified; saving/reopening the place and automatic resumption remain unverified. No publishing was performed.
+
 - Real two-client ownership, replication, join/leave, and independent progression. The second-owner fixture does not substitute for this.
 - Touch-device prompts and small-screen layout; real mobile performance.
-- Native Script Sync for all three roots and saved-place reopen/auto-resume behavior.
+- Saved-place reopen/auto-resume behavior; current three-root round trips have passed.
 - A saved/reopened local place snapshot including unsynced assets/settings.
 - Strict static analysis diagnostics were not retrieved; `--!strict` annotations are not proof of a clean analyzer run.
 - Durable persistence, save/rejoin restoration, migrations, and true cross-session offline growth are intentionally absent. The formula was tested against long elapsed timestamps, but profiles currently reset on leave.
 
-Do not mark M1/M2 completely accepted while required workflow, multiplayer, and mobile checks remain outstanding.
+Do not mark M1/M2 completely accepted while place backup/reopen, multiplayer, and mobile checks remain outstanding.
