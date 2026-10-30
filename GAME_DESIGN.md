@@ -1,6 +1,6 @@
 # Popcorn Tycoon — Game Design
 
-Status: initial source of truth, documentation only. Established October 29, 2026.
+Status: initial source of truth; starter-field foundation authorized. Established October 29, 2026.
 Owner: the creator. Changes should preserve the agreed core loop and record meaningful scope or rule changes here.
 
 ## 1. Vision and pillars
@@ -32,15 +32,17 @@ Each variety defines its growth duration, base yield/value, appearance, and unlo
 
 Offline growth is calculated by the server from saved timestamps and field state. No offline player simulation or separate loop/script per stalk is allowed. Online and offline growth must use the same rules so reconnecting does not change rewards.
 
-Important rules still to resolve before growth implementation:
+Adopted growth rules for the starter foundation:
 
-- Whether stored yield belongs to the whole field or individual stalks.
-- How a manual harvest consumes accumulated yield and changes that stalk's visual maturity.
-- What happens to production time and fractional progress at capacity.
-- Whether any elapsed-time cap applies in addition to yield capacity.
-- What happens to stored yield when switching varieties or upgrading capacity.
+- Every stalk has a stable ID and its own server-controlled growth-start timestamp.
+- Each completed growth cycle produces one yield; initial maximum storage is three yields per stalk.
+- Harvesting collects all accumulated yields from that stalk and resets its timestamp to the harvest time. Fractional progress and production beyond capacity are discarded when harvested.
+- Corn automatically regrows; newly created starter fields begin with one immediately harvestable yield per stalk.
+- Growth is calculated centrally from timestamps, with no per-stalk scripts or continuous per-stalk loops. Advanced tools will eventually target several stalks in one action.
+- Growth duration, crop value, and storage capacity are configurable. The first foundation uses nine Normal stalks and a provisional 10-second cycle.
+- Storage contains raw corn, not popcorn currency. A 25-second-old stalk yields two with a 10-second cycle; after harvesting it at time 25, its next yield is ready at time 35. A 100-second-old stalk yields only three and also restarts from zero when harvested.
 
-Recommended starting model: compact field state with stable harvest-cell identifiers, timestamps, and a field yield buffer. Visual stalks represent harvestable cells; cell availability prevents harvesting the same visual target repeatedly. Final consumption and regrowth rules must be written as worked examples before implementation. Storage is corn, not free popcorn: the player must still harvest and convert it unless a tool explicitly bypasses conversion.
+This supersedes the initial field-buffer proposal. There is no additional offline elapsed-time cap in the foundation calculation; the per-stalk yield cap bounds production. Offline accrual uses the same formula once persistent timestamps exist. The current in-memory layer resets on leave and does not provide cross-session offline progression. Crop switching and capacity-upgrade policies remain future decisions before those features are implemented.
 
 ## 4. Corn varieties
 
@@ -117,7 +119,7 @@ Seasonal events, cooperative harvest challenges, visiting farms, social features
 
 ## 10. Technical boundaries and acceptance
 
-Use Roblox Studio, modular strict Luau, Roblox-native multiplayer/persistence/UI, and Git/GitHub source control. Separate server systems, client presentation, and shared definitions. Avoid external databases, AWS, Node.js backends, and unnecessary frameworks. Evaluate Roblox Script Sync against the actual setup before adopting it.
+Use Roblox Studio, modular strict Luau, Roblox-native multiplayer/persistence/UI, and Git/GitHub source control. The official repository is https://github.com/matt-tran2026/Popcorn-Tycoon, with direct milestone commits to main for now. Separate server systems, client presentation, and shared definitions. Avoid external databases, AWS, Node.js backends, and unnecessary frameworks. Native Roblox Script Sync is the chosen source workflow; its actual synchronization must be verified, not assumed.
 
 The server owns farms, growth, harvesting, rewards, purchases, and saved progression. A compact data model and shared growth calculation must support multiplayer and future field expansion without simulating each stalk continuously. Persistence needs schema versions, safe loading/saving, migration, concurrency protection, and recovery behavior.
 

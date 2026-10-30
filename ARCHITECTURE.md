@@ -1,6 +1,6 @@
 # Popcorn Tycoon — Architecture and Decisions
 
-Status: recommendations, not implemented infrastructure. Established October 29, 2026.
+Status: initial recommendations plus adopted starter-field decisions in section 9. Established October 29, 2026. Section 9 supersedes conflicting initial proposals below.
 
 ## 1. Observed foundation
 
@@ -161,3 +161,52 @@ On a failed load, do not replace existing data with writable defaults. Keep the 
 | 2026-10-29 | User requirement | Initialization is documentation-only; no gameplay, unnecessary assets, or publishing. |
 | 2026-10-29 | User requirement | Native Roblox stack; server-authoritative systems; efficient offline growth; incremental prototype scope. |
 | 2026-10-29 | Proposed | Hierarchy, service boundaries, schema outline, and D1–D8 defaults above. No unresolved recommendation has been treated as an accepted product rule. |
+
+## 9. Adopted foundation decisions
+
+The creator authorized the first implementation after the original documents were pushed and verified on GitHub. Preserve sections 1–8 as the initial inspection/proposal record; the following supersedes conflicting proposals, especially the field-level buffer.
+
+### D1: Git and native Script Sync selected
+
+Official repository: https://github.com/matt-tran2026/Popcorn-Tycoon.git. Branch: main. Initial documentation commit: eb12f67. Git identity is repository-local, using the connected GitHub login and its noreply address. Direct commits to main are authorized for verified milestones; never force-push. The four original root documents were verified through the GitHub connector after pushing. work/ and outputs/ are ignored.
+
+Source mapping is now concrete:
+
+| Local path | Studio root | Files |
+| --- | --- | --- |
+| src/shared | ReplicatedStorage.PopcornTycoon | Config.luau, Types.luau, Growth.luau |
+| src/server | ServerScriptService.PopcornTycoon | Bootstrap.server.luau, PlayerStateService.luau, FarmService.luau, HarvestService.luau |
+| src/client | StarterPlayer.StarterPlayerScripts.PopcornTycoon | Bootstrap.local.luau |
+
+Native Script Sync is selected, but connection and bidirectional round-trip verification remain pending. Windows UI capture failed twice after window recovery with capture/channel timeout errors. The source was installed through MCP as a deliberate initial copy; this is not evidence of native sync. Local files under Git are the intended code authority. Until native sync is confirmed, reconcile every MCP change back to disk, compare full source, and never edit competing versions concurrently.
+
+See README.md for manual setup, conflict handling, round-trip acceptance, and Studio asset backups. Script Sync covers code/folders, not models/terrain/settings. No local place snapshot has yet been confirmed saved. The current farm geometry is generated from tracked source, but that does not replace a complete place backup.
+
+### D2 and initial D7: individual stalk timestamps
+
+Each stalk has an ID and growthStartedAt. At server time now, available yields are min(maxYields, floor(max(0, now - growthStartedAt) / growthSeconds)). Capacity is initially three. The calculation does not mutate or repeatedly credit inventory. On harvest, transfer all available yields to rawCorn[cropId] and set growthStartedAt = now in one non-yielding transition. This discards remainder and excess production. No additional absence-time cap is needed for this foundation. Newly created stalks start one growth cycle old, with one yield immediately available.
+
+For a 10-second cycle, a stalk started at 100 yields 0 at 109.99, 1 at 110, 2 at 125, and 3 at 140 or much later. Harvest at 125 transfers 2, resets start to 125, and yields 0 immediately and 1 at 135. Future timestamps yield 0 until time catches up. Persisting these timestamps later enables offline accrual without simulating offline players. Current in-memory sessions reset on leave, so cross-session offline growth is not implemented.
+
+One shared server task refreshes all stalk visuals every 0.25 seconds, updating only changed stages/yields. No stalk contains a script or its own loop. The first field is a configurable 3-by-3 grid with provisional Normal Corn growth of 10 seconds. Future crop switching/upgrades must settle migration/overflow behavior before development.
+
+### D3: schema version 1 and memory adapter
+
+The implemented contract is declared in src/shared/Types.luau:
+
+- schemaVersion = 1; popcorn: number; rawCorn: crop-ID-to-quantity dictionary.
+- ownedTools: ID-to-boolean dictionary; equippedTool: ID; unlockedCrops: ID-to-boolean dictionary.
+- fields: field-ID-to-record dictionary with id, ownerUserId, cropId, and stalks.
+- stalks: stalk-ID-to-record dictionary with id and growthStartedAt.
+
+PlayerStateService.load(userId, now), get(userId), and release(userId) isolate profile lifecycle. They currently allocate and remove memory only. Future persistence must load and validate a real stored profile at that boundary rather than recreate starter defaults, and implement the protections in section 5. There is no live DataStore access.
+
+### Minimal implementation boundaries
+
+FarmService generates and owns placeholder geometry, resolves registered prompts, updates visible stages, and cleans up reusable farm slots. HarvestService validates actual player identity, target types, ownership, equipped/owned manual tool, living character, distance, request cadence, and computed maturity, then grants raw corn and resets the timer. Server Bootstrap handles lifecycle and one centralized ProximityPromptService event. HarvestResult is a server-to-client RemoteEvent; clients do not supply rewards. The client Bootstrap renders a small native HUD and server-confirmed feedback; native prompts provide keyboard and touch interactions.
+
+Runtime geometry is Workspace.PopcornFarms/Farm_<userId>. Each farm has Soil and nine Stalk/Ear pairs. Prompts reside on stalks. ReplicatedStorage.PopcornTycoon.Remotes and PopcornHUD are runtime-created. No unrelated baseplate, spawn, lighting, or assets were replaced.
+
+The larger service hierarchy remains a future recommendation; inventory is updated in the small harvest transaction until conversion/economy requirements justify separate services. No microwave, flamethrower, shops, mutations, quests, or persistence were introduced.
+
+References consulted: [native Script Sync](https://create.roblox.com/docs/scripting/sync), [client/server boundary security](https://create.roblox.com/docs/scripting/security/client-server-boundary), and Roblox engine documentation for ProximityPrompt and ScriptEditorService.UpdateSourceAsync. Actual verification evidence belongs in docs/testing/STARTER_FIELD.md.

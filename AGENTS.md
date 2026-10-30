@@ -69,3 +69,15 @@ Do not create a GitHub repository, push changes, publish an experience, or enabl
 ## Initial implementation handoff
 
 Start with M1 and D1–D3. The first code task should establish verified source ownership, minimal bootstraps, a versioned in-memory player-state contract, and ownership lifecycle checks. The first gameplay slice is one field, Normal Corn, manual harvest/inventory, and regrowth; microwave/economy follow. Advanced tools, persistent storage, and offline growth are later prototype increments, not initialization work.
+
+## Adopted workflow and first milestone
+
+The creator has now authorized Git setup, documentation upload, native Script Sync setup, and the first starter-field gameplay foundation. This supersedes the initial documentation-only scope for that work. Implement only bootstraps, shared types/configuration, schemaVersion 1 in-memory state, an owned field, a few stalks, centralized timestamp growth, manual harvest, and server validation. No microwave, shops, flamethrower, mutations, quests, live DataStores, or publishing in this milestone.
+
+- Official remote: https://github.com/matt-tran2026/Popcorn-Tycoon.git. Use main directly until the creator requests a branch/PR workflow.
+- Commit logical verified milestones with descriptive messages; push at milestone completion and verify remote files. Never force-push without explicit authorization. Inspect any remote/local differences before integrating.
+- Keep the four root planning documents maintained. Do not commit work/, outputs/, credentials, logs, or redundant initialization exports.
+- Native Script Sync is selected. Map ReplicatedStorage.PopcornTycoon to src/shared, ServerScriptService.PopcornTycoon to src/server, and StarterPlayer.StarterPlayerScripts.PopcornTycoon to src/client. Do not claim two-way sync from an MCP source copy or equality check.
+- Stalk state is individual growthStartedAt timestamps, with one yield per cycle and configurable initial capacity three. Harvest all yields and reset to current server time; starter stalks begin one cycle old. Discard fractional/excess production on harvest. This supersedes the field-buffer recommendation.
+- Profile version 1 includes popcorn, rawCorn by crop ID, ownedTools/equippedTool, unlockedCrops, fields with owner/crop IDs, and stalk timestamps. Start with load/get/release in memory; leaving resets data until persistence is implemented.
+- Save local place snapshots for unsynced models, terrain, UI, and Studio settings under places/ before/after milestones using Save to File. Never confuse local saving with publishing. Record whether a snapshot was actually saved; source files alone are not a complete Studio backup.

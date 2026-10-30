@@ -1,6 +1,6 @@
 # Popcorn Tycoon — Development Roadmap
 
-Established October 29, 2026. Only documentation initialization is complete. No gameplay has been implemented or playtested.
+Established October 29, 2026. Documentation upload is complete. The starter-field foundation has been implemented and playtested; native Script Sync and complete M1/M2 acceptance remain pending as recorded below.
 
 ## Milestones
 
@@ -46,3 +46,17 @@ For each completed task record: change, test setup, actual observed result, unre
 Begin M1 with a minimal ownership-and-data foundation after resolving D1–D3. Choose the source workflow, record worked growth/storage examples and the versioned profile shape, then add only a server bootstrap, player state service with an in-memory store, and a minimal client bootstrap. Verify two distinct player states and safe cleanup. Do not enable live persistence or build the full crop/tool systems in that task.
 
 The first visible gameplay task is M2: one field, one crop, manual harvest and automatic regrowth, followed by the microwave loop in M3.
+
+## Current milestone progress
+
+The creator authorized M1 plus the starter-field portion of M2 after GitHub initialization. The original documents were committed as eb12f67 and their presence on GitHub main was independently verified. Direct milestone commits to main are now the selected Git workflow.
+
+- D1: official GitHub remote and native Script Sync selected. Eight local source files and matching Studio scripts exist. Native sync setup and two-way round trips remain unverified because Studio UI automation failed and manual setup has not been confirmed. Source equality is checked separately and must not be called native synchronization.
+- D2 and initial D7: individual stalk timestamps; one yield/cycle; cap three; harvest all and restart timer; starter corn immediately ready. Field-buffer proposal superseded.
+- D3: version 1 in-memory profile and load/get/release boundary implemented; no durable storage or cross-session offline growth.
+- Implemented M2 foundation: one owned 3-by-3 placeholder field, Normal Corn, manual native prompts, raw-corn inventory, centralized visual growth updates, server ownership/range/tool/maturity/cadence validation, and basic HUD feedback.
+- Studio verification: native E-key harvesting updated raw-corn HUD; the server integration runner passed 24 checks including real-time regrowth and foreign-owner rejection. Ownership fixture is simulated, not a real multi-client playtest.
+- Two small follow-up refinements add explicit crop dictionary typing and center the configurable grid; the final source revision also passed all 24 Studio checks with only expected bootstrap/test messages in Output.
+- M1 remains incomplete until native sync and place backup checks pass. M2 remains incomplete until real two-player and mobile input checks pass. No claim of complete prototype readiness.
+
+Next: finish Script Sync round trips and save/reopen a local place snapshot, then run real two-player and touch checks. After those gates, select the M3 microwave/conversion slice and settle D4–D5 before coding it. No microwave or advanced systems belong in the current task.
