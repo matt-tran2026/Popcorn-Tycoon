@@ -62,6 +62,17 @@ A disk-only smoke probe appended a temporary comment to one shared, server, and 
 
 ## Remaining verification
 
+### Follow-up: creator connected folders
+
+After the creator reported connecting all three roots, an Edit-mode round-trip check found partial synchronization:
+
+- Shared: disk edits to src/shared/PopcornTycoon/Growth.luau reached ReplicatedStorage.PopcornTycoon.Growth, and a different Studio comment returned to that same nested disk file. Both directions passed for this actual path.
+- The tracked src/shared/Growth.luau did not drive that Studio script. The chooser exported a PopcornTycoon subdirectory under src/shared, leaving three additional untracked copies of the shared modules. Those files were preserved; do not delete or move an active sync root blindly.
+- Server/client: disk comments in the tracked src/server/Bootstrap.server.luau and src/client/Bootstrap.local.luau did not reach Studio; Studio comments did not appear anywhere under src/server or src/client. Their actual sync locations still need inspection using Script Sync → Reveal in Explorer. This does not prove they are disconnected everywhere on disk, only that they are not connected to the tested repository paths.
+- All temporary comments were removed from Studio and disk. All eleven inspected local source files were restored exactly to their pre-test content; all eight Studio source files matched the original tracked sources. No gameplay logic or play mode was changed.
+
+Native sync therefore remains incomplete for the intended repository layout. Shared sync itself works, but its directory mapping needs reconciliation. Server/client paths remain unresolved. Earlier setup instructions assumed the chosen directory was the sync root itself; this observed export includes the folder name and needs to be reflected in the final mapping before adopting it as source authority.
+
 - Real two-client ownership, replication, join/leave, and independent progression. The second-owner fixture does not substitute for this.
 - Touch-device prompts and small-screen layout; real mobile performance.
 - Native Script Sync for all three roots and saved-place reopen/auto-resume behavior.
