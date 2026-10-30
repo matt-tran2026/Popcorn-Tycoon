@@ -60,3 +60,5 @@ The creator authorized M1 plus the starter-field portion of M2 after GitHub init
 - M1 remains incomplete until native sync and place backup checks pass. M2 remains incomplete until real two-player and mobile input checks pass. No claim of complete prototype readiness.
 
 Next: finish Script Sync round trips and save/reopen a local place snapshot, then run real two-player and touch checks. After those gates, select the M3 microwave/conversion slice and settle D4–D5 before coding it. No microwave or advanced systems belong in the current task.
+
+Mapping repair: after the creator stopped all sync connections, the eight unchanged files were consolidated under src/shared/PopcornTycoon, src/server/PopcornTycoon, and src/client/PopcornTycoon. Select the parent directories in the native chooser, which adds the Explorer folder name. Duplicate shared copies were compared and backed up before consolidation. Fresh round-trip verification is pending reconnection.

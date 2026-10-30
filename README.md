@@ -8,18 +8,18 @@ Read GAME_DESIGN.md, ROADMAP.md, ARCHITECTURE.md, and AGENTS.md before developme
 
 Use native [Roblox Script Sync](https://create.roblox.com/docs/scripting/sync). No Rojo project or external runtime backend is required. Mapping:
 
-| Studio Explorer folder | Disk folder under the repository |
-| --- | --- |
-| ReplicatedStorage → PopcornTycoon | src/shared |
-| ServerScriptService → PopcornTycoon | src/server |
-| StarterPlayer → StarterPlayerScripts → PopcornTycoon | src/client |
+| Studio Explorer folder | Parent directory to select in Sync to… | Actual script directory |
+| --- | --- | --- |
+| ReplicatedStorage → PopcornTycoon | src/shared | src/shared/PopcornTycoon |
+| ServerScriptService → PopcornTycoon | src/server | src/server/PopcornTycoon |
+| StarterPlayer → StarterPlayerScripts → PopcornTycoon | src/client | src/client/PopcornTycoon |
 
 The folders and eight matching scripts were initially installed through MCP. This manual installation does not establish sync. To connect each folder:
 
 1. In Studio's Explorer, right-click the PopcornTycoon **Folder** under the service shown above, then choose **Sync to…** (some Studio versions group this under Script Sync).
-2. Select the matching existing disk folder. For this workspace the repository root is `C:\Users\matth\Documents\Codex\2026-10-29\i-m-starting-a-new-roblox`.
+2. Select the parent directory in the middle column. In the observed Studio chooser, Studio adds the Explorer folder name, PopcornTycoon, beneath it. Do not select that nested directory again. For this workspace the repository root is `C:\Users\matth\Documents\Codex\2026-10-29\i-m-starting-a-new-roblox`.
 3. Inspect any conflict preview. The initial disk and Studio versions should match. Choose Keep Disk only after verifying the changes are the intended tracked source; do not overwrite later unsaved Studio work blindly.
-4. Repeat for all three roots. Sync folders rather than individual scripts. Do not select the whole src directory for each root or create another nested PopcornTycoon folder.
+4. Repeat for all three roots. Sync folders rather than individual scripts. Use Script Sync → Reveal in Explorer to verify that the final directory equals the last column, with exactly one PopcornTycoon segment.
 
 File mappings: .luau → ModuleScript, .server.luau → Script with Server RunContext, .local.luau → LocalScript. Tests are intentionally outside synced gameplay roots and do not run at startup.
 
@@ -31,7 +31,7 @@ In Edit mode, after connecting the folders, append a temporary comment to Growth
 
 Press Play in Studio. Walk forward from spawn to the field. Press E near a ready corn prompt, or tap its native prompt on touch devices. Raw corn appears in the HUD. Harvesting consumes all available yields on that stalk, resets its growth, and yields again after the configured cycle. Capacity is initially three; the first starter field begins with one yield per stalk. Play sessions reset on leave.
 
-Tuning lives in src/shared/Config.luau. The 10-second growth cycle and nine-stalk layout are temporary prototype choices. Do not infer final economy balance from them.
+Tuning lives in src/shared/PopcornTycoon/Config.luau. The 10-second growth cycle and nine-stalk layout are temporary prototype choices. Do not infer final economy balance from them.
 
 ## Tests
 

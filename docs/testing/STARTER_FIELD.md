@@ -73,6 +73,10 @@ After the creator reported connecting all three roots, an Edit-mode round-trip c
 
 Native sync therefore remains incomplete for the intended repository layout. Shared sync itself works, but its directory mapping needs reconciliation. Server/client paths remain unresolved. Earlier setup instructions assumed the chosen directory was the sync root itself; this observed export includes the folder name and needs to be reflected in the final mapping before adopting it as source authority.
 
+### Mapping repair preparation
+
+The creator confirmed all three sync connections were stopped with local files retained. Before filesystem changes, source copies were backed up under ignored work/. The three duplicated shared files were hash-identical. Eight source files were consolidated into src/{shared,server,client}/PopcornTycoon with identical before/after hashes; no gameplay edits were made. This adopts the observed native export convention rather than fighting the extra folder level. The chooser should select src/shared, src/server, or src/client; the resulting script root includes one PopcornTycoon directory. Updated instructions distinguish the chooser's parent from the final source root. Reconnection and fresh two-way tests remain pending.
+
 - Real two-client ownership, replication, join/leave, and independent progression. The second-owner fixture does not substitute for this.
 - Touch-device prompts and small-screen layout; real mobile performance.
 - Native Script Sync for all three roots and saved-place reopen/auto-resume behavior.

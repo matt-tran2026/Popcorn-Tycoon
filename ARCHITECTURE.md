@@ -174,9 +174,11 @@ Source mapping is now concrete:
 
 | Local path | Studio root | Files |
 | --- | --- | --- |
-| src/shared | ReplicatedStorage.PopcornTycoon | Config.luau, Types.luau, Growth.luau |
-| src/server | ServerScriptService.PopcornTycoon | Bootstrap.server.luau, PlayerStateService.luau, FarmService.luau, HarvestService.luau |
-| src/client | StarterPlayer.StarterPlayerScripts.PopcornTycoon | Bootstrap.local.luau |
+| src/shared/PopcornTycoon | ReplicatedStorage.PopcornTycoon | Config.luau, Types.luau, Growth.luau |
+| src/server/PopcornTycoon | ServerScriptService.PopcornTycoon | Bootstrap.server.luau, PlayerStateService.luau, FarmService.luau, HarvestService.luau |
+| src/client/PopcornTycoon | StarterPlayer.StarterPlayerScripts.PopcornTycoon | Bootstrap.local.luau |
+
+The observed native chooser adds the Explorer folder name under the selected directory. Select src/shared, src/server, and src/client as parent directories; the actual source roots are the nested paths above. Following a partial-sync check, the creator stopped all three connections, and the eight unchanged source files were consolidated into this layout with backup/hash verification. This supersedes earlier assumptions that scripts would be written directly inside each selected parent. Reconnection and fresh three-root round trips are required before calling the repaired setup verified.
 
 Native Script Sync is selected, but connection and bidirectional round-trip verification remain pending. Windows UI capture failed twice after window recovery with capture/channel timeout errors. The source was installed through MCP as a deliberate initial copy; this is not evidence of native sync. Local files under Git are the intended code authority. Until native sync is confirmed, reconcile every MCP change back to disk, compare full source, and never edit competing versions concurrently.
 
@@ -192,7 +194,7 @@ One shared server task refreshes all stalk visuals every 0.25 seconds, updating 
 
 ### D3: schema version 1 and memory adapter
 
-The implemented contract is declared in src/shared/Types.luau:
+The implemented contract is declared in src/shared/PopcornTycoon/Types.luau:
 
 - schemaVersion = 1; popcorn: number; rawCorn: crop-ID-to-quantity dictionary.
 - ownedTools: ID-to-boolean dictionary; equippedTool: ID; unlockedCrops: ID-to-boolean dictionary.
