@@ -7,6 +7,8 @@ local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local Harvest = require(script.Parent.HarvestService)
 Config.validate()
+require(script.Parent.VisualTemplates).load()
+require(script.Parent.EnvironmentVisuals).build()
 Farms.init()
 
 local remotes = Instance.new("Folder")

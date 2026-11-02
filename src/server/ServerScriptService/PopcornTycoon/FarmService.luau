@@ -4,8 +4,9 @@ local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
 local Types = require(Shared.Types)
 local Visuals = require(script.Parent.FarmVisuals)
+local Templates = require(script.Parent.VisualTemplates)
 
-type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part } }
+type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model? }
 type FarmView = { model: Model, field: Types.Field, slot: number, stalks: { [string]: StalkView } }
 local farms: { [number]: FarmView } = {}
 local occupied: { [number]: boolean } = {}
@@ -48,6 +49,7 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", ownerBoard
 	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 3, 0)
 	ownerLabel.MaxDistance = 60
+	ownerLabel.Enabled = false -- The physical entrance sign already displays the owner.
 	local title = Instance.new("TextLabel")
 	title.Name = "OwnerName"
 	title.Size, title.BackgroundTransparency = UDim2.fromScale(1, 1), 0.2
@@ -78,7 +80,9 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 			prompt.HoldDuration, prompt.MaxActivationDistance = 0, Config.Manual.range
 			prompt.RequiresLineOfSight, prompt.ClickablePrompt = false, true
 			prompt.Parent = stem
-			views[id] = { part = stem, ear = ear, prompt = prompt, leaves = leaves }
+			local mesh = Templates.clone("Corn", model, Vector3.new(pos.X, origin.Y + 0.25, pos.Z), 4.5)
+			if mesh then stem.Transparency = 1 for _, leaf in leaves do leaf:Destroy() end leaves = {} end
+			views[id] = { part = stem, ear = ear, prompt = prompt, leaves = leaves, mesh = mesh }
 		end
 	end
 	model.Parent = root
@@ -116,6 +120,16 @@ function FarmService.update(now: number)
 				view.part.Size = Vector3.new(0.6, height, 0.6)
 				view.part.Position = Vector3.new(view.part.Position.X, Config.Farm.origin.Y + 0.25 + height / 2, view.part.Position.Z)
 				view.ear.Transparency = if yields > 0 then 0 else 1
+				if view.mesh then
+					view.ear.Transparency = 1
+					local _, size = view.mesh:GetBoundingBox()
+					view.mesh:ScaleTo(view.mesh:GetScale() * (height * 1.4) / size.Y)
+					local box, resized = view.mesh:GetBoundingBox()
+					view.mesh:PivotTo(view.mesh:GetPivot() + Vector3.new(view.part.Position.X, Config.Farm.origin.Y + 0.25 + resized.Y / 2, view.part.Position.Z) - box.Position)
+					for _, object in view.mesh:GetDescendants() do
+						if object:IsA("BasePart") and object.Name:lower():find("corn") then object.Transparency = if stage == 3 then 0 else 1 end
+					end
+				end
 				for i, leaf in view.leaves do
 					local scale = 0.35 + stage * 0.21
 					local angle = (i - 1) * math.pi / 2

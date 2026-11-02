@@ -2,6 +2,7 @@
 -- Stateless, bounded scenery generator. Coordinates are relative to the plot center.
 -- No gameplay state, interactions, per-prop scripts, or background tasks belong here.
 local Config = require(game.ReplicatedStorage.PopcornTycoon.Config)
+local Templates = require(script.Parent.VisualTemplates)
 local FarmVisuals = {}
 local colors = {
 	grass = Color3.fromRGB(115, 174, 65), leaf = Color3.fromRGB(77, 143, 49),
@@ -70,6 +71,9 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 	for i = 1, 7 do
 		local stone = part(paths, "SteppingStone_" .. i, Vector3.new(5.1, 0.2, 2.6), Vector3.new(if i % 2 == 0 then 0.35 else -0.3, 0.2, -19 + i * 4.6), colors.stone, Enum.Material.Slate)
 		stone.Orientation = Vector3.new(0, if i % 2 == 0 then 9 else -8, 0)
+		stone.Shape = Enum.PartType.Cylinder
+		stone.Size = Vector3.new(0.22, 3.1, 5.1)
+		stone.Orientation = Vector3.new(0, if i % 2 == 0 then 9 else -8, 90)
 	end
 	local field = model("FieldBorders", scenery)
 	for _, x in {-23.3, -0.7} do wood(field, "Edging", Vector3.new(0.35, 0.4, 18.5), Vector3.new(x, 0.15, 0)) end
@@ -83,6 +87,11 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 			local pos = a:Lerp(b, i / segments)
 			wood(fence, "Post", Vector3.new(0.85, 4.2, 0.85), pos + Vector3.new(0, 2, 0))
 			wood(fence, "PostCap", Vector3.new(1, 0.25, 1), pos + Vector3.new(0, 4.2, 0), true)
+			local foot = part(fence, "StoneFooting", Vector3.new(1.2, 0.6, 1.2), pos + Vector3.new(0, 0.25, 0), colors.stone, Enum.Material.Slate)
+			for _, y in {1.4, 3} do
+				local bolt = part(fence, "IronPeg", Vector3.new(0.16, 0.16, 0.16), pos + Vector3.new(0, y, -0.48), colors.metal, Enum.Material.Metal)
+				bolt.Shape = Enum.PartType.Ball
+			end
 			if i < segments then
 				local nextPos = a:Lerp(b, (i + 1) / segments)
 				for _, y in {1.4, 3} do
@@ -175,6 +184,25 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 		part(props, "FlowerStem", Vector3.new(0.12, 0.9, 0.12), pos + Vector3.new(0.8, 0.45, 0.3), colors.leaf)
 		local flower = part(props, "Flower", Vector3.new(0.65, 0.25, 0.65), pos + Vector3.new(0.8, 1, 0.3), if i % 2 == 0 then Color3.fromRGB(244, 225, 174) else Color3.fromRGB(225, 147, 145))
 		flower.Shape = Enum.PartType.Ball
+	end
+	-- Keep native signs readable while replacing structural placeholders with textured models.
+	local microwaveMesh = Templates.clone("Microwave", station, center + Vector3.new(4, 0, 18), 12)
+	local shedMesh = Templates.clone("Shed", shed, center + Vector3.new(-17, 0, 19), 12.5)
+	for _, entry in {{station, microwaveMesh}, {shed, shedMesh}} do
+		local container, mesh = entry[1], entry[2]
+		if mesh then
+			for _, child in container:GetChildren() do
+				if child:IsA("BasePart") and not child:FindFirstChildOfClass("SurfaceGui") then child:Destroy() end
+			end
+		end
+	end
+	if microwaveMesh then
+		local board = station:FindFirstChild("StationSign") :: BasePart
+		board.Position = center + Vector3.new(4, 9.2, 13.2)
+	end
+	if shedMesh then
+		local board = shed:FindFirstChild("ToolSign") :: BasePart
+		board.Position = center + Vector3.new(-17, 9, 13.2)
 	end
 	return ownerBoard
 end

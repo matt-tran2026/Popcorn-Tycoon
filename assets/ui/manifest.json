@@ -1,0 +1,15 @@
+{
+  "styleId": "d1020539-257e-47c8-abf8-cbb51226b007",
+  "styleVersion": 1,
+  "corn": {
+    "jobId": "3a608b10-702d-42b1-a2a2-39dd8cb45bfd",
+    "file": "corn-forge.png",
+    "robloxAssetId": "99795210689047"
+  },
+  "popcorn": {
+    "jobId": "5cfa26a1-730f-4daa-b28d-c498aeaa351e",
+    "file": "popcorn-forge.png",
+    "robloxAssetId": "101313976457910"
+  },
+  "status": "Both approved image publications rendered in Studio playtest; ImageLabel.IsLoaded verified for both counters."
+}
