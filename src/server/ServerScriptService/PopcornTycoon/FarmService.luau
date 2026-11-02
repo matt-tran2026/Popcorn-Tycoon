@@ -3,8 +3,9 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon"
 local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
 local Types = require(Shared.Types)
+local Visuals = require(script.Parent.FarmVisuals)
 
-type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt }
+type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part } }
 type FarmView = { model: Model, field: Types.Field, slot: number, stalks: { [string]: StalkView } }
 local farms: { [number]: FarmView } = {}
 local occupied: { [number]: boolean } = {}
@@ -15,6 +16,7 @@ local function part(name: string, size: Vector3, position: Vector3, color: Color
 	local p = Instance.new("Part")
 	p.Name, p.Size, p.Position, p.Color = name, size, position, color
 	p.Anchored, p.CanCollide = true, false
+	p.CanTouch = false
 	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
 	p.Parent = parent
 	return p
@@ -40,9 +42,11 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	model:SetAttribute("OwnerUserId", userId)
 	model:SetAttribute("FieldId", field.id)
 	local soil = part("Soil", Config.Farm.size, origin, Color3.fromRGB(100, 66, 41), model)
+	soil.Material = Enum.Material.Ground
+	local ownerBoard = Visuals.build(model, origin, ownerName or tostring(userId))
 	local ownerLabel = Instance.new("BillboardGui")
-	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", soil
-	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 6, 0)
+	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", ownerBoard
+	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 3, 0)
 	ownerLabel.MaxDistance = 60
 	local title = Instance.new("TextLabel")
 	title.Name = "OwnerName"
@@ -60,6 +64,13 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 			local stem = part("Stalk_" .. id, Vector3.new(0.6, 4.5, 0.6), pos, Color3.fromRGB(68, 148, 56), model)
 			stem:SetAttribute("StalkId", id)
 			local ear = part("Ear_" .. id, Vector3.new(0.9, 1.5, 0.9), pos + Vector3.new(0.4, 0.6, 0), Color3.fromRGB(255, 211, 63), model)
+			ear.Shape = Enum.PartType.Ball
+			local leaves: { Part } = {}
+			for i = 1, 4 do
+				local leaf = part("Leaf_" .. i, Vector3.new(0.9, 0.18, 2.2), pos, Color3.fromRGB(86, 169, 49), stem)
+				leaf.CanQuery = false
+				table.insert(leaves, leaf)
+			end
 			local prompt = Instance.new("ProximityPrompt")
 			prompt.Name = "Harvest"
 			prompt.ActionText, prompt.ObjectText = "Pick corn", "Normal Corn"
@@ -67,7 +78,7 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 			prompt.HoldDuration, prompt.MaxActivationDistance = 0, Config.Manual.range
 			prompt.RequiresLineOfSight, prompt.ClickablePrompt = false, true
 			prompt.Parent = stem
-			views[id] = { part = stem, ear = ear, prompt = prompt }
+			views[id] = { part = stem, ear = ear, prompt = prompt, leaves = leaves }
 		end
 	end
 	model.Parent = root
@@ -105,6 +116,13 @@ function FarmService.update(now: number)
 				view.part.Size = Vector3.new(0.6, height, 0.6)
 				view.part.Position = Vector3.new(view.part.Position.X, Config.Farm.origin.Y + 0.25 + height / 2, view.part.Position.Z)
 				view.ear.Transparency = if yields > 0 then 0 else 1
+				for i, leaf in view.leaves do
+					local scale = 0.35 + stage * 0.21
+					local angle = (i - 1) * math.pi / 2
+					leaf.Size = Vector3.new(0.85 * scale, 0.18, 2.2 * scale)
+					leaf.CFrame = CFrame.new(view.part.Position.X, Config.Farm.origin.Y + 0.25 + height * (0.35 + (i % 2) * 0.25), view.part.Position.Z)
+						* CFrame.Angles(0, angle, 0) * CFrame.new(0, 0.4 * scale, -0.85 * scale) * CFrame.Angles(math.rad(28), 0, 0)
+				end
 				view.part:SetAttribute("GrowthStage", stage)
 			end
 			if view.part:GetAttribute("AvailableYields") ~= yields then

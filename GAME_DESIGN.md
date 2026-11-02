@@ -99,6 +99,12 @@ Basic mutations and giant corn are high-priority additions after the complete pr
 
 Prototype presentation should be polished enough to judge the loop. Do not produce a large asset library before validating it.
 
+### Adopted player plot presentation (November 1, 2026)
+
+The reusable plot follows the supplied colorful wooden-farm reference: twelve stalks in three walkable rows on the visitor's left, a central dirt/stepping-stone path, a covered microwave display and tool shed at the rear, and a marked future expansion lawn on the right. A ten-stud entrance, owner sign, wooden fences, lanterns, hay, barrels, grass and flowers define the property. Corn gains stage-scaled leaves and rounded yellow ears. Decorative stations display their future/display-only status; no conversion, tool buying, expansion purchases, or additional fields are implemented. There are no prices on placeholder signs.
+
+Each plot occupies a 60-by-54-stud footprint with 72-stud lateral spacing. The reserved lawn can later support another field; future growth beyond the current footprint must revise slot spacing before generating geometry. The surrounding baseplate is deliberately retained until a world-building milestone is selected. Only two shadowless local lights illuminate each plot; no particles or per-prop scripts are used.
+
 ## 9. Scope and priorities
 
 ### Complete playable prototype

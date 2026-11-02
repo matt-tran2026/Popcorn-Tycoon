@@ -32,6 +32,17 @@ local ok, err = pcall(function()
 	local at = assert(Farms.target(first.UserId, "Starter", "1"))
 	local bt = assert(Farms.target(second.UserId, "Starter", "1"))
 	check("real player farms do not overlap", math.abs(at.Position.X - bt.Position.X) >= Config.Farm.separation)
+	local am = at.Parent :: Model
+	local bm = bt.Parent :: Model
+	local ac, az = am:GetBoundingBox()
+	local bc, bz = bm:GetBoundingBox()
+	check("complete decorated plot bounds do not overlap", math.abs(ac.Position.X - bc.Position.X) > (az.X + bz.X) / 2 + 8)
+	local function promptCount(farm: Model): number
+		local count = 0
+		for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") then count += 1 end end
+		return count
+	end
+	check("both plots retain twelve harvest prompts", promptCount(am) == 12 and promptCount(bm) == 12)
 	first.Character:PivotTo(CFrame.new(bt.Position + Vector3.new(0, 2, -2)))
 	local response = Harvest.attempt(first, second.UserId, "Starter", "1")
 	check("first player cannot harvest second field", not response.ok and response.reason == "Not your field" and b.rawCorn.Normal == 0)
