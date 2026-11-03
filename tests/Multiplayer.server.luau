@@ -8,6 +8,8 @@ local Services = game:GetService("ServerScriptService"):WaitForChild("PopcornTyc
 local State = require(Services.PlayerStateService)
 local Farms = require(Services.FarmService)
 local Harvest = require(Services.HarvestService)
+local Conversion = require(Services.ConversionService)
+local Upgrades = require(Services.UpgradeService)
 local Config = require(game.ReplicatedStorage.PopcornTycoon.Config)
 local checks: { { name: string, passed: boolean } } = {}
 local function check(name: string, condition: boolean)
@@ -39,10 +41,20 @@ local ok, err = pcall(function()
 	check("complete decorated plot bounds do not overlap", math.abs(ac.Position.X - bc.Position.X) > (az.X + bz.X) / 2 + 8)
 	local function promptCount(farm: Model): number
 		local count = 0
-		for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") then count += 1 end end
+		for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") and object.Name == "Harvest" then count += 1 end end
 		return count
 	end
 	check("both plots retain twelve harvest prompts", promptCount(am) == 12 and promptCount(bm) == 12)
+	local aMicrowave = assert(Farms.microwave(first.UserId))
+	second.Character:PivotTo(CFrame.new(aMicrowave.door.Position + Vector3.new(0, 0, -3)))
+	b.rawCorn.Normal = 4
+	local converted = Conversion.start(second, first.UserId)
+	check("second player cannot use first microwave", not converted.ok and b.rawCorn.Normal == 4 and Conversion.pending(first.UserId) == 0)
+	b.popcorn = Config.Upgrades.ExtraRow.price
+	second.Character:PivotTo(CFrame.new(assert(Farms.rowSign(first.UserId)).Position + Vector3.new(0, -3, 3)))
+	local bought = Upgrades.buyExtraRow(second, first.UserId)
+	check("second player cannot buy first farm's row", not bought.ok and b.popcorn == Config.Upgrades.ExtraRow.price and a.fields.Starter.rows == 3)
+	b.rawCorn.Normal, b.popcorn = 0, 0
 	first.Character:PivotTo(CFrame.new(bt.Position + Vector3.new(0, 2, -2)))
 	local response = Harvest.attempt(first, second.UserId, "Starter", "1")
 	check("first player cannot harvest second field", not response.ok and response.reason == "Not your field" and b.rawCorn.Normal == 0)

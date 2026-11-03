@@ -75,7 +75,18 @@ Server validation governs tool ownership/equipment, farm ownership, target matur
 
 ## 6. Inventory, conversion, and economy
 
-Maintain a distinction between growing corn, field-stored yield, carried corn, and popcorn currency. Inventory must preserve the crop identity required to calculate value; future mutation identity must not be lost by aggregating unlike crops. Inventory capacity, microwave batch size, processing time, and interruption behavior remain decisions.
+Maintain a distinction between growing corn, field-stored yield, carried corn, and popcorn currency. Inventory must preserve the crop identity required to calculate value; future mutation identity must not be lost by aggregating unlike crops.
+
+### Adopted M3 rules (November 2, 2026)
+
+The creator settled D4–D5. All numbers are configurable starting values to tune through play.
+
+- **Carry limit:** 50 raw corn in total across crops. At the limit, harvesting is refused with "Bag full" feedback. A partly fitting harvest takes only what fits; the stalk keeps the rest (its timestamp moves back so exactly the remainder stays ready), so no corn is lost.
+- **Microwave:** one per farm, usable by the owner only. Pressing E loads the whole inventory as one batch: corn leaves the inventory and the reward is fixed at load time. Only one batch cooks at a time; it cooks for 5 seconds with popping effects, and the player may walk away and keep farming. An empty bag gives "No corn to pop" feedback.
+- **Popcorn burst and magnet:** when cooking finishes, the popcorn bursts out of the microwave as a bounded number of pieces. Each piece carries part of the reward. After landing, the pieces fly one after another to the owner like a magnet, **wherever the owner is, with no range limit**, and each is credited when its flight ends (about 2 seconds after the burst). Nobody else can receive them. *(Revised November 2, 2026, by the creator: replaces walking-near pickup and the 30-second auto-collect.)*
+- **No lost popcorn:** if the owner leaves while a batch is cooking or pieces are in flight, the whole remaining reward is credited at once. When persistence arrives (M5), pending batches and pieces must be saved or settled before release.
+- **First upgrade, Extra Row:** a one-time purchase of 100 popcorn that adds a fourth row of four stalks (16 in total) to the existing field, at its rear edge. New stalks start with one ready yield. The microwave station and nearby props shift back to make room. The future-expansion lawn stays **reserved for other corn varieties** and is not used for rows. Repeat rows at rising prices are deferred to the farm-expansion feature.
+- **Pacing targets:** first harvest within about 10 seconds, first conversion within about 1 minute, and Extra Row affordable after about 3 minutes (about two full bags). Record observed times during M3 playtests.
 
 The microwave should visibly and audibly pop corn and clearly report its result. A conversion must consume inputs and grant currency exactly once, including repeated requests, disconnects, and retries. Purchases validate balance, requirements, ownership, and duplicate requests on the server. Prevent negative balances, invalid numeric inputs, and duplicate unlock charges.
 

@@ -4,8 +4,11 @@ local TweenService = game:GetService("TweenService")
 local Input = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Theme = require(script.Parent.UITheme)
+local Config = require(Shared:WaitForChild("Config"))
 local player = Players.LocalPlayer
-local feedback = Shared:WaitForChild("Remotes"):WaitForChild("HarvestResult") :: RemoteEvent
+local remotes = Shared:WaitForChild("Remotes")
+local feedback = remotes:WaitForChild("HarvestResult") :: RemoteEvent
+local actions = remotes:WaitForChild("ActionResult") :: RemoteEvent
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn = "PopcornHUD", false
 gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
@@ -43,7 +46,7 @@ local function counter(name: string, caption: string, icon: string, fallback: st
  return f, value
 end
 local cornPanel, cornValue = counter("RawCorn", "Raw Corn", Theme.CornIcon, "CORN", 0)
-local _, popcornValue = counter("Popcorn", "Popcorn", Theme.PopcornIcon, "POP", 0.52)
+local popcornPanel, popcornValue = counter("Popcorn", "Popcorn", Theme.PopcornIcon, "POP", 0.52)
 local toast = frame("Feedback", gui, UDim2.new(0.9, 0, 0, 52), UDim2.new(0.5, 0, 0, 96))
 toast.AnchorPoint = Vector2.new(0.5, 0)
 Instance.new("UISizeConstraint", toast).MaxSize = Vector2.new(500, 52)
@@ -56,7 +59,7 @@ inventory.AnchorPoint, inventory.Visible, inventory.ZIndex = Vector2.new(0.5, 0.
 Instance.new("UISizeConstraint", inventory).MaxSize = Vector2.new(460, 250)
 text("Title", inventory, "YOUR HARVEST", UDim2.new(1, -80, 0, 44), UDim2.fromOffset(16, 12), 22)
 local contents = text("Contents", inventory, "", UDim2.new(1, -40, 0, 110), UDim2.fromOffset(20, 65), 20)
-text("SessionNotice", inventory, "Progress resets when you leave.\nMicrowave conversion is coming later.", UDim2.new(1, -40, 0, 55), UDim2.fromOffset(20, 181), 13)
+text("SessionNotice", inventory, "Progress resets when you leave.\nPop your corn at the microwave behind your field.", UDim2.new(1, -40, 0, 55), UDim2.fromOffset(20, 181), 13)
 local close = Instance.new("TextButton")
 close.Name, close.Text, close.Size, close.Position = "Close", "X", UDim2.fromOffset(44, 44), UDim2.new(1, -54, 0, 10)
 close.BackgroundColor3, close.TextColor3, close.TextSize, close.Font = Theme.Red, Theme.Cream, 22, Enum.Font.GothamBold
@@ -76,11 +79,14 @@ navItem("Inventory", "Inventory", 1, true)
 navItem("Shop", "Shop · Soon", 2, false)
 navItem("Quests", "Quests · Soon", 3, false)
 navItem("Upgrades", "Upgrades · Soon", 4, false)
+local capacity = Config.Inventory.capacity
 local function render()
- local corn = tostring(player:GetAttribute("RawCorn") or 0)
+ local carried = player:GetAttribute("RawCorn") or 0
+ local corn = tostring(carried)
  local popcorn = tostring(player:GetAttribute("Popcorn") or 0)
- cornValue.Text, popcornValue.Text = corn, popcorn
- contents.Text = "Normal Corn     " .. corn .. "\nPopcorn     " .. popcorn .. "\nEquipped: Manual harvest"
+ cornValue.Text, popcornValue.Text = corn .. "/" .. tostring(capacity), popcorn
+ cornValue.TextColor3 = if carried >= capacity then Theme.Gold else Theme.Cream
+ contents.Text = "Normal Corn     " .. corn .. " / " .. tostring(capacity) .. "\nPopcorn     " .. popcorn .. "\nEquipped: Manual harvest"
 end
 player:GetAttributeChangedSignal("RawCorn"):Connect(render)
 player:GetAttributeChangedSignal("Popcorn"):Connect(render)
@@ -90,20 +96,77 @@ Input.InputBegan:Connect(function(input, processed)
  if input.KeyCode == Enum.KeyCode.Escape then inventory.Visible = false end
 end)
 local toastRevision = 0
-local pulse = Instance.new("UIScale", cornPanel)
-local pulseTween: Tween? = nil
-feedback.OnClientEvent:Connect(function(response)
+local function show(message: string)
  toastRevision += 1
  local revision = toastRevision
  toast.Visible = true
- toastText.Text = if response.ok then "+" .. tostring(response.amount) .. " Corn  ·  Growing again!" else response.reason
- if response.ok then
-  if pulseTween then pulseTween:Cancel() end
-  pulse.Scale = 1.08
-  pulseTween = TweenService:Create(pulse, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Scale = 1})
-  pulseTween:Play()
- end
+ toastText.Text = message
  task.delay(2.5, function() if revision == toastRevision then toast.Visible = false end end)
+end
+local function pulser(panel: Frame): () -> ()
+ local scale = Instance.new("UIScale", panel)
+ local tween: Tween? = nil
+ return function()
+  if tween then tween:Cancel() end
+  scale.Scale = 1.08
+  tween = TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Scale = 1})
+  tween:Play()
+ end
+end
+local pulseCorn, pulsePopcorn = pulser(cornPanel), pulser(popcornPanel)
+feedback.OnClientEvent:Connect(function(response)
+ if not response.ok then show(response.reason) return end
+ local full = response.reason == "Bag full" or (player:GetAttribute("RawCorn") or 0) >= capacity
+ show("+" .. tostring(response.amount) .. " Corn  ·  " .. (if full then "Bag full! Pop it at the microwave" else "Growing again!"))
+ pulseCorn()
+end)
+actions.OnClientEvent:Connect(function(kind: string, response)
+ if not response.ok then show(response.reason) return end
+ if kind == "Microwave" then
+  show("Popping " .. tostring(response.amount) .. " corn…")
+ elseif kind == "Collect" then
+  show("+" .. tostring(response.amount) .. " Popcorn" .. (if response.reason == "Collected" then "!" else "  ·  " .. response.reason))
+  pulsePopcorn()
+ elseif kind == "Upgrade" then
+  show(response.reason .. "  ·  −" .. tostring(response.amount) .. " popcorn")
+  pulsePopcorn()
+ end
+end)
+-- Server places each popcorn piece where it lands and credits it when its flight ends.
+-- Locally: burst arc from the microwave, then a magnet flight that homes in on the owner.
+local function animatePiece(object: Instance)
+ if object.Name ~= "PopcornPiece" or not object:IsA("BasePart") then return end
+ local from = object:GetAttribute("BurstFrom")
+ local delay = object:GetAttribute("FlyDelay")
+ local farm = object.Parent and object.Parent.Parent
+ local owner = if farm then Players:GetPlayerByUserId(farm:GetAttribute("OwnerUserId") or 0) else nil
+ if typeof(from) ~= "Vector3" or typeof(delay) ~= "number" then return end
+ local landing = object.Position
+ local size = object.Size
+ local started = os.clock()
+ local land, fly = Config.Microwave.landSeconds, Config.Microwave.flySeconds * 0.95
+ local connection: RBXScriptConnection
+ connection = game:GetService("RunService").RenderStepped:Connect(function()
+  if not object.Parent then connection:Disconnect() return end
+  local elapsed = os.clock() - started
+  if elapsed < land then
+   local t = elapsed / land
+   object.Position = from:Lerp(landing, t) + Vector3.new(0, math.sin(t * math.pi) * 5, 0)
+   return
+  end
+  local t = math.clamp((elapsed - land - delay) / fly, 0, 1)
+  local character = owner and owner.Character
+  local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+  if not root then object.Position = landing return end
+  local eased = t * t -- Slow pull that speeds up, like a magnet.
+  object.Position = landing:Lerp(root.Position, eased) + Vector3.new(0, math.sin(t * math.pi) * 3, 0)
+  object.Size = size * (1 - 0.6 * eased)
+  if t >= 1 then object.Transparency = 1 connection:Disconnect() end
+ end)
+end
+task.spawn(function()
+ local farms = workspace:WaitForChild("PopcornFarms", 30)
+ if farms then farms.DescendantAdded:Connect(animatePiece) end
 end)
 local function layout()
  local camera = workspace.CurrentCamera

@@ -67,7 +67,7 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 	ground.CanCollide, ground.CanQuery = true, true
 	local paths = model("Paths", scenery)
 	part(paths, "EntranceDirt", Vector3.new(8, 0.12, 16), Vector3.new(0, 0.12, -20), colors.dirt, Enum.Material.Ground)
-	part(paths, "CrossPath", Vector3.new(37, 0.12, 4), Vector3.new(0, 0.12, -12), colors.dirt, Enum.Material.Ground)
+	part(paths, "CrossPath", Vector3.new(37, 0.12, 4), Vector3.new(0, 0.12, -14.5), colors.dirt, Enum.Material.Ground)
 	for i = 1, 7 do
 		local stone = part(paths, "SteppingStone_" .. i, Vector3.new(5.1, 0.2, 2.6), Vector3.new(if i % 2 == 0 then 0.35 else -0.3, 0.2, -19 + i * 4.6), colors.stone, Enum.Material.Slate)
 		stone.Orientation = Vector3.new(0, if i % 2 == 0 then 9 else -8, 0)
@@ -76,10 +76,13 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 		stone.Orientation = Vector3.new(0, if i % 2 == 0 then 9 else -8, 90)
 	end
 	local field = model("FieldBorders", scenery)
-	for _, x in {-23.3, -0.7} do wood(field, "Edging", Vector3.new(0.35, 0.4, 18.5), Vector3.new(x, 0.15, 0)) end
-	for _, z in {-9.3, 9.3} do wood(field, "Edging", Vector3.new(23, 0.4, 0.35), Vector3.new(-12, 0.15, z)) end
-	for row = 1, Config.Starter.rows do
-		part(field, "CultivatedRow_" .. row, Vector3.new(21, 0.15, 2.5), Vector3.new(-12, 0.28, (row - 2) * Config.Starter.spacing), Color3.fromRGB(123, 78, 43), Enum.Material.Ground)
+	-- Beds cover every layout row, including the purchasable Extra Row.
+	local rows = Config.Starter.layoutRows
+	local edge = (rows - 1) / 2 * Config.Starter.spacing + 4.3
+	for _, x in {-23.3, -0.7} do wood(field, "Edging", Vector3.new(0.35, 0.4, edge * 2 - 0.1), Vector3.new(x, 0.15, 0)) end
+	for _, z in {-edge, edge} do wood(field, "Edging", Vector3.new(23, 0.4, 0.35), Vector3.new(-12, 0.15, z)) end
+	for row = 1, rows do
+		part(field, "CultivatedRow_" .. row, Vector3.new(21, 0.15, 2.5), Vector3.new(-12, 0.28, (row - (rows + 1) / 2) * Config.Starter.spacing), Color3.fromRGB(123, 78, 43), Enum.Material.Ground)
 	end
 	local fence = model("PerimeterFence", scenery)
 	local function fenceRun(a: Vector3, b: Vector3, segments: number)
@@ -120,24 +123,26 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 	end
 	wood(expansion, "SignPost", Vector3.new(0.4, 3, 0.4), Vector3.new(16, 1.5, -7))
 	sign(expansion, "ExpansionSign", Vector3.new(16, 3, -7), Vector3.new(9, 2.5, 0.4), "ROOM TO GROW\nFuture expansion")
+	-- The working microwave (interaction lives in FarmService) sits back from the four-row bed.
 	local station = model("MicrowaveStation", scenery)
-	station:SetAttribute("VisualOnly", true)
+	station:SetAttribute("VisualOnly", false)
+	local z = 2.5
 	for _, x in {-9, 1} do
-		wood(station, "CanopyPost", Vector3.new(0.7, 8, 0.7), Vector3.new(x, 4, 18))
+		wood(station, "CanopyPost", Vector3.new(0.7, 8, 0.7), Vector3.new(x, 4, 18 + z))
 	end
-	wood(station, "Counter", Vector3.new(11, 0.6, 5), Vector3.new(-4, 2.7, 18))
-	for _, x in {-8, 0} do wood(station, "CounterLeg", Vector3.new(0.7, 2.5, 0.7), Vector3.new(x, 1.25, 17)) end
-	local canopy = part(station, "Canopy", Vector3.new(13, 0.5, 7), Vector3.new(-4, 8.5, 18), colors.roof, Enum.Material.Wood)
+	wood(station, "Counter", Vector3.new(11, 0.6, 5), Vector3.new(-4, 2.7, 18 + z))
+	for _, x in {-8, 0} do wood(station, "CounterLeg", Vector3.new(0.7, 2.5, 0.7), Vector3.new(x, 1.25, 17 + z)) end
+	local canopy = part(station, "Canopy", Vector3.new(13, 0.5, 7), Vector3.new(-4, 8.5, 18 + z), colors.roof, Enum.Material.Wood)
 	canopy.Orientation = Vector3.new(-8, 0, 0)
-	sign(station, "StationSign", Vector3.new(-4, 7, 14.8), Vector3.new(11, 1.7, 0.4), "MICROWAVE")
-	sign(station, "ComingSoon", Vector3.new(-4, 1.7, 15.4), Vector3.new(8, 1.1, 0.3), "Popping soon · display only")
-	part(station, "MicrowaveBody", Vector3.new(6, 3, 3.5), Vector3.new(-4, 4.5, 17.5), Color3.fromRGB(220, 217, 186), Enum.Material.Metal)
-	part(station, "DoorFrame", Vector3.new(4.3, 2.4, 0.15), Vector3.new(-4.6, 4.5, 15.7), colors.metal)
-	part(station, "AmberWindow", Vector3.new(3.6, 1.8, 0.16), Vector3.new(-4.7, 4.5, 15.6), Color3.fromRGB(222, 132, 42), Enum.Material.Glass)
-	part(station, "Handle", Vector3.new(0.2, 1.6, 0.25), Vector3.new(-2.65, 4.5, 15.45), colors.plank)
-	for i = 1, 3 do part(station, "Button_" .. i, Vector3.new(0.35, 0.35, 0.2), Vector3.new(-1.7, 5.1 - i * 0.5, 15.6), colors.roof) end
-	lantern(station, Vector3.new(-9, 5.5, 16), false)
-	lantern(station, Vector3.new(1, 5.5, 16), false)
+	sign(station, "StationSign", Vector3.new(-4, 7, 14.8 + z), Vector3.new(11, 1.7, 0.4), "MICROWAVE")
+	sign(station, "HowTo", Vector3.new(-4, 1.7, 15.4 + z), Vector3.new(8, 1.1, 0.3), "Press E to pop your corn")
+	part(station, "MicrowaveBody", Vector3.new(6, 3, 3.5), Vector3.new(-4, 4.5, 17.5 + z), Color3.fromRGB(220, 217, 186), Enum.Material.Metal)
+	part(station, "DoorFrame", Vector3.new(4.3, 2.4, 0.15), Vector3.new(-4.6, 4.5, 15.7 + z), colors.metal)
+	part(station, "AmberWindow", Vector3.new(3.6, 1.8, 0.16), Vector3.new(-4.7, 4.5, 15.6 + z), Color3.fromRGB(222, 132, 42), Enum.Material.Glass)
+	part(station, "Handle", Vector3.new(0.2, 1.6, 0.25), Vector3.new(-2.65, 4.5, 15.45 + z), colors.plank)
+	for i = 1, 3 do part(station, "Button_" .. i, Vector3.new(0.35, 0.35, 0.2), Vector3.new(-1.7, 5.1 - i * 0.5, 15.6 + z), colors.roof) end
+	lantern(station, Vector3.new(-9, 5.5, 16 + z), false)
+	lantern(station, Vector3.new(1, 5.5, 16 + z), false)
 	local shed = model("ToolShed", scenery)
 	shed:SetAttribute("VisualOnly", true)
 	wood(shed, "Floor", Vector3.new(13, 0.4, 9), Vector3.new(17, 0.25, 19))
@@ -186,7 +191,7 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 		flower.Shape = Enum.PartType.Ball
 	end
 	-- Keep native signs readable while replacing structural placeholders with textured models.
-	local microwaveMesh = Templates.clone("Microwave", station, center + Vector3.new(4, 0, 18), 12)
+	local microwaveMesh = Templates.clone("Microwave", station, center + Vector3.new(4, 0, 18 + z), 12)
 	local shedMesh = Templates.clone("Shed", shed, center + Vector3.new(-17, 0, 19), 12.5)
 	for _, entry in {{station, microwaveMesh}, {shed, shedMesh}} do
 		local container, mesh = entry[1], entry[2]
@@ -198,7 +203,7 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): Bas
 	end
 	if microwaveMesh then
 		local board = station:FindFirstChild("StationSign") :: BasePart
-		board.Position = center + Vector3.new(4, 9.2, 13.2)
+		board.Position = center + Vector3.new(4, 9.2, 13.2 + z)
 	end
 	if shedMesh then
 		local board = shed:FindFirstChild("ToolSign") :: BasePart

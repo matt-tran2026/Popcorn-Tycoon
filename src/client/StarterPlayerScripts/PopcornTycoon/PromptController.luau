@@ -12,11 +12,12 @@ function Controller.start(gui: ScreenGui)
   local display=active[prompt]
   if display then display:Destroy() active[prompt]=nil end
  end
+ local farmPrompts={Harvest=true, Microwave=true, BuyRow=true}
  local function configure(object: Instance)
-  if not object:IsA("ProximityPrompt") or object.Name~="Harvest" then return end
+  if not object:IsA("ProximityPrompt") or not farmPrompts[object.Name] then return end
   local farm=object.Parent and object.Parent.Parent
   if farm and farm:GetAttribute("OwnerUserId") == Players.LocalPlayer.UserId then
-   object.Style=Enum.ProximityPromptStyle.Custom
+   if object.Name=="Harvest" then object.Style=Enum.ProximityPromptStyle.Custom end
   elseif farm and farm:GetAttribute("OwnerUserId") ~= nil then
    object.Enabled=false -- Client presentation only; server still validates all interactions.
    object:GetPropertyChangedSignal("Enabled"):Connect(function()

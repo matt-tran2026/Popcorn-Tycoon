@@ -25,20 +25,21 @@ end
 local ok, err = pcall(function()
 	local farm = workspace.PopcornFarms:FindFirstChild("Farm_" .. player.UserId) :: Model
 	local scenery = farm:FindFirstChild("Scenery") :: Model
-	local parts, lights, prompts, scripts = 0, 0, 0, 0
+	local parts, lights, scripts = 0, 0, 0
+	local prompts: { [string]: number } = {}
 	local obstacles = 0
 	for _, object in farm:GetDescendants() do
 		if object:IsA("BasePart") then
 			parts += 1
 			if object.CanCollide and object.Name ~= "GrassFoundation" then obstacles += 1 end
 		elseif object:IsA("Light") then lights += 1
-		elseif object:IsA("ProximityPrompt") then prompts += 1
+		elseif object:IsA("ProximityPrompt") then prompts[object.Name] = (prompts[object.Name] or 0) + 1
 		elseif object:IsA("LuaSourceContainer") then scripts += 1 end
 	end
 	check("bounded plot geometry and lights", parts <= 400 and lights == 2)
-	check("no decorative scripts or new interactive placeholders", scripts == 0 and prompts == 12)
+	check("no decorative scripts; only harvest, microwave and row prompts", scripts == 0 and prompts.Harvest == 12 and prompts.Microwave == 1 and prompts.BuyRow == 1)
 	check("no collision obstacles in decorative geometry", obstacles == 0)
-	check("stations and expansion explicitly visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") and scenery.ToolShed:GetAttribute("VisualOnly") and scenery.FutureExpansion:GetAttribute("VisualOnly"))
+	check("microwave works; shed and expansion stay visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery.ToolShed:GetAttribute("VisualOnly") and scenery.FutureExpansion:GetAttribute("VisualOnly"))
 	local center = scenery.GrassFoundation.Position
 	check("neighbor footprint has expansion gap", Config.Farm.separation - Config.Farm.plotSize.X >= 8)
 	walkTo(Vector3.new(center.X, root.Position.Y, center.Z - 27))

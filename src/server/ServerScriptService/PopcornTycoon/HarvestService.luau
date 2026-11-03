@@ -38,13 +38,17 @@ function HarvestService.attempt(player: Player, ownerUserId: unknown, fieldId: u
 	local crop = Config.Crops[field.cropId]
 	if not crop then return result(false, "Invalid crop") end
 	local now = DateTime.now().UnixTimestampMillis / 1000
-	local amount = Growth.yields(stalk.growthStartedAt, now, crop)
-	if amount == 0 then return result(false, "Corn is growing") end
+	local available = Growth.yields(stalk.growthStartedAt, now, crop)
+	if available == 0 then return result(false, "Corn is growing") end
+	local space = Config.Inventory.capacity - State.carried(profile)
+	if space <= 0 then return result(false, "Bag full · pop it at the microwave") end
+	-- Take what fits; backdate the timer so exactly the remainder stays ready.
+	local amount = math.min(available, space)
 	-- No yields between validation, inventory grant, and timer reset.
 	profile.rawCorn[field.cropId] = (profile.rawCorn[field.cropId] or 0) + amount
-	stalk.growthStartedAt = now
+	stalk.growthStartedAt = now - (available - amount) * crop.growthSeconds
 	player:SetAttribute("RawCorn", profile.rawCorn[field.cropId])
-	return result(true, "Harvested", amount)
+	return result(true, if amount < available then "Bag full" else "Harvested", amount)
 end
 
 function HarvestService.release(userId: number)
