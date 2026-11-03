@@ -18,6 +18,19 @@ end
 local player = Players:GetPlayers()[1]
 local fixtureId = -9000001
 local originalPivot: CFrame? = nil
+-- True when two (possibly rotated) plot foundations share any ground.
+local function footprintsOverlap(a: BasePart, b: BasePart): boolean
+	local function cornerInside(from: BasePart, into: BasePart): boolean
+		for _, x in {-0.5, 0.5} do
+			for _, z in {-0.5, 0.5} do
+				local p = into.CFrame:PointToObjectSpace(from.CFrame:PointToWorldSpace(Vector3.new(x * from.Size.X, 0, z * from.Size.Z)))
+				if math.abs(p.X) < into.Size.X / 2 and math.abs(p.Z) < into.Size.Z / 2 then return true end
+			end
+		end
+		return false
+	end
+	return cornerInside(a, b) or cornerInside(b, a)
+end
 
 local ok, err = pcall(function()
 	assert(player and player.Character, "Requires a live player")
@@ -45,7 +58,9 @@ local ok, err = pcall(function()
 	check("profiles do not alias", profile.rawCorn.Normal == before and profile.rawCorn ~= fixture.rawCorn)
 	local ownTarget = assert(Farms.target(player.UserId, "Starter", "1"))
 	local foreignTarget = assert(Farms.target(fixtureId, "Starter", "1"))
-	check("farm slots do not overlap", math.abs(ownTarget.Position.X - foreignTarget.Position.X) >= Config.Farm.separation)
+	local ownGround = workspace.PopcornFarms:FindFirstChild("Farm_" .. tostring(player.UserId)).Scenery.GrassFoundation
+	local foreignGround = workspace.PopcornFarms:FindFirstChild("Farm_" .. tostring(fixtureId)).Scenery.GrassFoundation
+	check("farm slots do not overlap", not footprintsOverlap(ownGround, foreignGround))
 	check("field owners remain distinct", field.ownerUserId == player.UserId and fixture.fields.Starter.ownerUserId == fixtureId)
 	local ownFarm = workspace.PopcornFarms:FindFirstChild("Farm_" .. tostring(player.UserId))
 	check("farm displays owner name", ownFarm ~= nil and ownFarm.Soil.OwnerLabel.OwnerName.Text == player.DisplayName .. "'s cornfield")

@@ -145,7 +145,9 @@ local ok, err = pcall(function()
 	local firstNew = tostring(Config.Starter.rows * Config.Starter.columns + 1)
 	local newTarget = assert(Farms.target(player.UserId, "Starter", firstNew))
 	local lastOld = assert(Farms.target(player.UserId, "Starter", tostring((Config.Starter.rows - 1) * Config.Starter.columns + 1)))
-	check("new row sits behind the old rows, away from the stations", newTarget.Position.Z > lastOld.Position.Z and newTarget.Position.Z > microwave.door.Position.Z)
+	local soil = farm:FindFirstChild("Soil") :: BasePart
+	local function depth(position: Vector3): number return soil.CFrame:PointToObjectSpace(position).Z end
+	check("new row sits behind the old rows, away from the stations", depth(newTarget.Position) > depth(lastOld.Position) and depth(newTarget.Position) > depth(microwave.door.Position))
 	response = Upgrades.buyExtraRow(player, player.UserId)
 	check("second purchase rejected without charge", not response.ok and response.reason == "Already owned" and profile.popcorn == 5)
 	standAt(newTarget.Position + Vector3.new(0, 0, -2))

@@ -9,8 +9,11 @@ local Harvest = require(script.Parent.HarvestService)
 local Conversion = require(script.Parent.ConversionService)
 local Upgrades = require(script.Parent.UpgradeService)
 Config.validate()
+local Map = require(script.Parent.MapVisuals)
+Map.placeSpawn() -- Before the yielding loads below, so early joiners spawn in the right place.
 require(script.Parent.VisualTemplates).load()
 require(script.Parent.EnvironmentVisuals).build()
+Map.build()
 Farms.init()
 
 local remotes = Instance.new("Folder")

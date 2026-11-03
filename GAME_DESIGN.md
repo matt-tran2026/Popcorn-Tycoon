@@ -112,7 +112,11 @@ Prototype presentation should be polished enough to judge the loop. Do not produ
 
 ### Starter field and expansion layout (November 3, 2026)
 
-The creator enlarged the starter field to **6 by 6 (36 stalks)** and fixed the expansion directions. Seen from the entrance: the microwave (left of the entrance path) and tool shed (right of it) stand at the **front** of the farm and **face the field**; the starter field sits behind them; **every expansion goes to the left** of the starter field (the reserved lawn now sits there); **row upgrades add rows toward the back** fence. The entrance path lines up with the field. A future sell stand would fit the gap between the two stations, as in the creator's reference image, but no selling exists yet. The plot footprint grew to 82 by 72 studs with 92-stud slot spacing. The pacing targets below were set for 12 stalks and need re-observing with 36.
+The creator enlarged the starter field to **6 by 6 (36 stalks)** and fixed the expansion directions. Seen from the entrance: the microwave (left of the entrance path) and tool shed (right of it) stand at the **front** of the farm and **face the field**; the starter field sits behind them; **every expansion goes to the left** of the starter field (the reserved lawn now sits there); **row upgrades add rows toward the back** fence. The entrance path lines up with the field. A future sell stand would fit the gap between the two stations, as in the creator's reference image, but no selling exists yet. The plot footprint grew to 82 by 72 studs. The pacing targets below were set for 12 stalks and need re-observing with 36.
+
+### Hub map (November 3, 2026)
+
+The creator chose a hub-and-spoke map: a hexagonal **center island** with a giant popcorn bucket, ring and spoke paths, trees and a welcome sign, joined by six wooden bridges to six **farm islands** in open water. Every farm faces the hub: its entrance meets its bridge, so the stations are the first thing a visitor reaches, the field lies beyond them, and expansions still grow to the visitor's left and rows toward the back (away from the hub). Players spawn on the hub; a sign at each bridge head names that slot's owner or says "Open plot". Unclaimed islands stay as open grass. The water is swimmable terrain over a sand sea floor, framed by a ring of distant hill islands. Six slots means the place's Max Players should be six.
 
 ### Adopted player plot presentation (November 1, 2026)
 

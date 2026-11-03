@@ -16,6 +16,19 @@ local function check(name: string, condition: boolean)
 	table.insert(checks, { name = name, passed = condition })
 	assert(condition, name)
 end
+-- True when two (possibly rotated) plot foundations share any ground.
+local function footprintsOverlap(a: BasePart, b: BasePart): boolean
+	local function cornerInside(from: BasePart, into: BasePart): boolean
+		for _, x in {-0.5, 0.5} do
+			for _, z in {-0.5, 0.5} do
+				local p = into.CFrame:PointToObjectSpace(from.CFrame:PointToWorldSpace(Vector3.new(x * from.Size.X, 0, z * from.Size.Z)))
+				if math.abs(p.X) < into.Size.X / 2 and math.abs(p.Z) < into.Size.Z / 2 then return true end
+			end
+		end
+		return false
+	end
+	return cornerInside(a, b) or cornerInside(b, a)
+end
 local finished = false
 task.delay(40, function()
 	if not finished then TestService:EndTest({ passed = false, error = "Multiplayer test timed out", checks = checks }) end
@@ -33,12 +46,9 @@ local ok, err = pcall(function()
 	check("two owned fields assigned", a.fields.Starter.ownerUserId == first.UserId and b.fields.Starter.ownerUserId == second.UserId)
 	local at = assert(Farms.target(first.UserId, "Starter", "1"))
 	local bt = assert(Farms.target(second.UserId, "Starter", "1"))
-	check("real player farms do not overlap", math.abs(at.Position.X - bt.Position.X) >= Config.Farm.separation)
 	local am = at.Parent :: Model
 	local bm = bt.Parent :: Model
-	local ac, az = am:GetBoundingBox()
-	local bc, bz = bm:GetBoundingBox()
-	check("complete decorated plot bounds do not overlap", math.abs(ac.Position.X - bc.Position.X) > (az.X + bz.X) / 2 + 8)
+	check("real player farms do not overlap", not footprintsOverlap(am.Scenery.GrassFoundation, bm.Scenery.GrassFoundation))
 	local function promptCount(farm: Model): number
 		local count = 0
 		for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") and object.Name == "Harvest" then count += 1 end end

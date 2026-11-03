@@ -4,12 +4,14 @@ local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
 local Types = require(Shared.Types)
 local Visuals = require(script.Parent.FarmVisuals)
+local Map = require(script.Parent.MapVisuals)
 local Templates = require(script.Parent.VisualTemplates)
 
 type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model? }
 export type MicrowaveView = { door: Part, prompt: ProximityPrompt, popping: ParticleEmitter, popcorn: Folder }
+-- Farms are built around the canonical origin (Config.Farm), then `placement` turns them onto their slot.
 type FarmView = {
-	model: Model, field: Types.Field, slot: number, origin: Vector3, stalks: { [string]: StalkView },
+	model: Model, field: Types.Field, slot: number, placement: CFrame, stalks: { [string]: StalkView },
 	microwave: MicrowaveView, rowSign: Part?,
 }
 local farms: { [number]: FarmView } = {}
@@ -122,8 +124,13 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	assert(root and not farms[userId], "Farm lifecycle error")
 	local slot = 0
 	while occupied[slot] do slot += 1 end
+	if slot >= Config.Map.slots then
+		-- Set the place's Max Players to Config.Map.slots so this never happens.
+		warn("[PopcornTycoon] No free farm slot for " .. tostring(userId))
+		return
+	end
 	occupied[slot] = true
-	local origin = Config.Farm.origin + Vector3.new(slot * Config.Farm.separation, 0, 0)
+	local origin = Config.Farm.origin
 	local model = Instance.new("Model")
 	model.Name = "Farm_" .. tostring(userId)
 	model:SetAttribute("OwnerUserId", userId)
@@ -154,17 +161,27 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	end
 	local rowSign = if field.rows < Config.Starter.layoutRows then buildRowSign(model, origin) else nil
 	local microwave = buildMicrowave(model, microwaveFront)
+	local placement = Map.farmFrame(slot)
+	model.WorldPivot = CFrame.identity
+	model:PivotTo(placement)
 	model.Parent = root
-	farms[userId] = { model = model, field = field, slot = slot, origin = origin, stalks = views, microwave = microwave, rowSign = rowSign }
+	Map.setSlotOwner(slot, ownerName or tostring(userId))
+	farms[userId] = { model = model, field = field, slot = slot, placement = placement, stalks = views, microwave = microwave, rowSign = rowSign }
 end
 
 -- Visual counterpart of a committed Extra Row purchase; the profile already holds the stalks.
 function FarmService.plantRow(userId: number, row: number)
 	local farm = assert(farms[userId], "Farm missing")
+	-- Build the row in canonical coordinates, turn it onto the slot, then hand it to the farm.
+	local batch = Instance.new("Model")
 	for col = 1, Config.Starter.columns do
-		local id, view = buildStalk(farm.model, farm.origin, row, col)
+		local id, view = buildStalk(batch, Config.Farm.origin, row, col)
 		farm.stalks[id] = view
 	end
+	batch.WorldPivot = CFrame.identity
+	batch:PivotTo(farm.placement)
+	for _, child in batch:GetChildren() do child.Parent = farm.model end
+	batch:Destroy()
 	if farm.rowSign and farm.field.rows >= Config.Starter.layoutRows then
 		farm.rowSign:Destroy()
 		farm.rowSign = nil
@@ -256,6 +273,7 @@ function FarmService.remove(userId: number)
 	local farm = farms[userId]
 	if farm then
 		farm.model:Destroy()
+		Map.setSlotOwner(farm.slot, nil)
 		occupied[farm.slot], farms[userId] = nil, nil
 	end
 end
