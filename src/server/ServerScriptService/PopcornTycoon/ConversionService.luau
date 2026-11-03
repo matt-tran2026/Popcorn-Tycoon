@@ -61,10 +61,12 @@ local function burst(userId: number, batch: Batch, now: number)
 	local list = pieces[userId] or {}
 	pieces[userId] = list
 	local origin = view.door.Position
+	local facing = view.door.CFrame
 	local microwave = Config.Microwave
 	for i = 1, count do
 		-- Landing spots fan out toward the field; the client animates the arc and the flight.
-		local landing = Vector3.new(origin.X + scatter:NextNumber(-7, 7), 0.9, origin.Z - scatter:NextNumber(1.5, 5))
+		local spot = origin + facing.RightVector * scatter:NextNumber(-7, 7) + facing.LookVector * scatter:NextNumber(1.5, 5)
+		local landing = Vector3.new(spot.X, 0.9, spot.Z)
 		local piece = Instance.new("Part")
 		piece.Name, piece.Shape = "PopcornPiece", Enum.PartType.Ball
 		piece.Size, piece.Position = Vector3.new(1.1, 1.1, 1.1), landing

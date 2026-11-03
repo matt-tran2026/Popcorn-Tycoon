@@ -36,33 +36,48 @@ local ok, err = pcall(function()
 		elseif object:IsA("ProximityPrompt") then prompts[object.Name] = (prompts[object.Name] or 0) + 1
 		elseif object:IsA("LuaSourceContainer") then scripts += 1 end
 	end
-	check("bounded plot geometry and lights", parts <= 400 and lights == 2)
-	check("no decorative scripts; only harvest, microwave and row prompts", scripts == 0 and prompts.Harvest == 12 and prompts.Microwave == 1 and prompts.BuyRow == 1)
+	-- 36 starter stalks (stem, ear, three-part mesh) plus a larger fence; measured 573 on Nov 3 2026.
+	check("bounded plot geometry and lights", parts <= 650 and lights == 2)
+	local starterStalks = Config.Starter.rows * Config.Starter.columns
+	check("no decorative scripts; only harvest, microwave and row prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1)
 	check("no collision obstacles in decorative geometry", obstacles == 0)
 	check("microwave works; shed and expansion stay visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery.ToolShed:GetAttribute("VisualOnly") and scenery.FutureExpansion:GetAttribute("VisualOnly"))
 	local center = scenery.GrassFoundation.Position
+	local soil = farm:FindFirstChild("Soil") :: BasePart
 	check("neighbor footprint has expansion gap", Config.Farm.separation - Config.Farm.plotSize.X >= 8)
-	walkTo(Vector3.new(center.X, root.Position.Y, center.Z - 27))
-	walkTo(Vector3.new(center.X, root.Position.Y, center.Z - 12))
+	-- Layout: stations face the field from the front, the lawn sits left of the field.
+	local door = assert(Farms.microwave(player.UserId)).door
+	local lawn = scenery.FutureExpansion.ReservedGrass :: BasePart
+	local rightVector = Vector3.new(-1, 0, 0) -- Visitor's right when walking in along +Z.
+	check("stations stand in front of the field", door.Position.Z < soil.Position.Z - soil.Size.Z / 2 and scenery.ToolShed:GetPivot().Position.Z < soil.Position.Z - soil.Size.Z / 2)
+	check("microwave faces the field", door.CFrame.LookVector:Dot(Vector3.new(0, 0, 1)) > 0.99)
+	check("expansion lawn is left of the field", (lawn.Position - soil.Position):Dot(rightVector) < -(lawn.Size.X + soil.Size.X) / 2 + 1)
+	local entrance = Vector3.new(soil.Position.X, root.Position.Y, center.Z - Config.Farm.plotSize.Z / 2 - 1)
+	walkTo(entrance)
+	walkTo(Vector3.new(soil.Position.X, root.Position.Y, center.Z - 15))
 	check("spawn to entrance and cross path walkable", true)
 	local profile = assert(State.get(player.UserId))
 	local before, granted = profile.rawCorn.Normal, 0
-	for row = 1, 3 do
-		for step = 1, 4 do
-			local col = if row % 2 == 1 then step else 5 - step
-			local id = tostring((row - 1) * 4 + col)
+	local columns = Config.Starter.columns
+	-- A full 6x6 field can out-yield one bag; start empty and give each stalk exactly one yield.
+	profile.rawCorn.Normal, before = 0, 0
+	for row = 1, Config.Starter.rows do
+		for step = 1, columns do
+			local col = if row % 2 == 1 then step else columns + 1 - step
+			local id = tostring((row - 1) * columns + col)
 			local target = assert(Farms.target(player.UserId, "Starter", id))
 			walkTo(target.Position + Vector3.new(0, 0, -1.8))
 			task.wait(Config.Manual.cooldownSeconds + 0.05)
 			local owner, fieldId, stalkId = Farms.resolve(target.Harvest)
 			check("registered prompt " .. id, owner == player.UserId and fieldId == "Starter" and stalkId == id)
+			profile.fields.Starter.stalks[id].growthStartedAt = DateTime.now().UnixTimestampMillis / 1000 - Config.Crops.Normal.growthSeconds
 			local result = Harvest.attempt(player, owner, fieldId, stalkId)
-			check("walk to and harvest stalk " .. id, result.ok and result.amount >= 1)
+			check("walk to and harvest stalk " .. id, result.ok and result.amount == 1)
 			granted += result.amount
 			Farms.update(DateTime.now().UnixTimestampMillis / 1000)
 		end
 	end
-	check("all twelve harvests credited exactly once", profile.rawCorn.Normal == before + granted and player:GetAttribute("RawCorn") == before + granted)
+	check("every starter harvest credited exactly once", profile.rawCorn.Normal == before + granted and player:GetAttribute("RawCorn") == before + granted)
 end)
 character:PivotTo(pivot)
 script:SetAttribute("Results", game.HttpService:JSONEncode({ passed = ok, error = if ok then nil else tostring(err), checks = checks }))

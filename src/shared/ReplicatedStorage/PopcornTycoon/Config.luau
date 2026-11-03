@@ -8,7 +8,8 @@ local Config = {
 	SchemaVersion = 1,
 	Crops = crops,
 	-- layoutRows reserves bed space for purchasable rows; only `rows` start planted.
-	Starter = { cropId = "Normal", rows = 3, layoutRows = 4, columns = 4, spacing = 5 },
+	-- Row 1 faces the stations at the front; purchased rows extend toward the back fence.
+	Starter = { cropId = "Normal", rows = 6, layoutRows = 7, columns = 6, spacing = 5 },
 	Manual = { range = 10, cooldownSeconds = 0.25 },
 	Inventory = { capacity = 50 },
 	-- Pieces arc out, then fly magnet-style to the owner wherever they are (no range).
@@ -17,9 +18,11 @@ local Config = {
 		landSeconds = 0.7, flySeconds = 0.9, staggerSeconds = 0.08,
 	},
 	Upgrades = { ExtraRow = { displayName = "Extra Row", price = 100, range = 10 } },
+	-- origin is the starter field center; plotOffset leads from it to the plot center.
+	-- The field sits back-right, its expansion lawn back-left, the stations up front.
 	Farm = {
-		origin = Vector3.new(12, 0, 36), separation = 72, size = Vector3.new(22, 0.5, 23),
-		plotSize = Vector3.new(60, 0.5, 54), plotOffset = Vector3.new(-12, 0, 0),
+		origin = Vector3.new(0, 0, 53.5), separation = 92,
+		plotSize = Vector3.new(82, 0.5, 72), plotOffset = Vector3.new(19, 0, -8.5),
 	},
 	VisualUpdateSeconds = 0.25,
 }

@@ -36,7 +36,7 @@ local ok, err = pcall(function()
 	local field = profile.fields.Starter
 	local count = 0
 	for _ in field.stalks do count += 1 end
-	check("twelve individually timed stalks", count == 12 and count == Config.Starter.rows * Config.Starter.columns)
+	check("6x6 individually timed stalks", count == 36 and count == Config.Starter.rows * Config.Starter.columns)
 	local fixture = State.load(fixtureId, DateTime.now().UnixTimestampMillis / 1000)
 	Farms.create(fixtureId, fixture.fields.Starter)
 	check("second profile starts harvestable", Growth.yields(fixture.fields.Starter.stalks["1"].growthStartedAt, DateTime.now().UnixTimestampMillis / 1000, crop) >= 1)

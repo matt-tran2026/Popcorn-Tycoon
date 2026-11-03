@@ -85,7 +85,7 @@ The creator settled D4–D5. All numbers are configurable starting values to tun
 - **Microwave:** one per farm, usable by the owner only. Pressing E loads the whole inventory as one batch: corn leaves the inventory and the reward is fixed at load time. Only one batch cooks at a time; it cooks for 5 seconds with popping effects, and the player may walk away and keep farming. An empty bag gives "No corn to pop" feedback.
 - **Popcorn burst and magnet:** when cooking finishes, the popcorn bursts out of the microwave as a bounded number of pieces. Each piece carries part of the reward. After landing, the pieces fly one after another to the owner like a magnet, **wherever the owner is, with no range limit**, and each is credited when its flight ends (about 2 seconds after the burst). Nobody else can receive them. *(Revised November 2, 2026, by the creator: replaces walking-near pickup and the 30-second auto-collect.)*
 - **No lost popcorn:** if the owner leaves while a batch is cooking or pieces are in flight, the whole remaining reward is credited at once. When persistence arrives (M5), pending batches and pieces must be saved or settled before release.
-- **First upgrade, Extra Row:** a one-time purchase of 100 popcorn that adds a fourth row of four stalks (16 in total) to the existing field, at its rear edge. New stalks start with one ready yield. The microwave station and nearby props shift back to make room. The future-expansion lawn stays **reserved for other corn varieties** and is not used for rows. Repeat rows at rising prices are deferred to the farm-expansion feature.
+- **First upgrade, Extra Row:** a one-time purchase of 100 popcorn that adds a seventh row of six stalks (42 in total) to the existing field, at its back edge, away from the stations. New stalks start with one ready yield. The future-expansion lawn stays **reserved for other corn varieties** and is not used for rows. Repeat rows at rising prices are deferred to the farm-expansion feature; they also extend toward the back fence. *(Revised November 3, 2026, with the 6-by-6 starter field.)*
 - **Pacing targets:** first harvest within about 10 seconds, first conversion within about 1 minute, and Extra Row affordable after about 3 minutes (about two full bags). Record observed times during M3 playtests.
 
 The microwave should visibly and audibly pop corn and clearly report its result. A conversion must consume inputs and grant currency exactly once, including repeated requests, disconnects, and retries. Purchases validate balance, requirements, ownership, and duplicate requests on the server. Prevent negative balances, invalid numeric inputs, and duplicate unlock charges.
@@ -110,7 +110,13 @@ Basic mutations and giant corn are high-priority additions after the complete pr
 
 Prototype presentation should be polished enough to judge the loop. Do not produce a large asset library before validating it.
 
+### Starter field and expansion layout (November 3, 2026)
+
+The creator enlarged the starter field to **6 by 6 (36 stalks)** and fixed the expansion directions. Seen from the entrance: the microwave (left of the entrance path) and tool shed (right of it) stand at the **front** of the farm and **face the field**; the starter field sits behind them; **every expansion goes to the left** of the starter field (the reserved lawn now sits there); **row upgrades add rows toward the back** fence. The entrance path lines up with the field. A future sell stand would fit the gap between the two stations, as in the creator's reference image, but no selling exists yet. The plot footprint grew to 82 by 72 studs with 92-stud slot spacing. The pacing targets below were set for 12 stalks and need re-observing with 36.
+
 ### Adopted player plot presentation (November 1, 2026)
+
+*Superseded in layout by the November 3 section above; kept for history.*
 
 The reusable plot follows the supplied colorful wooden-farm reference: twelve stalks in three walkable rows on the visitor's left, a central dirt/stepping-stone path, a covered microwave display and tool shed at the rear, and a marked future expansion lawn on the right. A ten-stud entrance, owner sign, wooden fences, lanterns, hay, barrels, grass and flowers define the property. Corn gains stage-scaled leaves and rounded yellow ears. Decorative stations display their future/display-only status; no conversion, tool buying, expansion purchases, or additional fields are implemented. There are no prices on placeholder signs.
 

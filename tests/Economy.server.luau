@@ -34,6 +34,7 @@ local ok, err = pcall(function()
 	local crop = Config.Crops[field.cropId]
 	local microwave = assert(Farms.microwave(player.UserId))
 	local away = microwave.door.Position + Vector3.new(0, 0, -40)
+	local function inFront(door: BasePart): Vector3 return door.Position + door.CFrame.LookVector * 3 end
 	-- Start from an empty bag and an idle microwave.
 	Conversion.settle(player.UserId)
 	profile.rawCorn.Normal = 0
@@ -63,7 +64,7 @@ local ok, err = pcall(function()
 	Farms.create(fixtureId, fixture.fields.Starter)
 	local foreign = assert(Farms.microwave(fixtureId))
 	check("farm prompts resolve to their owner", Farms.resolveOwner(foreign.prompt) == fixtureId and Farms.resolveOwner(microwave.prompt) == player.UserId)
-	standAt(foreign.door.Position + Vector3.new(0, 0, -3))
+	standAt(inFront(foreign.door))
 	fixture.rawCorn.Normal = 5
 	response = Conversion.start(player, fixtureId)
 	check("foreign microwave rejected", not response.ok and response.reason == "Not your microwave" and fixture.rawCorn.Normal == 5 and profile.rawCorn.Normal == Config.Inventory.capacity)
@@ -74,7 +75,7 @@ local ok, err = pcall(function()
 	check("out of range microwave rejected", not response.ok and response.reason == "Too far away" and profile.rawCorn.Normal == Config.Inventory.capacity)
 
 	-- Load a full bag.
-	standAt(microwave.door.Position + Vector3.new(0, 0, -3))
+	standAt(inFront(microwave.door))
 	response = Conversion.start(player, player.UserId)
 	local reward = Config.Inventory.capacity * crop.popcornValue
 	check("full bag loads as one batch", response.ok and response.amount == Config.Inventory.capacity and profile.rawCorn.Normal == 0 and player:GetAttribute("RawCorn") == 0)
@@ -86,16 +87,20 @@ local ok, err = pcall(function()
 	local far = microwave.door.Position + Vector3.new(150, 0, -40)
 	standAt(far)
 	check("batch bursts after the cook time", waitFor(function() return #microwave.popcorn:GetChildren() > 0 end, Config.Microwave.cookSeconds + 2))
-	local total = 0
-	for _, piece in microwave.popcorn:GetChildren() do total += piece:GetAttribute("Value") :: number end
+	local total, towardField = 0, 0
+	for _, piece in microwave.popcorn:GetChildren() do
+		total += piece:GetAttribute("Value") :: number
+		if (piece.Position - microwave.door.Position):Dot(microwave.door.CFrame.LookVector) > 1 then towardField += 1 end
+	end
 	check("bounded pieces carry the exact reward", #microwave.popcorn:GetChildren() == math.min(Config.Microwave.pieces, reward) and total == reward)
+	check("burst lands on the field side", towardField == #microwave.popcorn:GetChildren())
 	check("pieces carry staggered flight delays", (microwave.popcorn:GetChildren()[1]:GetAttribute("FlyDelay") :: number) >= 0)
 	check("not paid before the pieces land", profile.popcorn == popcorn0)
 	check("microwave idle after burst", microwave.door:GetAttribute("Cooking") == false and microwave.prompt.ObjectText == "Microwave")
 	local flight = Config.Microwave.landSeconds + Config.Microwave.staggerSeconds * Config.Microwave.pieces + Config.Microwave.flySeconds
 	check("popcorn flies to the owner from far away", waitFor(function() return #microwave.popcorn:GetChildren() == 0 end, flight + 1))
 	check("flight credits exactly the reward once", profile.popcorn == popcorn0 + reward and player:GetAttribute("Popcorn") == profile.popcorn and Conversion.pending(player.UserId) == 0)
-	standAt(microwave.door.Position + Vector3.new(0, 0, -3))
+	standAt(inFront(microwave.door))
 	response = Conversion.start(player, player.UserId)
 	check("empty bag rejected", not response.ok and response.reason:find("No corn") ~= nil)
 
@@ -107,7 +112,7 @@ local ok, err = pcall(function()
 
 	-- Leaving mid-cook credits everything once.
 	profile.rawCorn.Normal = 7
-	standAt(microwave.door.Position + Vector3.new(0, 0, -3))
+	standAt(inFront(microwave.door))
 	check("third batch loads", Conversion.start(player, player.UserId).ok)
 	Conversion.settle(player.UserId)
 	check("settle credits a cooking batch", profile.popcorn == popcorn0 + reward + 17 and Conversion.pending(player.UserId) == 0)
@@ -120,10 +125,10 @@ local ok, err = pcall(function()
 	standAt(sign.Position + Vector3.new(0, -3, 3))
 	profile.popcorn = price - 1
 	response = Upgrades.buyExtraRow(player, player.UserId)
-	check("insufficient popcorn rejected", not response.ok and response.reason:find("Need 1") ~= nil and profile.popcorn == price - 1 and field.rows == 3)
+	check("insufficient popcorn rejected", not response.ok and response.reason:find("Need 1") ~= nil and profile.popcorn == price - 1 and field.rows == Config.Starter.rows)
 	profile.popcorn = price + 5
 	response = Upgrades.buyExtraRow(player, fixtureId)
-	check("foreign row purchase rejected", not response.ok and profile.popcorn == price + 5 and fixture.fields.Starter.rows == 3)
+	check("foreign row purchase rejected", not response.ok and profile.popcorn == price + 5 and fixture.fields.Starter.rows == Config.Starter.rows)
 	standAt(away)
 	response = Upgrades.buyExtraRow(player, player.UserId)
 	check("out of range purchase rejected", not response.ok and response.reason == "Too far away" and profile.popcorn == price + 5)
@@ -133,17 +138,20 @@ local ok, err = pcall(function()
 	for _ in field.stalks do stalks += 1 end
 	local farm = workspace.PopcornFarms:FindFirstChild("Farm_" .. player.UserId) :: Model
 	for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") and object.Name == "Harvest" then prompts += 1 end end
-	check("purchase charges once and plants a row", response.ok and profile.popcorn == 5 and player:GetAttribute("Popcorn") == 5 and profile.upgrades.ExtraRow == true and field.rows == 4)
-	check("sixteen stalks and harvest prompts", stalks == 16 and prompts == 16)
+	check("purchase charges once and plants a row", response.ok and profile.popcorn == 5 and player:GetAttribute("Popcorn") == 5 and profile.upgrades.ExtraRow == true and field.rows == Config.Starter.layoutRows)
+	local planted = Config.Starter.layoutRows * Config.Starter.columns
+	check("extra row adds a row of stalks and harvest prompts", stalks == planted and prompts == planted)
 	check("for-sale sign removed", Farms.rowSign(player.UserId) == nil and farm:FindFirstChild("RowForSale") == nil)
-	local newTarget = assert(Farms.target(player.UserId, "Starter", "13"))
-	check("new row sits behind the old rows", newTarget.Position.Z > assert(Farms.target(player.UserId, "Starter", "9")).Position.Z)
+	local firstNew = tostring(Config.Starter.rows * Config.Starter.columns + 1)
+	local newTarget = assert(Farms.target(player.UserId, "Starter", firstNew))
+	local lastOld = assert(Farms.target(player.UserId, "Starter", tostring((Config.Starter.rows - 1) * Config.Starter.columns + 1)))
+	check("new row sits behind the old rows, away from the stations", newTarget.Position.Z > lastOld.Position.Z and newTarget.Position.Z > microwave.door.Position.Z)
 	response = Upgrades.buyExtraRow(player, player.UserId)
 	check("second purchase rejected without charge", not response.ok and response.reason == "Already owned" and profile.popcorn == 5)
 	standAt(newTarget.Position + Vector3.new(0, 0, -2))
 	task.wait(Config.Manual.cooldownSeconds + 0.05)
 	profile.rawCorn.Normal = 0
-	response = Harvest.attempt(player, player.UserId, "Starter", "13")
+	response = Harvest.attempt(player, player.UserId, "Starter", firstNew)
 	check("new stalks start harvestable", response.ok and response.amount == 1)
 end)
 

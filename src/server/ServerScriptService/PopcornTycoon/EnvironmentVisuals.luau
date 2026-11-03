@@ -21,7 +21,8 @@ function Environment.build()
   Templates.clone("Oak", root, Vector3.new(x,0,z), random:NextNumber(18,28))
   if i%4==0 then task.wait() end
  end
- for _,x in {-45,45} do
+ -- Frame the first plot entrance (spawn faces it) without crowding its front fence.
+ for _,x in {-32,65} do
   Templates.clone("Oak", root, Vector3.new(x,0,5), 23)
  end
  -- A bounded, non-interactive stream behind the plots gives the background depth.

@@ -44,16 +44,17 @@ local ok, err = pcall(function()
 		for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") and object.Name == "Harvest" then count += 1 end end
 		return count
 	end
-	check("both plots retain twelve harvest prompts", promptCount(am) == 12 and promptCount(bm) == 12)
+	local starterStalks = Config.Starter.rows * Config.Starter.columns
+	check("both plots retain every starter harvest prompt", promptCount(am) == starterStalks and promptCount(bm) == starterStalks)
 	local aMicrowave = assert(Farms.microwave(first.UserId))
-	second.Character:PivotTo(CFrame.new(aMicrowave.door.Position + Vector3.new(0, 0, -3)))
+	second.Character:PivotTo(CFrame.new(aMicrowave.door.Position + aMicrowave.door.CFrame.LookVector * 3))
 	b.rawCorn.Normal = 4
 	local converted = Conversion.start(second, first.UserId)
 	check("second player cannot use first microwave", not converted.ok and b.rawCorn.Normal == 4 and Conversion.pending(first.UserId) == 0)
 	b.popcorn = Config.Upgrades.ExtraRow.price
 	second.Character:PivotTo(CFrame.new(assert(Farms.rowSign(first.UserId)).Position + Vector3.new(0, -3, 3)))
 	local bought = Upgrades.buyExtraRow(second, first.UserId)
-	check("second player cannot buy first farm's row", not bought.ok and b.popcorn == Config.Upgrades.ExtraRow.price and a.fields.Starter.rows == 3)
+	check("second player cannot buy first farm's row", not bought.ok and b.popcorn == Config.Upgrades.ExtraRow.price and a.fields.Starter.rows == Config.Starter.rows)
 	b.rawCorn.Normal, b.popcorn = 0, 0
 	first.Character:PivotTo(CFrame.new(bt.Position + Vector3.new(0, 2, -2)))
 	local response = Harvest.attempt(first, second.UserId, "Starter", "1")

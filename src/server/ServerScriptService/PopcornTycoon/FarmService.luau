@@ -90,10 +90,10 @@ local function buildRowSign(model: Model, origin: Vector3): Part
 	return board
 end
 
-local function buildMicrowave(model: Model, origin: Vector3): MicrowaveView
-	-- Invisible interaction anchor in front of the kiosk (mesh or primitive fallback).
-	local center = origin + Config.Farm.plotOffset
-	local door = part("MicrowaveDoor", Vector3.new(4, 4, 1), center + Vector3.new(4, 3.5, 16), Color3.new(1, 1, 1), model)
+local function buildMicrowave(model: Model, front: CFrame): MicrowaveView
+	-- Invisible interaction anchor on the field-facing side of the kiosk; LookVector points at the field.
+	local door = part("MicrowaveDoor", Vector3.new(4, 4, 1), front.Position, Color3.new(1, 1, 1), model)
+	door.CFrame = front
 	door.Transparency, door.CanQuery = 1, false
 	local pop = prompt("Microwave", "Pop corn", "Microwave", Config.Microwave.range, door)
 	local popping = Instance.new("ParticleEmitter")
@@ -128,9 +128,10 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	model.Name = "Farm_" .. tostring(userId)
 	model:SetAttribute("OwnerUserId", userId)
 	model:SetAttribute("FieldId", field.id)
-	local soil = part("Soil", Config.Farm.size, origin, Color3.fromRGB(100, 66, 41), model)
+	local s = Config.Starter
+	local soil = part("Soil", Vector3.new(s.columns * s.spacing + 2, 0.5, s.layoutRows * s.spacing + 3), origin, Color3.fromRGB(100, 66, 41), model)
 	soil.Material = Enum.Material.Ground
-	local ownerBoard = Visuals.build(model, origin, ownerName or tostring(userId))
+	local ownerBoard, microwaveFront = Visuals.build(model, origin, ownerName or tostring(userId))
 	local ownerLabel = Instance.new("BillboardGui")
 	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", ownerBoard
 	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 3, 0)
@@ -152,7 +153,7 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 		end
 	end
 	local rowSign = if field.rows < Config.Starter.layoutRows then buildRowSign(model, origin) else nil
-	local microwave = buildMicrowave(model, origin)
+	local microwave = buildMicrowave(model, microwaveFront)
 	model.Parent = root
 	farms[userId] = { model = model, field = field, slot = slot, origin = origin, stalks = views, microwave = microwave, rowSign = rowSign }
 end
