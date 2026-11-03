@@ -121,6 +121,11 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 
 	local fence = model("PerimeterFence", scenery)
 	local function fenceRun(a: Vector3, b: Vector3, segments: number)
+		-- Spaced rails read as ladder rungs to Humanoids, which then climb them; an invisible
+		-- wall along the run keeps the fence a barrier (a full jump still clears it).
+		local barrier = part(fence, "FenceBarrier", Vector3.new((b - a).Magnitude, 4.2, 0.6), (a + b) / 2 + Vector3.new(0, 2.1, 0), colors.wood)
+		barrier.Transparency, barrier.CanCollide = 1, true
+		if math.abs(b.Z - a.Z) > 0 then barrier.Orientation = Vector3.new(0, 90, 0) end
 		for i = 0, segments do
 			local pos = a:Lerp(b, i / segments)
 			wood(fence, "Post", Vector3.new(0.85, 4.2, 0.85), pos + Vector3.new(0, 2, 0))

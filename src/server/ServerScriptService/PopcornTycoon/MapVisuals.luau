@@ -3,7 +3,7 @@
 -- bridge-head signs naming each slot's owner. Static scenery generated once; the only
 -- runtime change is setSlotOwner. Farms themselves are built by FarmService.
 local Config = require(game.ReplicatedStorage.PopcornTycoon.Config)
-local Templates = require(script.Parent.VisualTemplates)
+local Brick = require(script.Parent.BrickStyle)
 local MapVisuals = {}
 local colors = {
 	grass = Color3.fromRGB(115, 174, 65), sand = Color3.fromRGB(222, 196, 140),
@@ -59,7 +59,8 @@ end
 local function hexagon(parent: Instance, name: string, apothem: number, top: number, height: number, color: Color3, material: Enum.Material)
 	local side = 2 * apothem / math.sqrt(3)
 	for i = 0, 2 do
-		local cframe = CFrame.new(Config.Map.center + Vector3.new(0, top - height / 2, 0)) * CFrame.Angles(0, angle(i), 0)
+		-- Tops step down by a hair so the overlapping stud textures never z-fight.
+		local cframe = CFrame.new(Config.Map.center + Vector3.new(0, top - i * 0.03 - height / 2, 0)) * CFrame.Angles(0, angle(i), 0)
 		part(parent, name, Vector3.new(side, height, apothem * 2), cframe, color, material, true)
 	end
 end
@@ -91,7 +92,7 @@ local function buildHub(root: Model)
 		slotSigns[slot] = lettering(board, "Open plot")
 		-- Scenery between the spokes.
 		local between = CFrame.new(center) * CFrame.Angles(0, angle(slot) + math.pi / map.slots, 0)
-		Templates.clone("Oak", hub, (between * CFrame.new(0, 0, a - 11)).Position, 17 + (slot % 3) * 2)
+		Brick.tree(hub, (between * CFrame.new(0, 0, a - 11)).Position, 17 + (slot % 3) * 2, 900 + slot)
 		local bale = between * CFrame.new(-6, 0.9, a - 20) * CFrame.Angles(0, math.rad(20), 0)
 		part(hub, "HayBale", Vector3.new(4, 1.8, 2.7), bale, colors.gold, Enum.Material.Fabric)
 		for _, x in {-1.2, 1.2} do part(hub, "BaleBinding", Vector3.new(0.18, 1.85, 2.75), bale * CFrame.new(x, 0, 0), colors.trim) end
@@ -157,6 +158,8 @@ function MapVisuals.build()
 	root.Name = "PopcornMap"
 	buildHub(root)
 	buildBridgesAndIslands(root)
+	-- Studded brick finish; signs, lanterns, rocks, bales and the bucket become solid.
+	Brick.finish(root, Config.Map.center.Y)
 	root.Parent = workspace
 end
 

@@ -6,6 +6,7 @@ local Types = require(Shared.Types)
 local Visuals = require(script.Parent.FarmVisuals)
 local Map = require(script.Parent.MapVisuals)
 local Templates = require(script.Parent.VisualTemplates)
+local Brick = require(script.Parent.BrickStyle)
 
 type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model? }
 export type MicrowaveView = { door: Part, prompt: ProximityPrompt, popping: ParticleEmitter, popcorn: Folder }
@@ -92,6 +93,10 @@ local function buildRowSign(model: Model, origin: Vector3): Part
 	lettering(board, "FOR SALE\n" .. upgrade.displayName .. " · " .. tostring(upgrade.price) .. " " .. string.lower(upgrade.currency))
 	prompt("BuyRow", "Buy " .. upgrade.displayName, tostring(upgrade.price) .. " " .. string.lower(upgrade.currency), upgrade.range, board)
 	post.Parent = board -- Removing the board removes the whole sign.
+	for _, piece in { post, board } do
+		piece.CanCollide = true
+		Brick.studs(piece)
+	end
 	return board
 end
 
@@ -126,7 +131,7 @@ end
 local function buildSoil(model: Model, origin: Vector3): Part
 	local s = Config.Starter
 	local soil = part("Soil", Vector3.new(s.columns * s.spacing + 2, 0.5, s.layoutRows * s.spacing + 3), origin, Color3.fromRGB(100, 66, 41), model)
-	soil.Material = Enum.Material.Ground
+	Brick.studs(soil)
 	return soil
 end
 
@@ -139,6 +144,7 @@ local function buildOpenPlot(slot: number)
 	model:SetAttribute("Slot", slot)
 	buildSoil(model, origin)
 	Visuals.build(model, origin, nil)
+	Brick.finish(model:FindFirstChild("Scenery") :: Model, origin.Y)
 	for row = 1, Config.Starter.rows do
 		for col = 1, Config.Starter.columns do
 			local pos = stalkPosition(origin, row, col)
@@ -193,6 +199,8 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	model:SetAttribute("FieldId", field.id)
 	local soil = buildSoil(model, origin)
 	local ownerBoard, microwaveFront, shedFront, sellFront = Visuals.build(model, origin, ownerName or tostring(userId))
+	-- Brick look and solid decorations; crops and prompts are built outside Scenery and stay passable.
+	Brick.finish(model:FindFirstChild("Scenery") :: Model, origin.Y)
 	local ownerLabel = Instance.new("BillboardGui")
 	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", ownerBoard
 	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 3, 0)
