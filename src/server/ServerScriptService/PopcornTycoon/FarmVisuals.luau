@@ -22,7 +22,8 @@ end
 -- the starter field behind them on the right, its expansion lawn on the left.
 -- Purchased rows extend the field toward the back fence.
 -- Returns the owner sign and the microwave's field-facing interaction frame.
-function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): (BasePart, CFrame)
+-- A nil ownerName builds an unclaimed plot's sign.
+function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (BasePart, CFrame)
 	local center = origin + Config.Farm.plotOffset
 	local scenery = model("Scenery", farm)
 	-- Mirror X so +X in these coordinates is the visitor's right when entering from -Z.
@@ -144,7 +145,7 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string): (Ba
 	fenceRun(Vector3.new(gateX + 5, 0, -fenceZ), Vector3.new(fenceX, 0, -fenceZ), 2)
 	lantern(fence, Vector3.new(gateX - 5, 3, -fenceZ - 0.8), true)
 	lantern(fence, Vector3.new(gateX + 5, 3, -fenceZ - 0.8), true)
-	local ownerBoard = sign(fence, "OwnerSign", Vector3.new(gateX - 15, 3, -fenceZ - 0.5), Vector3.new(13, 2.6, 0.5), ownerName .. "'s Farm")
+	local ownerBoard = sign(fence, "OwnerSign", Vector3.new(gateX - 15, 3, -fenceZ - 0.5), Vector3.new(13, 2.6, 0.5), if ownerName then ownerName .. "'s Farm" else "Open Farm")
 
 	-- Every future expansion grows on the left of the starter field.
 	local expansion = model("FutureExpansion", scenery)

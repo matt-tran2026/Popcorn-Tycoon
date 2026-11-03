@@ -115,5 +115,6 @@ State.release(fixtureId)
 Harvest.release(fixtureId)
 if player and player.Character and originalPivot then player.Character:PivotTo(originalPivot) end
 check("fixture cleanup", State.get(fixtureId) == nil and workspace.PopcornFarms:FindFirstChild("Farm_" .. tostring(fixtureId)) == nil)
+check("freed slot shows a starter farm again", #workspace.PopcornOpenPlots:GetChildren() + #workspace.PopcornFarms:GetChildren() == Config.Map.slots)
 script:SetAttribute("Results", Http:JSONEncode({ passed = ok, error = if ok then nil else tostring(err), checks = results }))
 print("[PopcornTycoon tests] " .. (if ok then "PASS " else "FAIL ") .. tostring(#results) .. " checks")

@@ -74,6 +74,15 @@ local ok, err = pcall(function()
 		if text and text.Text == player.DisplayName .. "'s Farm" then named = true end
 	end
 	check("hub sign names the farm owner", named)
+	-- Every free slot shows starter-farm scenery with nothing to interact with.
+	local openPlots = workspace.PopcornOpenPlots:GetChildren()
+	local interactive = 0
+	for _, plot in openPlots do
+		for _, object in plot:GetDescendants() do
+			if object:IsA("ProximityPrompt") or object:IsA("LuaSourceContainer") then interactive += 1 end
+		end
+	end
+	check("open slots show starter farms without prompts", #openPlots + #workspace.PopcornFarms:GetChildren() == Config.Map.slots and interactive == 0)
 	character:PivotTo(assert(workspace:FindFirstChildOfClass("SpawnLocation")).CFrame + Vector3.new(0, 4, 0))
 	task.wait(0.5)
 	walkPath(entrance - (entrance - hubCenter).Unit * 2 + Vector3.new(0, root.Position.Y - entrance.Y, 0))

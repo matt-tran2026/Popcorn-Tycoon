@@ -17,6 +17,9 @@ type FarmView = {
 local farms: { [number]: FarmView } = {}
 local occupied: { [number]: boolean } = {}
 local root: Folder? = nil
+-- Unclaimed slots show a fresh starter farm as scenery so the map always looks lived in.
+local openPlots: { [number]: Model } = {}
+local openRoot: Folder? = nil
 local FarmService = {}
 
 local function part(name: string, size: Vector3, position: Vector3, color: Color3, parent: Instance): Part
@@ -111,6 +114,38 @@ local function buildMicrowave(model: Model, front: CFrame): MicrowaveView
 	return { door = door, prompt = pop, popping = popping, popcorn = popcorn }
 end
 
+local function buildSoil(model: Model, origin: Vector3): Part
+	local s = Config.Starter
+	local soil = part("Soil", Vector3.new(s.columns * s.spacing + 2, 0.5, s.layoutRows * s.spacing + 3), origin, Color3.fromRGB(100, 66, 41), model)
+	soil.Material = Enum.Material.Ground
+	return soil
+end
+
+-- What a new player's farm looks like on arrival (ripe starter corn, stations, lawn), with
+-- no prompts, purchase sign, player state or growth updates. Replaced when the slot is claimed.
+local function buildOpenPlot(slot: number)
+	local origin = Config.Farm.origin
+	local model = Instance.new("Model")
+	model.Name = "OpenPlot_" .. tostring(slot)
+	model:SetAttribute("Slot", slot)
+	buildSoil(model, origin)
+	Visuals.build(model, origin, nil)
+	for row = 1, Config.Starter.rows do
+		for col = 1, Config.Starter.columns do
+			local pos = stalkPosition(origin, row, col)
+			-- Same height FarmService.update gives a ripe stalk's mesh.
+			if not Templates.clone("Corn", model, Vector3.new(pos.X, origin.Y + 0.25, pos.Z), 4.5 * 1.4) then
+				part("Stalk", Vector3.new(0.6, 4.5, 0.6), pos, Color3.fromRGB(68, 148, 56), model)
+				part("Ear", Vector3.new(0.9, 1.5, 0.9), pos + Vector3.new(0.4, 0.6, 0), Color3.fromRGB(255, 211, 63), model).Shape = Enum.PartType.Ball
+			end
+		end
+	end
+	model.WorldPivot = CFrame.identity
+	model:PivotTo(Map.farmFrame(slot))
+	model.Parent = openRoot
+	openPlots[slot] = model
+end
+
 function FarmService.init()
 	assert(root == nil, "FarmService already initialized")
 	assert(not workspace:FindFirstChild("PopcornFarms"), "Refusing to replace existing farms")
@@ -118,6 +153,14 @@ function FarmService.init()
 	folder.Name = "PopcornFarms"
 	folder.Parent = workspace
 	root = folder
+	local open = Instance.new("Folder")
+	open.Name = "PopcornOpenPlots"
+	open.Parent = workspace
+	openRoot = open
+	for slot = 0, Config.Map.slots - 1 do
+		buildOpenPlot(slot)
+		task.wait() -- Spread the six builds across frames; players already joined are created afterwards.
+	end
 end
 
 function FarmService.create(userId: number, field: Types.Field, ownerName: string?)
@@ -130,14 +173,16 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 		return
 	end
 	occupied[slot] = true
+	if openPlots[slot] then
+		openPlots[slot]:Destroy()
+		openPlots[slot] = nil
+	end
 	local origin = Config.Farm.origin
 	local model = Instance.new("Model")
 	model.Name = "Farm_" .. tostring(userId)
 	model:SetAttribute("OwnerUserId", userId)
 	model:SetAttribute("FieldId", field.id)
-	local s = Config.Starter
-	local soil = part("Soil", Vector3.new(s.columns * s.spacing + 2, 0.5, s.layoutRows * s.spacing + 3), origin, Color3.fromRGB(100, 66, 41), model)
-	soil.Material = Enum.Material.Ground
+	local soil = buildSoil(model, origin)
 	local ownerBoard, microwaveFront = Visuals.build(model, origin, ownerName or tostring(userId))
 	local ownerLabel = Instance.new("BillboardGui")
 	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", ownerBoard
@@ -275,6 +320,7 @@ function FarmService.remove(userId: number)
 		farm.model:Destroy()
 		Map.setSlotOwner(farm.slot, nil)
 		occupied[farm.slot], farms[userId] = nil, nil
+		buildOpenPlot(farm.slot)
 	end
 end
 
