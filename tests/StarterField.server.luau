@@ -83,10 +83,11 @@ local ok, err = pcall(function()
 	check("out of range rejected", not response.ok and response.reason == "Too far away")
 	task.wait(Config.Manual.cooldownSeconds + 0.05)
 	player.Character:PivotTo(CFrame.new(ownTarget.Position + Vector3.new(0, 2, -2)))
-	profile.equippedTool = "Unowned"
+	-- Hand picking works whatever is held (Nov 3 2026), but still needs the owned Manual tool.
+	profile.ownedTools.Manual = false
 	response = Harvest.attempt(player, player.UserId, "Starter", "1")
-	profile.equippedTool = "Manual"
-	check("invalid equipped tool rejected", not response.ok and response.reason == "Manual tool required")
+	profile.ownedTools.Manual = true
+	check("hand picking without the Manual tool rejected", not response.ok and response.reason == "Manual tool required")
 	task.wait(Config.Manual.cooldownSeconds + 0.05)
 	field.stalks["1"].growthStartedAt = DateTime.now().UnixTimestampMillis / 1000 - crop.growthSeconds * 20
 	Farms.update(DateTime.now().UnixTimestampMillis / 1000)

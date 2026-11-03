@@ -48,12 +48,13 @@ local ok, err = pcall(function()
 		elseif object:IsA("ProximityPrompt") then prompts[object.Name] = (prompts[object.Name] or 0) + 1
 		elseif object:IsA("LuaSourceContainer") then scripts += 1 end
 	end
-	-- 36 starter stalks (stem, ear, three-part mesh) plus a larger fence; measured 573 on Nov 3 2026.
+	-- 36 starter stalks (stem, ear, three-part mesh) plus a larger fence; measured 573 on Nov 3 2026,
+	-- 628 after the sell stand, shed/stand anchors and the sickle display.
 	check("bounded plot geometry and lights", parts <= 650 and lights == 2)
 	local starterStalks = Config.Starter.rows * Config.Starter.columns
-	check("no decorative scripts; only harvest, microwave and row prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1)
+	check("no decorative scripts; only harvest, microwave, row, sell and tool prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1 and prompts.Sell == 1 and prompts.BuyTool == 1)
 	check("no collision obstacles in decorative geometry", obstacles == 0)
-	check("microwave works; shed and expansion stay visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery.ToolShed:GetAttribute("VisualOnly") and scenery.FutureExpansion:GetAttribute("VisualOnly"))
+	check("microwave, shed and sell stand work; expansion stays visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery.ToolShed:GetAttribute("VisualOnly") == false and scenery.SellStand:GetAttribute("VisualOnly") == false and scenery.FutureExpansion:GetAttribute("VisualOnly"))
 	local soil = farm:FindFirstChild("Soil") :: BasePart
 	-- Layout in the farm's own frame (soil +Z points from the stations toward the back fence;
 	-- +X is the visitor's left): stations face the field from the front, the lawn sits left.

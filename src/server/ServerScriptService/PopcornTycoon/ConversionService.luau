@@ -27,6 +27,16 @@ local function setStatus(userId: number, text: string, cooking: boolean)
 	view.door:SetAttribute("Cooking", cooking)
 end
 
+-- Batch state for the owner's HUD: "Popping" (with corn and whole seconds left), "Landing"
+-- while popcorn flies to them, else "Idle". Presentation only; the batch tables stay authoritative.
+local function publishBatch(userId: number, state: string, corn: number, seconds: number)
+	local player = game:GetService("Players"):GetPlayerByUserId(userId)
+	if not player then return end
+	player:SetAttribute("BatchState", state)
+	player:SetAttribute("BatchCorn", corn)
+	player:SetAttribute("BatchSeconds", seconds)
+end
+
 function ConversionService.start(player: Player, ownerUserId: unknown): Types.ActionResult
 	if typeof(ownerUserId) ~= "number" or ownerUserId ~= player.UserId then return result(false, "Not your microwave") end
 	local profile = State.get(player.UserId)
@@ -50,6 +60,7 @@ function ConversionService.start(player: Player, ownerUserId: unknown): Types.Ac
 	local now = DateTime.now().UnixTimestampMillis / 1000 -- Same clock as update().
 	batches[player.UserId] = { reward = reward, corn = corn, readyAt = now + Config.Microwave.cookSeconds }
 	setStatus(player.UserId, "Popping… " .. tostring(math.ceil(Config.Microwave.cookSeconds)) .. "s", true)
+	publishBatch(player.UserId, "Popping", corn, math.ceil(Config.Microwave.cookSeconds))
 	return result(true, "Popping", corn)
 end
 
@@ -90,8 +101,10 @@ function ConversionService.update(now: number): { [number]: number }
 			batches[userId] = nil
 			burst(userId, batch, now)
 			setStatus(userId, "Microwave", false)
+			publishBatch(userId, "Landing", batch.corn, 0)
 		else
 			setStatus(userId, "Popping… " .. tostring(math.ceil(batch.readyAt - now)) .. "s", true)
+			publishBatch(userId, "Popping", batch.corn, math.ceil(batch.readyAt - now))
 		end
 	end
 	for userId, list in pieces do
@@ -104,7 +117,10 @@ function ConversionService.update(now: number): { [number]: number }
 				collected[userId] = (collected[userId] or 0) + piece.value
 			end
 		end
-		if #list == 0 then pieces[userId] = nil end
+		if #list == 0 then
+			pieces[userId] = nil
+			if not batches[userId] then publishBatch(userId, "Idle", 0, 0) end
+		end
 	end
 	return collected
 end
@@ -123,6 +139,7 @@ function ConversionService.settle(userId: number)
 	batches[userId] = nil
 	for _, piece in pieces[userId] or {} do piece.part:Destroy() end
 	pieces[userId] = nil
+	publishBatch(userId, "Idle", 0, 0)
 	if total > 0 and State.get(userId) then State.creditPopcorn(userId, total) end
 end
 

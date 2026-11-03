@@ -8,6 +8,8 @@ local Farms = require(script.Parent.FarmService)
 local Harvest = require(script.Parent.HarvestService)
 local Conversion = require(script.Parent.ConversionService)
 local Upgrades = require(script.Parent.UpgradeService)
+local Sell = require(script.Parent.SellService)
+local Tools = require(script.Parent.ToolService)
 Config.validate()
 local Map = require(script.Parent.MapVisuals)
 Map.placeSpawn() -- Before the yielding loads below, so early joiners spawn in the right place.
@@ -25,13 +27,27 @@ feedback.Parent = remotes
 local notice = Instance.new("RemoteEvent")
 notice.Name = "ActionResult"
 notice.Parent = remotes
+-- Shop menu: (action "Buy" | "Equip", toolId). Answered on ActionResult as "Tool"/"Equip".
+local shop = Instance.new("RemoteEvent")
+shop.Name = "ShopRequest"
+shop.Parent = remotes
 remotes.Parent = Shared
+Tools.init(feedback)
+shop.OnServerEvent:Connect(function(player: Player, action: unknown, toolId: unknown)
+	local response = Tools.request(player, action, toolId)
+	if response then notice:FireClient(player, if action == "Equip" then "Equip" else "Tool", response) end
+end)
 
 local function joined(player: Player)
 	local profile = State.load(player.UserId, DateTime.now().UnixTimestampMillis / 1000)
 	Farms.create(player.UserId, profile.fields.Starter, player.DisplayName)
 	player:SetAttribute("RawCorn", 0)
-	player:SetAttribute("Popcorn", profile.popcorn)
+	player:SetAttribute("BatchState", "Idle")
+	State.publish(player.UserId)
+	-- Every balance change (popcorn landing, purchases, sales) refreshes the stand's payout.
+	player:GetAttributeChangedSignal("Popcorn"):Connect(function() Sell.refresh(player.UserId) end)
+	Sell.refresh(player.UserId)
+	Tools.track(player)
 	Farms.update(DateTime.now().UnixTimestampMillis / 1000)
 end
 
@@ -39,6 +55,7 @@ Players.PlayerAdded:Connect(joined)
 Players.PlayerRemoving:Connect(function(player)
 	Conversion.settle(player.UserId) -- Credit in-flight popcorn before the profile goes.
 	Harvest.release(player.UserId)
+	Tools.release(player.UserId)
 	Farms.remove(player.UserId)
 	State.release(player.UserId)
 end)
@@ -51,11 +68,16 @@ Prompts.PromptTriggered:Connect(function(prompt: ProximityPrompt, player: Player
 		local response = Harvest.attempt(player, owner, fieldId, stalkId)
 		if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
 		feedback:FireClient(player, response)
-	elseif prompt.Name == "Microwave" or prompt.Name == "BuyRow" then
+	elseif prompt.Name == "Microwave" or prompt.Name == "BuyRow" or prompt.Name == "Sell" or prompt.Name == "BuyTool" then
 		local owner = Farms.resolveOwner(prompt)
 		if owner == nil then return end
 		if prompt.Name == "Microwave" then
 			notice:FireClient(player, "Microwave", Conversion.start(player, owner))
+		elseif prompt.Name == "Sell" then
+			notice:FireClient(player, "Sell", Sell.sell(player, owner))
+		elseif prompt.Name == "BuyTool" then
+			local holder = prompt.Parent
+			notice:FireClient(player, "Tool", Tools.buy(player, owner, if holder then holder:GetAttribute("ToolId") else nil))
 		else
 			local response = Upgrades.buyExtraRow(player, owner)
 			if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
@@ -75,4 +97,4 @@ task.spawn(function()
 		end
 	end
 end)
-print("[PopcornTycoon] Farm ready with microwave (in-memory; progression resets on leave).")
+print("[PopcornTycoon] Farm ready with microwave, sell stand and sickle (in-memory; progression resets on leave).")

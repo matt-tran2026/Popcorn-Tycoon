@@ -25,15 +25,18 @@ function UpgradeService.buyExtraRow(player: Player, ownerUserId: unknown): Types
 	if not sign or not root or not root:IsA("BasePart") then return result(false, "Character unavailable") end
 	local distance = (root.Position - sign.Position).Magnitude
 	if distance ~= distance or distance > upgrade.range + 2 then return result(false, "Too far away") end
-	if profile.popcorn < upgrade.price then
-		return result(false, "Need " .. tostring(upgrade.price - profile.popcorn) .. " more popcorn")
+	-- Paid from the configured balance (Coins since Nov 3 2026).
+	local short = upgrade.price - State.balance(profile, upgrade.currency)
+	if short > 0 then
+		local hint = if upgrade.currency == "Coins" then " · sell popcorn at the stand" else ""
+		return result(false, "Need " .. tostring(short) .. " more " .. string.lower(upgrade.currency) .. hint)
 	end
 	-- No yields between the checks above and this commit.
-	profile.popcorn -= upgrade.price
+	assert(State.spend(profile, upgrade.currency, upgrade.price))
 	profile.upgrades.ExtraRow = true
 	field.rows += 1
 	State.plantRow(field, field.rows, DateTime.now().UnixTimestampMillis / 1000)
-	player:SetAttribute("Popcorn", profile.popcorn)
+	State.publish(player.UserId)
 	Farms.plantRow(player.UserId, field.rows)
 	return result(true, upgrade.displayName .. " planted!", upgrade.price)
 end

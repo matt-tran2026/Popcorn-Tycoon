@@ -3,6 +3,7 @@
 -- No gameplay state, interactions, per-prop scripts, or background tasks belong here.
 local Config = require(game.ReplicatedStorage.PopcornTycoon.Config)
 local Templates = require(script.Parent.VisualTemplates)
+local ToolModels = require(script.Parent.ToolModels)
 local FarmVisuals = {}
 local colors = {
 	grass = Color3.fromRGB(115, 174, 65), leaf = Color3.fromRGB(77, 143, 49),
@@ -21,9 +22,10 @@ end
 -- Layout, viewed from the entrance (-Z): stations across the front facing the field,
 -- the starter field behind them on the right, its expansion lawn on the left.
 -- Purchased rows extend the field toward the back fence.
--- Returns the owner sign and the microwave's field-facing interaction frame.
+-- Returns the owner sign and the field-facing interaction frames of the microwave,
+-- tool shed and sell stand (FarmService puts the prompts there).
 -- A nil ownerName builds an unclaimed plot's sign.
-function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (BasePart, CFrame)
+function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (BasePart, CFrame, CFrame, CFrame)
 	local center = origin + Config.Farm.plotOffset
 	local scenery = model("Scenery", farm)
 	-- Mirror X so +X in these coordinates is the visitor's right when entering from -Z.
@@ -181,10 +183,11 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 	lantern(station, m(-5, 5.5, -2), false)
 	lantern(station, m(5, 5.5, -2), false)
 
-	-- The display-only tool shed stands right of the entrance path.
+	-- The tool shed, right of the entrance path, sells tools (prompt lives in FarmService).
 	local shedAnchor = Vector3.new(gateX + 12, 0, stationZ)
+	local sellAnchor = Vector3.new(gateX - 28, 0, stationZ)
 	local shed = model("ToolShed", scenery)
-	shed:SetAttribute("VisualOnly", true)
+	shed:SetAttribute("VisualOnly", false)
 	local function t(x: number, y: number, z: number): Vector3 return shedAnchor + Vector3.new(x, y, z) end
 	wood(shed, "Floor", Vector3.new(13, 0.4, 9), t(0, 0.25, 0))
 	for i = 0, 10 do wood(shed, "BackPlank_" .. i, Vector3.new(1.1, 7.6, 0.45), t(-6 + i * 1.2, 4, 4), i % 3 == 0) end
@@ -198,7 +201,7 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 	end
 	wood(shed, "RidgeBeam", Vector3.new(0.5, 0.5, 10.7), t(0, 10.25, 0), true)
 	sign(shed, "ToolSign", t(0, 7.2, -4.4), Vector3.new(10, 1.7, 0.5), "TOOL SHED", true)
-	sign(shed, "DisplayOnly", t(0, 1.4, -4.4), Vector3.new(9, 1, 0.4), "Future tools · display only")
+	sign(shed, "ToolPrice", t(0, 1.4, -4.4), Vector3.new(9, 1, 0.4), Config.Tools.Sickle.displayName .. " · " .. tostring(Config.Tools.Sickle.price) .. " coins")
 	wood(shed, "DisplayBench", Vector3.new(10, 0.35, 2), t(0, 2.4, 1))
 	for i = 1, 3 do
 		local x = -7 + i * 3.5
@@ -209,8 +212,38 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 		elseif i == 3 then part(shed, "Spade", Vector3.new(1.2, 1, 0.2), t(x, 5.6, 1), colors.metal) end
 	end
 
+	-- The sell stand: a little theater-style popcorn cart left of the microwave, so selling
+	-- is the next stop after popping. Interaction lives in FarmService/SellService.
+	local stand = model("SellStand", scenery)
+	stand:SetAttribute("VisualOnly", false)
+	local function c(x: number, y: number, z: number): Vector3 return sellAnchor + Vector3.new(x, y, z) end
+	local cream, red = Color3.fromRGB(255, 240, 209), Color3.fromRGB(217, 76, 58)
+	wood(stand, "Counter", Vector3.new(8, 0.5, 3.6), c(0, 3, 0))
+	part(stand, "CounterFront", Vector3.new(8, 2.7, 0.3), c(0, 1.5, -1.65), red, Enum.Material.Wood)
+	for i = -3, 3, 2 do part(stand, "FrontStripe", Vector3.new(0.6, 2.7, 0.32), c(i, 1.5, -1.66), cream, Enum.Material.Wood) end
+	for _, x in {-3.7, 3.7} do wood(stand, "AwningPost", Vector3.new(0.45, 6, 0.45), c(x, 3, 1.4), true) end
+	for i = 0, 7 do
+		local stripe = part(stand, "AwningStripe", Vector3.new(1, 0.25, 4.6), c(-3.5 + i, 6.15, -0.6), if i % 2 == 0 then red else cream, Enum.Material.Fabric)
+		stripe.Orientation = Vector3.new(14, 0, 0)
+	end
+	sign(stand, "SellSign", c(0, 7.1, 1.3), Vector3.new(7, 1.5, 0.35), "SELL POPCORN", true)
+	sign(stand, "SellRate", c(0, 1.6, -1.95), Vector3.new(6, 0.9, 0.25), "1 popcorn = " .. tostring(Config.Sell.coinsPerPopcorn) .. " coins")
+	-- A striped popcorn bucket and a jar of coins on the counter.
+	for i = 0, 5 do
+		local angle = i * math.pi / 3
+		part(stand, "BucketStripe", Vector3.new(0.45, 1.5, 0.2), c(-2 + math.cos(angle) * 0.6, 4, math.sin(angle) * 0.6), if i % 2 == 0 then red else cream)
+	end
+	for i = 1, 4 do
+		local kernel = part(stand, "BucketPopcorn", Vector3.new(0.6, 0.6, 0.6), c(-2 + (i - 2.5) * 0.35, 4.85 + (i % 2) * 0.2, (i % 2 - 0.5) * 0.4), cream)
+		kernel.Shape = Enum.PartType.Ball
+	end
+	local jar = part(stand, "CoinJar", Vector3.new(1.3, 1.1, 1.1), c(2, 3.8, 0), Color3.fromRGB(190, 225, 235), Enum.Material.Glass)
+	jar.Shape, jar.Orientation, jar.Transparency = Enum.PartType.Cylinder, Vector3.new(0, 0, 90), 0.35
+	local coins = part(stand, "Coins", Vector3.new(0.6, 0.95, 0.95), c(2, 3.55, 0), colors.gold, Enum.Material.Metal)
+	coins.Shape, coins.Orientation = Enum.PartType.Cylinder, Vector3.new(0, 0, 90)
+
 	local props = model("GardenDetails", scenery)
-	for _, pos in {Vector3.new(microwaveAnchor.X - 9, 1.3, stationZ + 1), Vector3.new(microwaveAnchor.X - 12, 1.3, stationZ - 2)} do
+	for _, pos in {Vector3.new(sellAnchor.X - 8, 1.3, stationZ + 1), Vector3.new(sellAnchor.X - 11, 1.3, stationZ - 2)} do
 		local barrel = part(props, "Barrel", Vector3.new(2.6, 2.5, 2.5), pos, colors.wood, Enum.Material.Wood)
 		barrel.Shape, barrel.Orientation = Enum.PartType.Cylinder, Vector3.new(0, 0, 90)
 		for _, y in {-0.85, 0.85} do
@@ -251,11 +284,20 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 	end
 	if microwaveMesh then (station:FindFirstChild("StationSign") :: BasePart).Position = world(m(0, 9.2, -4.8)) end
 	if shedMesh then (shed:FindFirstChild("ToolSign") :: BasePart).Position = world(t(0, 9, -5.8)) end
+	-- The sickle for sale hangs at the shed's front; FarmService hides it once owned.
+	local display = ToolModels.display(ToolModels.sickle())
+	display:ScaleTo(1.4)
+	display:PivotTo(CFrame.new(world(t(0.6, 3.5, -4.9))) * CFrame.Angles(0, 0, math.rad(105)) * CFrame.Angles(math.rad(90), 0, 0))
+	display.Parent = shed
 	faceField(station, microwaveAnchor)
 	faceField(shed, shedAnchor)
+	faceField(stand, sellAnchor)
 	-- The door stood 4.5 studs in front of the kiosk before the turn; it now faces the field (+Z).
-	local door = world(m(0, 3.5, 4.5))
-	return ownerBoard, CFrame.lookAt(door, door + Vector3.new(0, 0, 1))
+	local function front(position: Vector3): CFrame
+		local at = world(position)
+		return CFrame.lookAt(at, at + Vector3.new(0, 0, 1))
+	end
+	return ownerBoard, front(m(0, 3.5, 4.5)), front(t(0, 3.5, 6)), front(c(0, 3.5, 3.5))
 end
 
 return FarmVisuals

@@ -3,6 +3,13 @@ local Prompts = game:GetService("ProximityPromptService")
 local Players = game:GetService("Players")
 local Theme = require(script.Parent.UITheme)
 local Controller = {}
+-- While a swung tool is held, hand-pick buttons stay hidden (E still picks one stalk).
+local suppressed = false
+local hideAll: () -> () = function() end
+function Controller.setHarvestSuppressed(value: boolean)
+ suppressed = value
+ if value then hideAll() end
+end
 function Controller.start(gui: ScreenGui)
  local active: {[ProximityPrompt]: BillboardGui} = {}
  local watchers: {[ProximityPrompt]: RBXScriptConnection} = {}
@@ -12,7 +19,8 @@ function Controller.start(gui: ScreenGui)
   local display=active[prompt]
   if display then display:Destroy() active[prompt]=nil end
  end
- local farmPrompts={Harvest=true, Microwave=true, BuyRow=true}
+ hideAll=function() for prompt in active do if prompt.Name=="Harvest" then remove(prompt) end end end
+ local farmPrompts={Harvest=true, Microwave=true, BuyRow=true, Sell=true, BuyTool=true}
  local function configure(object: Instance)
   if not object:IsA("ProximityPrompt") or not farmPrompts[object.Name] then return end
   local farm=object.Parent and object.Parent.Parent
@@ -29,7 +37,7 @@ function Controller.start(gui: ScreenGui)
  for _,object in farms:GetDescendants() do configure(object) end
  farms.DescendantAdded:Connect(configure)
  Prompts.PromptShown:Connect(function(prompt, inputType)
-  if prompt.Name~="Harvest" or prompt.Style~=Enum.ProximityPromptStyle.Custom then return end
+  if prompt.Name~="Harvest" or prompt.Style~=Enum.ProximityPromptStyle.Custom or suppressed then return end
   local farm=prompt.Parent and prompt.Parent.Parent
   if not farm or farm:GetAttribute("OwnerUserId")~=Players.LocalPlayer.UserId then return end
   remove(prompt)

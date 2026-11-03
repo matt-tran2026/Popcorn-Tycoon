@@ -24,6 +24,7 @@ function PlayerStateService.load(userId: number, now: number): Types.Profile
 	local profile: Types.Profile = {
 		schemaVersion = Config.SchemaVersion,
 		popcorn = 0,
+		coins = 0,
 		rawCorn = { Normal = 0 },
 		ownedTools = { Manual = true },
 		equippedTool = "Manual",
@@ -52,6 +53,31 @@ function PlayerStateService.creditPopcorn(userId: number, amount: number)
 	profile.popcorn += amount
 	local player = game:GetService("Players"):GetPlayerByUserId(userId)
 	if player then player:SetAttribute("Popcorn", profile.popcorn) end
+end
+
+-- Balances replicate as player attributes; call after any committed balance change.
+function PlayerStateService.publish(userId: number)
+	local profile = profiles[userId]
+	local player = game:GetService("Players"):GetPlayerByUserId(userId)
+	if not profile or not player then return end
+	player:SetAttribute("Popcorn", profile.popcorn)
+	player:SetAttribute("Coins", profile.coins)
+	player:SetAttribute("EquippedTool", profile.equippedTool)
+	-- Owned_<toolId> lets the Shop show owned state; the profile stays the authority.
+	for toolId, owned in profile.ownedTools do player:SetAttribute("Owned_" .. toolId, owned) end
+end
+
+function PlayerStateService.balance(profile: Types.Profile, currency: Types.Currency): number
+	return if currency == "Coins" then profile.coins else profile.popcorn
+end
+
+-- Deducts a price from the named balance if it is covered. Must not yield: callers check
+-- eligibility, then spend and grant in the same step. Returns false without changing anything.
+function PlayerStateService.spend(profile: Types.Profile, currency: Types.Currency, amount: number): boolean
+	assert(amount >= 0 and amount % 1 == 0, "Invalid price")
+	if PlayerStateService.balance(profile, currency) < amount then return false end
+	if currency == "Coins" then profile.coins -= amount else profile.popcorn -= amount end
+	return true
 end
 
 function PlayerStateService.release(userId: number)

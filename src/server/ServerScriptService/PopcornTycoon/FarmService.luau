@@ -12,7 +12,7 @@ export type MicrowaveView = { door: Part, prompt: ProximityPrompt, popping: Part
 -- Farms are built around the canonical origin (Config.Farm), then `placement` turns them onto their slot.
 type FarmView = {
 	model: Model, field: Types.Field, slot: number, placement: CFrame, stalks: { [string]: StalkView },
-	microwave: MicrowaveView, rowSign: Part?,
+	microwave: MicrowaveView, rowSign: Part?, shed: Part, sellStand: Part,
 }
 local farms: { [number]: FarmView } = {}
 local occupied: { [number]: boolean } = {}
@@ -89,8 +89,8 @@ local function buildRowSign(model: Model, origin: Vector3): Part
 	local board = part("RowForSale", Vector3.new(9, 2.4, 0.4), Vector3.new(center.X, origin.Y + 5.4, center.Z), Color3.fromRGB(101, 62, 37), model)
 	board.Material = Enum.Material.Wood
 	local upgrade = Config.Upgrades.ExtraRow
-	lettering(board, "FOR SALE\n" .. upgrade.displayName .. " · " .. tostring(upgrade.price) .. " popcorn")
-	prompt("BuyRow", "Buy " .. upgrade.displayName, tostring(upgrade.price) .. " popcorn", upgrade.range, board)
+	lettering(board, "FOR SALE\n" .. upgrade.displayName .. " · " .. tostring(upgrade.price) .. " " .. string.lower(upgrade.currency))
+	prompt("BuyRow", "Buy " .. upgrade.displayName, tostring(upgrade.price) .. " " .. string.lower(upgrade.currency), upgrade.range, board)
 	post.Parent = board -- Removing the board removes the whole sign.
 	return board
 end
@@ -112,6 +112,15 @@ local function buildMicrowave(model: Model, front: CFrame): MicrowaveView
 	local popcorn = Instance.new("Folder")
 	popcorn.Name, popcorn.Parent = "Popcorn", model
 	return { door = door, prompt = pop, popping = popping, popcorn = popcorn }
+end
+
+-- Invisible field-facing anchor carrying one owner-only prompt.
+local function station(model: Model, name: string, front: CFrame, promptName: string, action: string, object: string, range: number): Part
+	local anchor = part(name, Vector3.new(4, 4, 1), front.Position, Color3.new(1, 1, 1), model)
+	anchor.CFrame = front
+	anchor.Transparency, anchor.CanQuery = 1, false
+	prompt(promptName, action, object, range, anchor)
+	return anchor
 end
 
 local function buildSoil(model: Model, origin: Vector3): Part
@@ -183,7 +192,7 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	model:SetAttribute("OwnerUserId", userId)
 	model:SetAttribute("FieldId", field.id)
 	local soil = buildSoil(model, origin)
-	local ownerBoard, microwaveFront = Visuals.build(model, origin, ownerName or tostring(userId))
+	local ownerBoard, microwaveFront, shedFront, sellFront = Visuals.build(model, origin, ownerName or tostring(userId))
 	local ownerLabel = Instance.new("BillboardGui")
 	ownerLabel.Name, ownerLabel.Adornee = "OwnerLabel", ownerBoard
 	ownerLabel.Size, ownerLabel.StudsOffset = UDim2.fromOffset(200, 36), Vector3.new(0, 3, 0)
@@ -206,12 +215,16 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	end
 	local rowSign = if field.rows < Config.Starter.layoutRows then buildRowSign(model, origin) else nil
 	local microwave = buildMicrowave(model, microwaveFront)
+	local sickle = Config.Tools.Sickle
+	local shed = station(model, "ShedCounter", shedFront, "BuyTool", "Buy " .. sickle.displayName, tostring(sickle.price) .. " coins", sickle.range or 10)
+	shed:SetAttribute("ToolId", "Sickle")
+	local sellStand = station(model, "SellCounter", sellFront, "Sell", "Sell popcorn", "No popcorn yet", Config.Sell.range)
 	local placement = Map.farmFrame(slot)
 	model.WorldPivot = CFrame.identity
 	model:PivotTo(placement)
 	model.Parent = root
 	Map.setSlotOwner(slot, ownerName or tostring(userId))
-	farms[userId] = { model = model, field = field, slot = slot, placement = placement, stalks = views, microwave = microwave, rowSign = rowSign }
+	farms[userId] = { model = model, field = field, slot = slot, placement = placement, stalks = views, microwave = microwave, rowSign = rowSign, shed = shed, sellStand = sellStand }
 end
 
 -- Visual counterpart of a committed Extra Row purchase; the profile already holds the stalks.
@@ -240,6 +253,39 @@ function FarmService.target(userId: number, fieldId: string, stalkId: string): P
 	return if view then view.part else nil
 end
 
+-- Stalk parts by ID, for server-side tool targeting.
+function FarmService.stalkParts(userId: number): { [string]: Part }
+	local list: { [string]: Part } = {}
+	local farm = farms[userId]
+	if farm then for id, view in farm.stalks do list[id] = view.part end end
+	return list
+end
+
+function FarmService.shed(userId: number): Part?
+	local farm = farms[userId]
+	return if farm then farm.shed else nil
+end
+
+function FarmService.sellStand(userId: number): Part?
+	local farm = farms[userId]
+	return if farm then farm.sellStand else nil
+end
+
+-- Once a tool is owned its display and purchase prompt leave the shed.
+function FarmService.markToolOwned(userId: number, toolId: string)
+	local farm = farms[userId]
+	if not farm then return end
+	local display = farm.model:FindFirstChild(toolId .. "Display", true)
+	if display then display:Destroy() end
+	local buy = farm.shed:FindFirstChild("BuyTool") :: ProximityPrompt?
+	if buy and farm.shed:GetAttribute("ToolId") == toolId then
+		buy.Enabled = false
+		local price = farm.model:FindFirstChild("ToolPrice", true)
+		local label = if price then price:FindFirstChild("Text", true) else nil
+		if label and label:IsA("TextLabel") then label.Text = Config.Tools[toolId].displayName .. " · owned" end
+	end
+end
+
 function FarmService.microwave(userId: number): MicrowaveView?
 	local farm = farms[userId]
 	return if farm then farm.microwave else nil
@@ -262,7 +308,7 @@ function FarmService.resolve(prompt: ProximityPrompt): (number?, string?, string
 	return userId, farm.field.id, stalkId
 end
 
--- Owner of a registered farm-level prompt (microwave or row sign), else nil.
+-- Owner of a registered farm-level prompt (microwave, row sign, shed or sell stand), else nil.
 function FarmService.resolveOwner(target: ProximityPrompt): number?
 	local holder = target.Parent
 	local model = if holder then holder.Parent else nil
@@ -270,7 +316,7 @@ function FarmService.resolveOwner(target: ProximityPrompt): number?
 	local userId = model:GetAttribute("OwnerUserId")
 	local farm = farms[userId]
 	if not farm then return nil end
-	if target == farm.microwave.prompt or (farm.rowSign and holder == farm.rowSign) then return userId end
+	if target == farm.microwave.prompt or (farm.rowSign and holder == farm.rowSign) or holder == farm.shed or holder == farm.sellStand then return userId end
 	return nil
 end
 
