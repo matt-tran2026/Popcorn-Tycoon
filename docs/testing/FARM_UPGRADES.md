@@ -31,12 +31,21 @@ Other observations: the level-4 placeholder pack rode on the character's back wh
 
 ## Not verified
 
-- Blender assets in Studio: the FBX is exported but not imported (see below). Placeholders were what ran in these tests.
 - Real two-client play, touch input, real devices, frame rate with many upgraded stalks.
 - Persistence and save/rejoin (profiles are still in memory; the migration function is tested on a table only).
 - Human pacing of the prices.
 
-## Importing the Blender assets (manual step)
+## Blender assets in game (same day, after the runs above)
+
+The FBX was imported through Studio's 3D Importer by desktop control (14 MeshParts, all uploaded, sizes 1:1 with Blender) and moved into `PopcornTemplates` with the snippet below; the place was saved (`Popcorn Tycoon.rbxl`, 18:08). Play check with test Cash, buying through the menu (Backpack 3, Soil 4, Yield 4, Storage 2 on plot 1):
+
+- Level-0 pouch and level-3 pack sit on the character's back facing outward and follow it while walking.
+- All 36 ripe stalks on plot 1 showed exactly 5 cobs; plot 1's soil darkened and held 10 decor pieces inside the edging.
+- No Output errors.
+
+The automated runners above ran before the import, with placeholders; the import changes visuals only (no rule or reward code).
+
+## Re-importing the Blender assets
 
 1. In Studio (Edit mode): Home → Import 3D → choose `Assets/Upgrades/UpgradeAssets.fbx` in the vault (`Popcorn Tycoon/Assets/Upgrades/`). Keep "Upload to Roblox" on, name the import `UpgradeAssets`, Import. It lands in Workspace.
 2. Paste this in the Command Bar and press Enter (it keeps the old stalk as `CornStalk_3Cob`):
