@@ -12,71 +12,16 @@ local Config = require(Shared:WaitForChild("Config"))
 local Money = require(Shared:WaitForChild("Money"))
 local Theme = require(script.Parent.UITheme)
 local UIFx = require(script.Parent.UIFx)
+local MenuKit = require(script.Parent.MenuKit)
 local player = Players.LocalPlayer
 local Brick = Theme.Brick
 local Controller = {}
 
 local WIDTH, HEIGHT = 600, 400 -- design size in pixels before UIScale
 local BLACK = Color3.new(0, 0, 0)
-local WHITE = Color3.new(1, 1, 1)
 
-local function corner(parent: Instance, radius: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius, c.Parent = UDim.new(0, radius), parent
-end
-
-local function outline(parent: GuiObject, thickness: number)
-	local s = Instance.new("UIStroke")
-	s.Color, s.Thickness, s.ApplyStrokeMode = BLACK, thickness, Enum.ApplyStrokeMode.Border
-	s.LineJoinMode, s.Parent = Enum.LineJoinMode.Round, parent
-end
-
--- Top-lit shading for brick faces.
-local function shade(parent: GuiObject)
-	local g = Instance.new("UIGradient")
-	g.Rotation, g.Color = 90, ColorSequence.new(WHITE, Color3.fromRGB(200, 200, 200))
-	g.Parent = parent
-end
-
--- White Fredoka One text with a black outline, like the HUD. Shrinks to fit, never grows past `size`.
-local function label(name: string, parent: Instance, text: string, size: number, position: UDim2, extent: UDim2): TextLabel
-	local t = Instance.new("TextLabel")
-	t.Name, t.BackgroundTransparency, t.Text = name, 1, text
-	t.Font, t.TextColor3, t.TextScaled, t.TextWrapped = Theme.Font, WHITE, true, true
-	t.Position, t.Size = position, extent
-	local limit = Instance.new("UITextSizeConstraint")
-	limit.MaxTextSize, limit.Parent = size, t
-	local s = Instance.new("UIStroke")
-	s.Color, s.Thickness, s.LineJoinMode = BLACK, math.max(1.5, size / 11), Enum.LineJoinMode.Round
-	s.Parent = t
-	t.Parent = parent
-	return t
-end
-
-type Chunky = { button: TextButton, paint: (color: Color3, caption: string) -> () }
--- A chunky brick button: coloured face, black outline, outlined caption and a press bounce.
-local function chunky(name: string, parent: Instance, position: UDim2, extent: UDim2, textSize: number): Chunky
-	local b = Instance.new("TextButton")
-	b.Name, b.Text, b.AutoButtonColor = name, "", false
-	b.Position, b.Size, b.BackgroundColor3 = position, extent, Brick.Green
-	corner(b, 12)
-	outline(b, 3)
-	shade(b)
-	local caption = label("Caption", b, "", textSize, UDim2.fromScale(0.06, 0.08), UDim2.fromScale(0.88, 0.84))
-	local scale = Instance.new("UIScale")
-	scale.Parent = b
-	b.Activated:Connect(function()
-		scale.Scale = 0.9
-		TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back), { Scale = 1 }):Play()
-	end)
-	b.Parent = parent
-	return {
-		button = b,
-		paint = function(color: Color3, text: string)
-			b.BackgroundColor3, caption.Text = color, text
-		end,
-	}
-end
+local corner, outline, label, chunky = MenuKit.corner, MenuKit.outline, MenuKit.label, MenuKit.chunky
+type Chunky = MenuKit.Chunky
 
 -- Returns a function that toggles the panel (or forces it with `visible`).
 function Controller.start(gui: ScreenGui, request: RemoteEvent): (visible: boolean?) -> ()
@@ -174,7 +119,7 @@ function Controller.start(gui: ScreenGui, request: RemoteEvent): (visible: boole
 			end
 		end)
 	end
-	local soon = label("ComingSoon", toolsPage, "More tools coming: Bigger Bag, Heavy Sickle", 18, UDim2.new(), UDim2.new(1, -14, 0, 26))
+	local soon = label("ComingSoon", toolsPage, "Bigger bags are in Upgrades · More tools coming: Heavy Sickle", 18, UDim2.new(), UDim2.new(1, -14, 0, 26))
 	soon.LayoutOrder = 99
 
 	local seedsPage = tabs.Seeds.page

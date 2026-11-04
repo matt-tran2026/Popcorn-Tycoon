@@ -42,7 +42,7 @@ Adopted growth rules for the starter foundation:
 - Growth duration, crop value, and storage capacity are configurable. The first gameplay milestone uses twelve Normal stalks in a 3-by-4 field and a provisional 10-second cycle.
 - Storage contains raw corn, not popcorn currency. A 25-second-old stalk yields two with a 10-second cycle; after harvesting it at time 25, its next yield is ready at time 35. A 100-second-old stalk yields only three and also restarts from zero when harvested.
 
-This supersedes the initial field-buffer proposal. There is no additional offline elapsed-time cap in the foundation calculation; the per-stalk yield cap bounds production. Offline accrual uses the same formula once persistent timestamps exist. The current in-memory layer resets on leave and does not provide cross-session offline progression. Crop switching and capacity-upgrade policies remain future decisions before those features are implemented.
+This supersedes the initial field-buffer proposal. There is no additional offline elapsed-time cap in the foundation calculation; the per-stalk yield cap bounds production. Offline accrual uses the same formula once persistent timestamps exist. The current in-memory layer resets on leave and does not provide cross-session offline progression. Crop switching remains a future decision. Capacity, speed and yield upgrades were settled on November 4, 2026 (section 6, "Farm upgrades"): the baseline above is unchanged, and upgrades change a plot's growth time, stored cycles and corn per cycle.
 
 ## 4. Corn varieties
 
@@ -71,7 +71,7 @@ Each definition needs a stable ID, display name, appearance reference, growth ti
 
 ### Adopted sickle and sell-stand rules (November 3, 2026)
 
-The creator chose a sell stand as the source of the spendable currency, renamed from Coins to **Cash** on November 3, 2026 and always shown with a $ sign ($6.11K style). Popcorn sells at the stand for $2 each (whole balance, payout shown before selling); tools and the Extra Row cost Cash. The **Sickle** ($200, bought from the Shop menu (B / Shop button) from anywhere; the tool shed was removed Nov 3 2026; raised from 60 because one 6×6 pass fills the 50-corn bag, so 200 is about two passes) cuts up to 3 ripe stalks, nearest first, inside a flat 9-stud, 140° sweep in front of the character, once per 0.6 s. Each stalk gives its ready yields under the same bag and partial-fit rules as hand picking. The server picks targets from the character's position and facing; the client only previews them. Hand picking stays available while any tool is held. Every price names its currency in Config; at the creator's request (Nov 3, 2026) Extra Row moved from 100 Popcorn to **$200**, the same two full-bag passes, so Cash is the only spendable balance. The Shop button opens Tools (buy, equip) and Seeds (variety preview) tabs; since the November 3, 2026 HUD art pass the HUD shows a Popcorns bucket (top centre, in the free middle of Roblox's top bar), a Cash bar with the corn-bag meter just above it, and Index, Settings, Rebirth, Shop, Quests and Upgrades buttons (only Shop opens a menu; the others say "coming soon"); microwave and sale status are reported through feedback messages and the stations' prompts. Full spec, pacing and backlog: docs/design/FIRST_LOOP_SLICE.md and the vault note "Tool Design".
+The creator chose a sell stand as the source of the spendable currency, renamed from Coins to **Cash** on November 3, 2026 and always shown with a $ sign ($6.11K style). Popcorn sells at the stand for $2 each (whole balance, payout shown before selling); tools and the Extra Row cost Cash. The **Sickle** ($200, bought from the Shop menu (B / Shop button) from anywhere; the tool shed was removed Nov 3 2026; raised from 60 because one 6×6 pass fills the 50-corn bag, so 200 is about two passes) cuts up to 3 ripe stalks, nearest first, inside a flat 9-stud, 140° sweep in front of the character, once per 0.6 s. Each stalk gives its ready yields under the same bag and partial-fit rules as hand picking. The server picks targets from the character's position and facing; the client only previews them. Hand picking stays available while any tool is held. Every price names its currency in Config; at the creator's request (Nov 3, 2026) Extra Row moved from 100 Popcorn to **$200**, the same two full-bag passes, so Cash is the only spendable balance. The Shop button opens Tools (buy, equip) and Seeds (variety preview) tabs; since the November 3, 2026 HUD art pass the HUD shows a Popcorns bucket (top centre, in the free middle of Roblox's top bar), a Cash bar with the corn-bag meter just above it, and Index, Settings, Rebirth, Shop, Quests and Upgrades buttons (Shop and, since November 4, 2026, Upgrades open menus; the others say "coming soon"); microwave and sale status are reported through feedback messages and the stations' prompts. Full spec, pacing and backlog: docs/design/FIRST_LOOP_SLICE.md and the vault note "Tool Design".
 
 The prototype intentionally includes the sickle and flamethrower without requiring the weed whacker first. Tool definitions should cover targeting shape, reach, cadence, target limit, unlock conditions, conversion behavior, and presentation references. Future mastery may unlock abilities, range, and effects. Do not introduce mastery into the initial prototype.
 
@@ -106,7 +106,24 @@ The creator replaced the "FOR SALE" row sign with **purchase pads** and opened u
 | New Plot (8 max) | $25K × 2.3 per plot bought | $25K · $58K · $130K · $300K · $700K · $1.6M · $3.7M · $8.5M | ≈ $15M |
 
 - **Fit with the progression stages.** The creator's stage table puts Beginner at $0–100K ("small cornfield, basic microwave"), Early game at $100K–10M ("multiple fields, improved machines") and Rebirth 1 at $10M (2×). The starter's 6 rows (about $1.8K) and plots 2–3 fall in Beginner; plots 4–9 fall in Early game, the last ($8.5M) just below Rebirth 1. Prices are derived from the land a player owns, so a rebirth that clears land resets them.
-- **Known gap.** Income today is about $100 per 50-corn bag trip, and the 6×6 starter already grows more corn than one bag can carry, so extra land barely raises income yet. The curve assumes the planned bag-capacity upgrades, improved machines and rebirth multipliers. All numbers live in `Config.Upgrades`.
+- **Known gap.** Income today is about $100 per 50-corn bag trip, and the 6×6 starter already grows more corn than one bag can carry, so extra land barely raises income on its own. The Backpack upgrade (below) now lifts the bag to 800; improved machines and rebirth multipliers are still planned. All land numbers live in `Config.Upgrades`.
+
+### Farm upgrades (November 4, 2026)
+
+Four Cash upgrades from the HUD's **Upgrades** menu. Full rules, formulas and pacing: docs/design/FARM_UPGRADES.md.
+
+| Upgrade | Scope | Levels 0 → 4 | Prices (Lv 1–4) |
+| --- | --- | --- | --- |
+| Backpack Capacity | Player | 50 / 100 / 200 / 400 / 800 raw corn | $200, $1.2K, $7.2K, $43K |
+| Soil Quality | Each plot | Normal growth 10 / 9 / 8 / 7 / 6 s | $300, $900, $2.7K, $8.1K |
+| Corn Yield | Each plot | 1 / 2 / 3 / 4 / 5 corn per growth cycle | $500, $2K, $8K, $32K |
+| Stalk Storage | Each plot | 3 / 4 / 5 / 7 / 10 stored cycles | $750, $2.3K, $6.8K, $20K |
+
+- A stalk holds at most corn per cycle × stored cycles (3 unupgraded, 8 at Yield 1 + Storage 1, 15 at 2 + 2, 50 maxed), before tool multipliers. Harvests take only whole cycles that fit in the bag; the rest stays on the stalk.
+- The current Yield level counts for every stored cycle, including ones grown before the purchase (prototype rule).
+- Buying Soil or Storage keeps each stalk's ready cycles and its unfinished cycle's progress (as a fraction of a cycle); faster soil never pays time already spent, and a full stalk that gets more storage starts its next cycle at purchase time, so discarded growth is never reclaimed.
+- New plots start at level 0; rows bought later follow their plot's levels. Backpack applies on every plot.
+- Looks: a pack on the player's back per Backpack tier; richer, darker soil with decor clumps per Soil level; one visible cob per corn in a cycle on ripe stalks (never on unripe ones); gold cobs and a FULL pick badge when a stalk is full.
 
 ### Progression stages and rebirths (creator, November 4, 2026)
 

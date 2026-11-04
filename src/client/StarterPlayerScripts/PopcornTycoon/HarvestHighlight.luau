@@ -8,6 +8,9 @@
 -- bright cobs are ready to pick, dark ones are still growing (replaced the brown
 -- "E · Pick corn / Normal Corn · 2/3" button, Nov 3 2026). For hand picking the row carries
 -- a small key chip (E, or the gamepad button) and is itself the tap target on touch screens.
+-- Farm upgrades (Nov 4 2026): the row has one pip per cycle the stalk's plot stores (Stalk
+-- Storage, up to 10; pips shrink past 5), a "+n" count of ready corn when a cycle is worth more
+-- than one (Corn Yield), and gold pips with a FULL tag once the stalk has stopped growing.
 -- Purely local presentation; the server still decides every harvest.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -29,6 +32,9 @@ local PIP_GAP = 2
 local KEY = 26
 local PAD = 6 -- inner padding of the dark pill behind the row
 local READY_TINT, GROWING_TINT = Color3.new(1, 1, 1), Color3.fromRGB(46, 40, 30)
+local FULL_TINT = Color3.fromRGB(255, 214, 70)
+local SMALL_PIP = 22 -- pip size once a stalk stores more than 5 cycles
+local COUNT_W = 58
 
 local toolTargets: { string }? = nil
 -- Showing hand-pick prompts and the input that showed them (keyboard, gamepad or touch).
@@ -67,7 +73,7 @@ end
 
 type Target = { corn: Instance, stalk: BasePart, prompt: ProximityPrompt?, input: Enum.ProximityPromptInputType? }
 type Badge = {
-	gui: BillboardGui, pips: { ImageLabel }, key: Frame, keyText: TextLabel, pop: UIScale,
+	gui: BillboardGui, pips: { ImageLabel }, key: Frame, keyText: TextLabel, pop: UIScale, count: TextLabel,
 	stalk: BasePart?, prompt: ProximityPrompt?, last: number,
 }
 
@@ -109,6 +115,13 @@ local function newBadge(parent: Instance, maxYields: number): Badge
 	local keyPad = Instance.new("UIPadding")
 	keyPad.PaddingTop, keyPad.PaddingBottom, keyPad.Parent = UDim.new(0, 3), UDim.new(0, 3), keyText
 	keyText.Parent, key.Parent = key, row
+	local count = Instance.new("TextLabel")
+	count.Name, count.LayoutOrder, count.BackgroundTransparency = "Count", 1000, 1
+	count.Size, count.Font, count.TextScaled = UDim2.fromOffset(COUNT_W, PIP - 6), Theme.Font, true
+	count.TextColor3 = Color3.fromRGB(255, 226, 74)
+	local countStroke = Instance.new("UIStroke")
+	countStroke.Color, countStroke.Thickness, countStroke.Parent = BLACK, 2, count
+	count.Parent = row
 	local pips = {}
 	for i = 1, maxYields do
 		local pip = Instance.new("ImageLabel")
@@ -118,7 +131,7 @@ local function newBadge(parent: Instance, maxYields: number): Badge
 		table.insert(pips, pip)
 	end
 	row.Parent = gui
-	local badge: Badge = { gui = gui, pips = pips, key = key, keyText = keyText, pop = pop, stalk = nil, prompt = nil, last = -1 }
+	local badge: Badge = { gui = gui, pips = pips, key = key, keyText = keyText, pop = pop, count = count, stalk = nil, prompt = nil, last = -1 }
 	row.Activated:Connect(function()
 		local prompt = badge.prompt
 		if prompt and prompt.Enabled then prompt:InputHoldBegin() prompt:InputHoldEnd() end
@@ -128,10 +141,15 @@ local function newBadge(parent: Instance, maxYields: number): Badge
 end
 
 -- Points a badge at a stalk and redraws its pips; a pick makes the row hop.
-local function showBadge(badge: Badge, target: Target, maxYields: number)
+local function showBadge(badge: Badge, target: Target, limit: number)
 	local stalk = target.stalk
 	local ready = stalk:GetAttribute("AvailableYields")
+	-- The plot's own storage and corn per cycle, replicated by FarmService.
+	local stored, perCycle = stalk:GetAttribute("MaxYields"), stalk:GetAttribute("CornPerYield")
+	local maxYields = if typeof(stored) == "number" then math.clamp(stored, 1, limit) else limit
+	local corn = if typeof(perCycle) == "number" then perCycle else 1
 	local count = if typeof(ready) == "number" then math.clamp(ready, 0, maxYields) else 0
+	local full = count >= maxYields
 	if badge.stalk ~= stalk then
 		badge.stalk, badge.last = stalk, count
 		badge.gui.Adornee = stalk
@@ -148,18 +166,28 @@ local function showBadge(badge: Badge, target: Target, maxYields: number)
 	local key = if target.prompt then keyLabel(target.input, target.prompt) else nil
 	badge.key.Visible = key ~= nil
 	badge.keyText.Text = key or ""
-	local width = maxYields * PIP + (maxYields - 1) * PIP_GAP + (if key then KEY + PIP_GAP + 4 else 0)
+	local pip = if maxYields > 5 then SMALL_PIP else PIP
+	local label = if full then "FULL" elseif corn > 1 then "+" .. tostring(count * corn) else ""
+	badge.count.Visible = label ~= ""
+	badge.count.Text = label
+	badge.count.TextColor3 = if full then FULL_TINT else Color3.fromRGB(255, 255, 255)
+	local width = maxYields * pip + (maxYields - 1) * PIP_GAP + (if key then KEY + PIP_GAP + 4 else 0)
+		+ (if label ~= "" then COUNT_W + PIP_GAP else 0)
 	badge.gui.Size = UDim2.fromOffset(width + PAD * 2 + 8, PIP + PAD)
-	for i, pip in badge.pips do
+	for i, image in badge.pips do
 		local on = i <= count
-		pip.ImageColor3 = if on then READY_TINT else GROWING_TINT
-		pip.ImageTransparency = if on then 0 else 0.35
+		image.Visible = i <= maxYields
+		image.Size = UDim2.fromOffset(pip, pip)
+		image.ImageColor3 = if full then FULL_TINT elseif on then READY_TINT else GROWING_TINT
+		image.ImageTransparency = if on then 0 else 0.35
 	end
 	badge.gui.Enabled = true
 end
 
 function HarvestHighlight.start(gui: ScreenGui)
-	local maxYields = Config.Crops[Config.Plot.cropId].maxYields
+	-- Enough pips for the most a stalk can store (base storage plus the top Storage level).
+	local storage = Config.FarmUpgrades.Storage.effects
+	local maxYields = Config.Crops[Config.Plot.cropId].maxYields + storage[#storage]
 	local badges: { Badge } = {}
 	local pool: { Highlight } = {}
 	local function highlight(i: number): Highlight

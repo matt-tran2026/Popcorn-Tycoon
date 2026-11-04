@@ -14,13 +14,17 @@ local remotes = Shared:WaitForChild("Remotes")
 local feedback = remotes:WaitForChild("HarvestResult") :: RemoteEvent
 local actions = remotes:WaitForChild("ActionResult") :: RemoteEvent
 local shopRequest = remotes:WaitForChild("ShopRequest") :: RemoteEvent
+local upgradeRequest = remotes:WaitForChild("UpgradeRequest") :: RemoteEvent
 local toggleShop: (visible: boolean?) -> () = function() end
+local toggleUpgrades: (visible: boolean?) -> () = function() end
 local hud = require(script.Parent.HudController).start({
  Shop = function() toggleShop() end,
+ Upgrades = function() toggleUpgrades() end,
 })
 local gui = hud.gui
 local show = hud.show
 local fx = hud.fx
+local upgradesMenu = require(script.Parent.UpgradesController).start(gui, upgradeRequest, show)
 local Brick = Theme.Brick
 local BLACK = Color3.new(0, 0, 0)
 -- Inventory panel (I key), restyled Nov 3 2026 as a studded blue brick to match the Shop:
@@ -85,6 +89,7 @@ local function toggleInventory(visible: boolean?)
   inventory.Visible = true
   TweenService:Create(invFit, TweenInfo.new(0.3, Enum.EasingStyle.Back), { Scale = target }):Play()
   toggleShop(false)
+  toggleUpgrades(false)
  elseif not open then
   inventory.Visible = false
  end
@@ -99,11 +104,15 @@ local closeX = UIFx.label("Caption", close, Color3.new(1, 1, 1), 0.1)
 closeX.Text, closeX.Size = "X", UDim2.fromScale(1, 0.8)
 close.Parent = inventory
 close.Activated:Connect(function() toggleInventory(false) end)
-local capacity = Config.Inventory.capacity
+-- The effective bag size (Backpack upgrade), published by the server.
+local function capacity(): number
+ local published = player:GetAttribute("BagCapacity")
+ return if typeof(published) == "number" and published > 0 then published else Config.Inventory.capacity
+end
 local function renderInventory()
  local equipped = player:GetAttribute("EquippedTool")
  local tool = if typeof(equipped) == "string" then Config.Tools[equipped] else nil
- cornValue.Text = tostring(player:GetAttribute("RawCorn") or 0) .. " / " .. tostring(capacity)
+ cornValue.Text = tostring(player:GetAttribute("RawCorn") or 0) .. " / " .. tostring(capacity())
  popValue.Text = Money.short((player:GetAttribute("Popcorn") or 0) :: number)
  cashValue.Text = Money.cash((player:GetAttribute("Cash") or 0) :: number)
  toolValue.Text = if tool then tool.displayName else "Hands"
@@ -113,7 +122,7 @@ Input.InputBegan:Connect(function(input, processed)
  if processed then return end
  if input.KeyCode == Enum.KeyCode.I then toggleInventory() end
  if input.KeyCode == Enum.KeyCode.B then toggleShop() end
- if input.KeyCode == Enum.KeyCode.Escape then toggleInventory(false) toggleShop(false) end
+ if input.KeyCode == Enum.KeyCode.Escape then toggleInventory(false) toggleShop(false) toggleUpgrades(false) end
 end)
 local function chime(id: string, volume: number)
  local s = Instance.new("Sound") s.SoundId, s.Volume, s.Parent = id, volume, gui
@@ -143,13 +152,14 @@ local function reward(image: string, target: GuiObject, amount: number, text: st
 end
 feedback.OnClientEvent:Connect(function(response)
  if not response.ok then show(response.reason) return end
- local full = response.reason == "Bag full" or (player:GetAttribute("RawCorn") or 0) >= capacity
+ local full = response.reason == "Bag full" or (player:GetAttribute("RawCorn") or 0) >= capacity()
  local cut = if typeof(response.targets) == "table" and #response.targets > 1 then "  ·  " .. tostring(#response.targets) .. " stalks" else ""
  show("+" .. tostring(response.amount) .. " Corn" .. cut .. "  ·  " .. (if full then "Bag full! Pop it at the microwave" else "Growing again!"))
  -- Corn cobs fly into the bag; swung tools wait for the blade to pass first.
  reward(Theme.CornIcon, hud.targets.bag, response.amount, "+" .. tostring(response.amount), Color3.fromRGB(255, 226, 74), hud.pulseCorn, if typeof(response.tool) == "string" then 0.2 else 0)
 end)
 actions.OnClientEvent:Connect(function(kind: string, response)
+ if not response.ok and kind == "FarmUpgrade" then upgradesMenu.refused(response) return end
  if not response.ok then show(response.reason) return end
  if kind == "Microwave" then
   show("Popping " .. tostring(response.amount) .. " corn…")
@@ -175,6 +185,16 @@ actions.OnClientEvent:Connect(function(kind: string, response)
   UIFx.popcornBurst(fx, fx.AbsoluteSize / 2, 14, iconSize() * 0.7, 1)
  elseif kind == "Equip" then
   show(response.reason)
+ elseif kind == "FarmUpgrade" then
+  -- Upgrades menu purchase: Cash leaves the bar, the card celebrates with its new stat.
+  show(response.reason .. "  ·  −" .. Money.cash(response.amount))
+  chime("rbxassetid://9113849492", 0.45)
+  hud.pulseCash()
+  local cashBar = hud.targets.cash
+  UIFx.floatText(fx, "−" .. Money.cash(response.amount), Color3.fromRGB(255, 110, 100), UIFx.centerOf(fx, cashBar) - Vector2.new(0, cashBar.AbsoluteSize.Y), iconSize() * 0.9)
+  UIFx.popcornBurst(fx, fx.AbsoluteSize / 2, 12, iconSize() * 0.7, 1)
+  if response.upgradeId == "Backpack" then hud.pulseCorn() end
+  upgradesMenu.confirmed(response)
  elseif kind == "Upgrade" then
   -- Land from a step-on pad (Extra Row or New Plot); both are paid in Cash.
   local currency = Config.Upgrades.ExtraRow.currency
@@ -236,7 +256,11 @@ toggleShop = require(script.Parent.ShopController).start(gui, shopRequest)
 local openShop = toggleShop
 toggleShop = function(visible: boolean?)
  openShop(visible)
- if visible ~= false then inventory.Visible = false end
+ if visible ~= false then inventory.Visible = false toggleUpgrades(false) end
+end
+toggleUpgrades = function(visible: boolean?)
+ upgradesMenu.toggle(visible)
+ if upgradesMenu.isOpen() then inventory.Visible = false openShop(false) end
 end
 renderInventory()
 require(script.Parent.PromptController).start(gui)

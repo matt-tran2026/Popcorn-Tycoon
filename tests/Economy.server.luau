@@ -19,6 +19,14 @@ local function check(name: string, condition: boolean)
 	table.insert(checks, { name = name, passed = condition })
 	assert(condition, name)
 end
+-- Also works as a Play-start runner: wait for the first player's profile, farm and character.
+local readyBy = os.clock() + 30
+while os.clock() < readyBy do
+	local first = Players:GetPlayers()[1]
+	if first and first.Character and State.get(first.UserId) and Farms.has(first.UserId) then break end
+	task.wait(0.25)
+end
+task.wait(1)
 local player = assert(Players:GetPlayers()[1], "Requires a live player")
 local fixtureId = -9000002
 local pivot = assert(player.Character):GetPivot()

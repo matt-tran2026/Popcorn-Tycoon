@@ -1,5 +1,6 @@
 --!strict
--- Land purchases from the farm's step-on pads: an Extra Row on one plot, or the next New Plot.
+-- Land purchases from the farm's step-on pads (an Extra Row on one plot, or the next New Plot)
+-- and farm upgrades from the Upgrades menu (Backpack for the player; Soil, Yield, Storage per plot).
 -- Price, ownership, limits and balance are checked and committed in one unyielding step;
 -- visuals follow the committed profile. Prices come from Pricing (they climb per purchase).
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
@@ -7,9 +8,13 @@ local Config = require(Shared.Config)
 local Types = require(Shared.Types)
 local Money = require(Shared.Money)
 local Pricing = require(Shared.Pricing)
+local Growth = require(Shared.Growth)
+local FarmUpgrades = require(Shared.FarmUpgrades)
 local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
+local Looks = require(script.Parent.UpgradeVisuals)
 local UpgradeService = {}
+local lastRequest: { [number]: number } = {}
 
 local function result(ok: boolean, reason: string, amount: number?): Types.ActionResult
 	return { ok = ok, reason = reason, amount = amount or 0 }
@@ -70,6 +75,68 @@ function UpgradeService.buyPlot(player: Player): Types.ActionResult
 	State.publish(player.UserId)
 	Farms.addPlot(player.UserId, field.id)
 	return result(true, upgrade.displayName .. " ready to harvest!", price)
+end
+
+-- Buys the next level of a farm upgrade. The client names only the upgrade and, for field
+-- upgrades, the plot; the server works out ownership, level, price and effect itself.
+-- A repeated request is a separate purchase of the next level (each one is paid for), and
+-- requests closer together than Config.UpgradeMenu.requestCooldownSeconds are refused.
+-- Soil and Storage change a plot's growth rules, so every stalk on it is first settled under
+-- the old rules and rebased onto the new ones (Growth.rebase) in the same unyielding step.
+function UpgradeService.buyUpgrade(player: Player, upgradeId: unknown, fieldId: unknown): Types.ActionResult
+	local clock = os.clock()
+	local previous = lastRequest[player.UserId]
+	if previous and clock - previous < Config.UpgradeMenu.requestCooldownSeconds then return result(false, "Too fast") end
+	lastRequest[player.UserId] = clock
+	if typeof(upgradeId) ~= "string" or not Config.FarmUpgrades[upgradeId] then return result(false, "Unknown upgrade") end
+	local upgrade = Config.FarmUpgrades[upgradeId]
+	local profile = State.get(player.UserId)
+	if not profile then return result(false, "Profile unavailable") end
+	local field: Types.Field? = nil
+	local level: number
+	if upgrade.scope == "Global" then
+		if fieldId ~= nil then return result(false, "Invalid plot") end
+		level = FarmUpgrades.clampLevel(upgradeId, (profile.upgrades :: any)[upgradeId])
+	else
+		if typeof(fieldId) ~= "string" or #fieldId > 16 then return result(false, "Pick one of your plots") end
+		field = profile.fields[fieldId]
+		if not field or field.ownerUserId ~= player.UserId then return result(false, "Not your plot") end
+		if not Config.Crops[field.cropId] then return result(false, "Invalid crop") end
+		level = FarmUpgrades.clampLevel(upgradeId, (field.upgrades :: any)[upgradeId])
+	end
+	local price = FarmUpgrades.price(upgradeId, level)
+	if not price then return result(false, upgrade.displayName .. " is maxed") end
+	local short = shortfall(profile, upgrade.currency, price)
+	if short then return short end
+	-- No yields between the checks above and this commit.
+	assert(State.spend(profile, upgrade.currency, price))
+	local now = DateTime.now().UnixTimestampMillis / 1000
+	local newLevel = level + 1
+	if field then
+		local oldRules = FarmUpgrades.fieldRules(field)
+		local levels: any = field.upgrades
+		levels[upgradeId] = newLevel
+		local newRules = FarmUpgrades.fieldRules(field)
+		if oldRules.growthSeconds ~= newRules.growthSeconds or oldRules.maxYields ~= newRules.maxYields then
+			for _, stalk in field.stalks do
+				stalk.growthStartedAt = Growth.rebase(stalk.growthStartedAt, now, oldRules, newRules)
+			end
+		end
+	else
+		local levels: any = profile.upgrades
+		levels[upgradeId] = newLevel
+	end
+	State.publish(player.UserId)
+	-- Visuals follow the committed state; they never change rewards.
+	if field then Farms.applyFieldLook(player.UserId, field.id) else Looks.backpack(player.Character, newLevel) end
+	local response = result(true, upgrade.displayName .. " Lv " .. tostring(newLevel) .. "!", price)
+	response.upgradeId, response.level = upgradeId, newLevel
+	if field then response.fieldId = field.id end
+	return response
+end
+
+function UpgradeService.release(userId: number)
+	lastRequest[userId] = nil
 end
 
 return UpgradeService

@@ -1,5 +1,5 @@
 --!strict
--- Land prices. Both counts are derived from a profile's fields (profile.fields), so whatever
+-- Land and farm-upgrade prices. Land: both counts are derived from a profile's fields (profile.fields), so whatever
 -- resets the fields (a future rebirth) resets the prices with them. price = base * growth ^ bought.
 local Config = require(script.Parent.Config)
 local Types = require(script.Parent.Types)
@@ -31,12 +31,33 @@ end
 
 function Pricing.rowPrice(fields: Fields): number
 	local upgrade = Config.Upgrades.ExtraRow
-	return Pricing.nice(upgrade.base * upgrade.growth ^ Pricing.rowsBought(fields))
+	-- Price of the next level of a farm upgrade (Config.FarmUpgrades) when `level` is owned,
+-- or nil at the max level. Field upgrades are priced per plot by that plot's own level.
+function Pricing.upgradePrice(upgrade: Types.FarmUpgradeDefinition, level: number): number?
+	if level ~= level or level < 0 or level % 1 ~= 0 or level >= #upgrade.effects - 1 then return nil end
+	return Pricing.nice(upgrade.base * upgrade.growth ^ level)
+end
+
+return Pricing.nice(upgrade.base * upgrade.growth ^ Pricing.rowsBought(fields))
 end
 
 function Pricing.plotPrice(fields: Fields): number
 	local upgrade = Config.Upgrades.ExtraPlot
-	return Pricing.nice(upgrade.base * upgrade.growth ^ Pricing.plotsBought(fields))
+	-- Price of the next level of a farm upgrade (Config.FarmUpgrades) when `level` is owned,
+-- or nil at the max level. Field upgrades are priced per plot by that plot's own level.
+function Pricing.upgradePrice(upgrade: Types.FarmUpgradeDefinition, level: number): number?
+	if level ~= level or level < 0 or level % 1 ~= 0 or level >= #upgrade.effects - 1 then return nil end
+	return Pricing.nice(upgrade.base * upgrade.growth ^ level)
+end
+
+return Pricing.nice(upgrade.base * upgrade.growth ^ Pricing.plotsBought(fields))
+end
+
+-- Price of the next level of a farm upgrade (Config.FarmUpgrades) when `level` is owned,
+-- or nil at the max level. Field upgrades are priced per plot by that plot's own level.
+function Pricing.upgradePrice(upgrade: Types.FarmUpgradeDefinition, level: number): number?
+	if level ~= level or level < 0 or level % 1 ~= 0 or level >= #upgrade.effects - 1 then return nil end
+	return Pricing.nice(upgrade.base * upgrade.growth ^ level)
 end
 
 return Pricing

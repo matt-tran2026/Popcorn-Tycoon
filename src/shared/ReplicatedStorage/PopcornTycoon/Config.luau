@@ -2,7 +2,36 @@
 -- Prototype tuning, not final balance. Values are shared; rewards remain server-owned.
 local Types = require(script.Parent.Types)
 local crops: { [string]: Types.CropDefinition } = {
-	Normal = { displayName = "Normal Corn", growthSeconds = 10, popcornValue = 1, maxYields = 3 },
+	-- maxYields: growth cycles a stalk stores before it stops; cornPerYield: raw corn per cycle.
+	Normal = { displayName = "Normal Corn", growthSeconds = 10, popcornValue = 1, maxYields = 3, cornPerYield = 1 },
+}
+-- Farm upgrades bought with Cash from the Upgrades menu (creator request, Nov 4 2026).
+-- effects[level + 1] is the value at that level; the last entry is the max level.
+--   Backpack: bag capacity in raw corn (absolute; level 0 must equal Inventory.capacity).
+--   Soil: growth time in percent of the crop's base duration (Normal: 10/9/8/7/6 s).
+--   Yield: extra corn per cycle on top of the crop's cornPerYield (Normal: 1..5).
+--   Storage: extra stored cycles on top of the crop's maxYields (Normal: 3/4/5/7/10).
+-- Price of the next level = Pricing.nice(base * growth ^ current level). Backpack starts at
+-- $200 like the Sickle and the first row (about two full-bag trips); the field upgrades are
+-- bought again for every plot. Totals per plot: Soil $12K, Yield $42.5K, Storage $29.9K;
+-- Backpack $51.6K once. See docs/design/FARM_UPGRADES.md for the pacing check.
+local farmUpgrades: { [string]: Types.FarmUpgradeDefinition } = {
+	Backpack = {
+		displayName = "Backpack Capacity", description = "Carry more raw corn", scope = "Global",
+		effects = { 50, 100, 200, 400, 800 }, base = 200, growth = 6, currency = "Cash",
+	},
+	Soil = {
+		displayName = "Soil Quality", description = "Richer soil grows corn faster", scope = "Field",
+		effects = { 100, 90, 80, 70, 60 }, base = 300, growth = 3, currency = "Cash",
+	},
+	Yield = {
+		displayName = "Corn Yield", description = "More corn every growth cycle", scope = "Field",
+		effects = { 0, 1, 2, 3, 4 }, base = 500, growth = 4, currency = "Cash",
+	},
+	Storage = {
+		displayName = "Stalk Storage", description = "Stalks hold more grown cycles", scope = "Field",
+		effects = { 0, 1, 2, 4, 7 }, base = 750, growth = 3, currency = "Cash",
+	},
 }
 -- Swung harvest tools. Hand picking ("Manual", Config.Manual) uses prompts and is always available.
 -- reach/arcDegrees describe a flat sweep in front of the character; the server picks
@@ -19,8 +48,15 @@ local tools: { [string]: Types.ToolDefinition } = {
 	},
 }
 local Config = {
-	SchemaVersion = 2,
+	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
+	SchemaVersion = 3,
 	Crops = crops,
+	FarmUpgrades = farmUpgrades,
+	-- Menu order. Requests are throttled per player; a growth cycle never gets shorter than
+	-- minGrowthSeconds whatever the soil (guards future crops and tuning).
+	FarmUpgradeOrder = { "Backpack", "Soil", "Yield", "Storage" },
+	UpgradeMenu = { requestCooldownSeconds = 0.3 },
+	Growth = { minSeconds = 1 },
 	-- One plot = one cornfield. Every plot starts with baseRows planted and its bed reserves room
 	-- for maxExtraRows more, bought from the row pad. Row 1 faces the stations at the front;
 	-- purchased rows extend toward the back of the plot.
@@ -33,6 +69,7 @@ local Config = {
 		order = { { 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, 1 }, { -1, 1 }, { 1, 1 }, { 0, 2 }, { -1, 2 }, { 1, 2 } },
 	},
 	Manual = { range = 10, cooldownSeconds = 0.25 },
+	-- The base bag (Backpack level 0); FarmUpgrades.bagCapacity gives a player's real limit.
 	Inventory = { capacity = 50 },
 	-- Pieces arc out, then fly magnet-style to the owner wherever they are (no range).
 	Microwave = {
@@ -107,7 +144,32 @@ function Config.validate()
 		assert(crop.growthSeconds > 0 and crop.growthSeconds < math.huge, "Invalid growth duration")
 		assert(crop.maxYields >= 1 and crop.maxYields % 1 == 0, "Invalid storage capacity")
 		assert(whole(crop.popcornValue), "Invalid crop value")
+		assert(whole(crop.cornPerYield) and crop.cornPerYield >= 1, "Invalid corn per cycle")
 	end
+	assert(#Config.FarmUpgradeOrder == 4, "Every farm upgrade needs a menu slot")
+	for _, id in Config.FarmUpgradeOrder do
+		local upgrade = Config.FarmUpgrades[id]
+		assert(upgrade, "Missing farm upgrade " .. id)
+		assert(upgrade.scope == "Global" or upgrade.scope == "Field", "Invalid upgrade scope " .. id)
+		assert(#upgrade.effects >= 2, "Farm upgrade needs a level above 0: " .. id)
+		for level = 1, #upgrade.effects do
+			local value = upgrade.effects[level]
+			assert(whole(value), "Invalid effect " .. id)
+			-- Soil gets faster (smaller percent), everything else grows; never a no-op level.
+			if level > 1 then
+				local previous = upgrade.effects[level - 1]
+				assert(if id == "Soil" then value < previous else value > previous, "Effects must improve every level: " .. id)
+			end
+		end
+		assert(whole(upgrade.base) and upgrade.base >= 1 and upgrade.growth >= 1, "Invalid upgrade price " .. id)
+		assert(Config.Economy.currencies[upgrade.currency], "Invalid upgrade currency " .. id)
+	end
+	local up = Config.FarmUpgrades
+	assert(up.Backpack.scope == "Global" and up.Soil.scope == "Field" and up.Yield.scope == "Field" and up.Storage.scope == "Field", "Upgrade scopes changed")
+	assert(up.Backpack.effects[1] == Config.Inventory.capacity, "Backpack level 0 must be the base bag")
+	assert(up.Soil.effects[1] == 100 and up.Soil.effects[#up.Soil.effects] >= 1, "Soil percents must start at 100")
+	assert(up.Yield.effects[1] == 0 and up.Storage.effects[1] == 0, "Level 0 must not change a crop")
+	assert(Config.Growth.minSeconds > 0 and Config.UpgradeMenu.requestCooldownSeconds > 0, "Invalid growth/menu tuning")
 	local plot = Config.Plot
 	assert(Config.Crops[plot.cropId], "Invalid plot crop")
 	assert(whole(plot.baseRows) and plot.baseRows >= 1 and whole(plot.columns) and plot.columns >= 1, "Invalid plot size")

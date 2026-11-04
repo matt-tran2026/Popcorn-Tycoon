@@ -6,13 +6,15 @@ local Growth = require(Shared.Growth)
 local Types = require(Shared.Types)
 local Money = require(Shared.Money)
 local Pricing = require(Shared.Pricing)
+local FarmUpgrades = require(Shared.FarmUpgrades)
 local Visuals = require(script.Parent.FarmVisuals)
 local Map = require(script.Parent.MapVisuals)
 local Templates = require(script.Parent.VisualTemplates)
 local Brick = require(script.Parent.BrickStyle)
 local State = require(script.Parent.PlayerStateService)
+local Looks = require(script.Parent.UpgradeVisuals)
 
-type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model?, fieldId: string }
+type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model?, cobs: Looks.CobSet?, fieldId: string }
 export type MicrowaveView = { door: Part, prompt: ProximityPrompt, popping: ParticleEmitter, popcorn: Folder }
 -- Farms are built around the canonical origin (Config.Farm), then `placement` turns them onto their slot.
 -- fields is the owner's profile.fields table (shared, not copied). Purchase pads: one row pad per
@@ -87,7 +89,9 @@ local function buildStalk(farm: Model, field: Types.Field, row: number, col: num
 	if mesh then stem.Transparency = 1 for _, leaf in leaves do leaf:Destroy() end leaves = {} end
 	-- Lets clients find the visible stalk for a harvest target (HarvestHighlight).
 	if mesh then mesh:SetAttribute("StalkId", id) end
-	return id, { part = stem, ear = ear, prompt = harvest, leaves = leaves, mesh = mesh, fieldId = field.id }
+	local cobs = if mesh then Looks.cobs(mesh) else nil
+	if cobs then Looks.showCobs(cobs, 0, false) end -- FarmService.update reveals them when ripe.
+	return id, { part = stem, ear = ear, prompt = harvest, leaves = leaves, mesh = mesh, cobs = cobs, fieldId = field.id }
 end
 
 -- Soil, edging and tilled strips of an owned plot. Plot 1's soil keeps the name "Soil"
@@ -275,7 +279,9 @@ local function buildOpenPlot(slot: number)
 		for col = 1, Config.Plot.columns do
 			local pos = stalkPosition(1, row, col)
 			-- Same height FarmService.update gives a ripe stalk's mesh.
-			if not Templates.clone("Corn", model, Vector3.new(pos.X, origin.Y + 0.25, pos.Z), 4.5 * 1.4) then
+			local mesh = Templates.clone("Corn", model, Vector3.new(pos.X, origin.Y + 0.25, pos.Z), 4.5 * 1.4)
+			if mesh then Looks.showCobs(Looks.cobs(mesh), 1, false) end -- An unupgraded ripe stalk.
+			if not mesh then
 				part("Stalk", Vector3.new(0.6, 4.5, 0.6), pos, Color3.fromRGB(68, 148, 56), model)
 				part("Ear", Vector3.new(0.9, 1.5, 0.9), pos + Vector3.new(0.4, 0.6, 0), Color3.fromRGB(255, 211, 63), model).Shape = Enum.PartType.Ball
 			end
@@ -371,6 +377,7 @@ function FarmService.create(userId: number, fields: { [string]: Types.Field }, o
 		microwave = microwave, sellStand = sellStand, locked = locked, rowPads = {}, plotPad = nil,
 	}
 	farms[userId] = farm
+	for _, field in fields do Looks.applySoil(model, field.plot, field.upgrades.Soil, placement, cellCenter(field.plot)) end
 	refreshPads(userId, farm)
 end
 
@@ -403,7 +410,20 @@ function FarmService.addPlot(userId: number, fieldId: string)
 			end
 		end
 	end)
+	Looks.applySoil(farm.model, field.plot, field.upgrades.Soil, farm.placement, cellCenter(field.plot))
 	refreshPads(userId, farm)
+end
+
+-- Visual counterpart of a committed field upgrade: soil look now, and every stalk of the plot
+-- is redrawn on the next update (cob count, height, full state). Rewards are unaffected.
+function FarmService.applyFieldLook(userId: number, fieldId: string)
+	local farm = farms[userId]
+	local field = if farm then farm.fields[fieldId] else nil
+	if not farm or not field then return end
+	Looks.applySoil(farm.model, field.plot, field.upgrades.Soil, farm.placement, cellCenter(field.plot))
+	for _, view in farm.stalks do
+		if view.fieldId == fieldId then view.part:SetAttribute("GrowthStage", nil) end
+	end
 end
 
 -- Re-prices every pad of a farm (after any purchase, prices of the other kind move too).
@@ -498,12 +518,19 @@ end
 
 function FarmService.update(now: number)
 	for _, farm in farms do
+		-- One rules lookup per plot per tick: crop base values plus that plot's upgrades.
+		local rulesOf: { [string]: Types.GrowthRules } = {}
+		for fieldId, field in farm.fields do rulesOf[fieldId] = FarmUpgrades.fieldRules(field) end
 		for id, view in farm.stalks do
 			local field = farm.fields[view.fieldId]
 			local crop = Config.Crops[field.cropId]
+			local rules = rulesOf[view.fieldId]
 			local stalk = field.stalks[id]
-			local yields = Growth.yields(stalk.growthStartedAt, now, crop)
-			local stage = if yields > 0 then 3 else math.floor(Growth.progress(stalk.growthStartedAt, now, crop) * 3)
+			local yields = Growth.yields(stalk.growthStartedAt, now, rules)
+			local stage = if yields > 0 then 3 else math.floor(Growth.progress(stalk.growthStartedAt, now, rules) * 3)
+			-- Cobs follow corn per cycle but only on a stalk with a ready cycle; full = storage reached.
+			local cobs = if stage == 3 then math.min(rules.cornPerYield, Looks.MAX_COBS) else 0
+			local full = yields >= rules.maxYields
 			if view.part:GetAttribute("GrowthStage") ~= stage then
 				local height = 0.75 + stage * 1.25
 				view.part.Size = Vector3.new(0.6, height, 0.6)
@@ -511,13 +538,11 @@ function FarmService.update(now: number)
 				view.ear.Transparency = if yields > 0 then 0 else 1
 				if view.mesh then
 					view.ear.Transparency = 1
+					local grown = height * 1.4 * (if stage == 3 then Looks.stalkScale(field.upgrades.Yield) else 1)
 					local _, size = view.mesh:GetBoundingBox()
-					view.mesh:ScaleTo(view.mesh:GetScale() * (height * 1.4) / size.Y)
+					view.mesh:ScaleTo(view.mesh:GetScale() * grown / size.Y)
 					local box, resized = view.mesh:GetBoundingBox()
 					view.mesh:PivotTo(view.mesh:GetPivot() + Vector3.new(view.part.Position.X, Config.Farm.origin.Y + 0.25 + resized.Y / 2, view.part.Position.Z) - box.Position)
-					for _, object in view.mesh:GetDescendants() do
-						if object:IsA("BasePart") and object.Name:lower():find("corn") then object.Transparency = if stage == 3 then 0 else 1 end
-					end
 				end
 				for i, leaf in view.leaves do
 					local scale = 0.35 + stage * 0.21
@@ -527,10 +552,20 @@ function FarmService.update(now: number)
 						* CFrame.Angles(0, angle, 0) * CFrame.new(0, 0.4 * scale, -0.85 * scale) * CFrame.Angles(math.rad(28), 0, 0)
 				end
 				view.part:SetAttribute("GrowthStage", stage)
+				view.part:SetAttribute("Cobs", nil) -- Re-show cobs for the new stage below.
 			end
-			if view.part:GetAttribute("AvailableYields") ~= yields then
+			if view.part:GetAttribute("Cobs") ~= cobs or view.part:GetAttribute("Full") ~= full then
+				if view.cobs then Looks.showCobs(view.cobs, cobs, full) end
+				view.part:SetAttribute("Cobs", cobs)
+				view.part:SetAttribute("Full", full)
+			end
+			-- Replicated for the pick badge (HarvestHighlight) and the sickle preview.
+			if view.part:GetAttribute("AvailableYields") ~= yields or view.part:GetAttribute("MaxYields") ~= rules.maxYields
+				or view.part:GetAttribute("CornPerYield") ~= rules.cornPerYield then
 				view.part:SetAttribute("AvailableYields", yields)
-				view.prompt.ObjectText = crop.displayName .. " · " .. tostring(yields) .. "/" .. tostring(crop.maxYields)
+				view.part:SetAttribute("MaxYields", rules.maxYields)
+				view.part:SetAttribute("CornPerYield", rules.cornPerYield)
+				view.prompt.ObjectText = crop.displayName .. " · " .. tostring(yields * rules.cornPerYield) .. "/" .. tostring(rules.maxYields * rules.cornPerYield) .. " corn"
 				view.prompt.Enabled = yields > 0
 			end
 		end

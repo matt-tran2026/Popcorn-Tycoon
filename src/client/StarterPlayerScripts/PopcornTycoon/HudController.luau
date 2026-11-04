@@ -287,9 +287,11 @@ function HudController.start(actions: Actions): Hud
 
 	local setPopcorn = UIFx.counter(popcornCount, Money.short)
 	local setCash = UIFx.counter(cashText, Money.cash)
-	local capacity = Config.Inventory.capacity
 	local wasFull = false
 	local function render()
+		-- The server publishes the effective bag size (Backpack upgrade) as BagCapacity.
+		local published = player:GetAttribute("BagCapacity")
+		local capacity = if typeof(published) == "number" and published > 0 then published else Config.Inventory.capacity
 		local carried = (player:GetAttribute("RawCorn") or 0) :: number
 		setPopcorn((player:GetAttribute("Popcorn") or 0) :: number)
 		setCash((player:GetAttribute("Cash") or 0) :: number)
@@ -312,7 +314,7 @@ function HudController.start(actions: Actions): Hud
 			else ColorSequence.new(Color3.fromRGB(255, 234, 112), Color3.fromRGB(245, 176, 40))
 	end
 	player.AttributeChanged:Connect(function(name)
-		if name == "RawCorn" or name == "Popcorn" or name == "Cash" then render() end
+		if name == "RawCorn" or name == "Popcorn" or name == "Cash" or name == "BagCapacity" then render() end
 	end)
 
 	-- Touch players keep the lower corners for the thumbstick and jump button. PreferredInput

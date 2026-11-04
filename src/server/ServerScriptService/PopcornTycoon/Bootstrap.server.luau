@@ -15,6 +15,7 @@ local Conversion = require(script.Parent.ConversionService)
 local Upgrades = require(script.Parent.UpgradeService)
 local Sell = require(script.Parent.SellService)
 local Tools = require(script.Parent.ToolService)
+local Looks = require(script.Parent.UpgradeVisuals)
 Config.validate()
 local Map = require(script.Parent.MapVisuals)
 Map.placeSpawn() -- Before the yielding loads below, so early joiners spawn in the right place.
@@ -36,6 +37,10 @@ notice.Parent = remotes
 local shop = Instance.new("RemoteEvent")
 shop.Name = "ShopRequest"
 shop.Parent = remotes
+-- Upgrades menu: (upgradeId, fieldId?) only. Answered on ActionResult as "FarmUpgrade".
+local upgradeRequest = Instance.new("RemoteEvent")
+upgradeRequest.Name = "UpgradeRequest"
+upgradeRequest.Parent = remotes
 remotes.Parent = Shared
 Tools.init(feedback)
 -- Step-on land pads (Extra Row / New Plot). FarmService has already checked the toucher owns the farm.
@@ -57,6 +62,13 @@ if RunService:IsStudio() then
 	end
 	grant.Parent = game:GetService("ServerStorage")
 end
+upgradeRequest.OnServerEvent:Connect(function(player: Player, upgradeId: unknown, fieldId: unknown)
+	local response = Upgrades.buyUpgrade(player, upgradeId, fieldId)
+	if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
+	-- Refusals name the upgrade too (only a known id), so the menu can shake the right card.
+	if not response.upgradeId and typeof(upgradeId) == "string" and Config.FarmUpgrades[upgradeId] then response.upgradeId = upgradeId end
+	notice:FireClient(player, "FarmUpgrade", response)
+end)
 shop.OnServerEvent:Connect(function(player: Player, action: unknown, toolId: unknown)
 	local response = Tools.request(player, action, toolId)
 	if response then notice:FireClient(player, if action == "Equip" then "Equip" else "Tool", response) end
@@ -73,6 +85,9 @@ local function placeAtFarm(player: Player, character: Model)
 	if character.Parent == nil then return end
 	character:PivotTo(frame)
 	root.AssemblyLinearVelocity = Vector3.zero
+	-- The pack for the player's Backpack level rides on every new character.
+	local profile = State.get(player.UserId)
+	if profile then Looks.backpack(character, profile.upgrades.Backpack) end
 end
 
 -- With CharacterAutoLoads off, respawning after a death is ours to do.
@@ -107,6 +122,7 @@ Players.PlayerAdded:Connect(joined)
 Players.PlayerRemoving:Connect(function(player)
 	Conversion.settle(player.UserId) -- Credit in-flight popcorn before the profile goes.
 	Harvest.release(player.UserId)
+	Upgrades.release(player.UserId)
 	Tools.release(player.UserId)
 	Farms.remove(player.UserId)
 	State.release(player.UserId)
@@ -142,4 +158,4 @@ task.spawn(function()
 		end
 	end
 end)
-print("[PopcornTycoon] Farm ready with microwave, sell stand, sickle and land pads (in-memory; progression resets on leave).")
+print("[PopcornTycoon] Farm ready with microwave, sell stand, sickle, land pads and farm upgrades (in-memory; progression resets on leave).")

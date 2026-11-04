@@ -6,6 +6,7 @@ local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
 local ToolRules = require(Shared.ToolRules)
 local Types = require(Shared.Types)
+local FarmUpgrades = require(Shared.FarmUpgrades)
 local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local lastAttempt: { [number]: number } = {}
@@ -28,20 +29,23 @@ local function livingRoot(player: Player): BasePart?
 	return root
 end
 
--- Take the ready yields of one stalk that fit in the bag. Each yield is worth `multiplier`
--- corn; only whole yields are taken, and the stalk keeps the rest (its timer is backdated
--- so exactly the remainder stays ready). Returns corn granted and yields that were ready.
+-- Take the ready cycles of one stalk that fit in the bag. One cycle is worth the field's corn
+-- per cycle (Corn Yield upgrade) times the tool's multiplier; only whole cycles are taken and
+-- the stalk keeps the rest (its timer is backdated so exactly the remainder stays ready, under
+-- the field's own growth time). Returns corn granted, cycles that were ready, and whether
+-- any ready cycle had to stay on the stalk because the bag ran out of room.
 -- Must not yield: callers rely on validation and commit happening in one step.
-local function take(profile: Types.Profile, field: Types.Field, stalk: Types.Stalk, at: number, multiplier: number): (number, number)
-	local crop = Config.Crops[field.cropId]
-	local available = Growth.yields(stalk.growthStartedAt, at, crop)
-	local space = Config.Inventory.capacity - State.carried(profile)
-	local taken = math.min(available, space // multiplier)
-	if taken <= 0 then return 0, available end
-	local corn = taken * multiplier
+local function take(profile: Types.Profile, field: Types.Field, stalk: Types.Stalk, at: number, multiplier: number): (number, number, boolean)
+	local rules = FarmUpgrades.fieldRules(field)
+	local available = Growth.yields(stalk.growthStartedAt, at, rules)
+	local perCycle = rules.cornPerYield * multiplier
+	local space = math.max(0, State.bagCapacity(profile) - State.carried(profile))
+	local taken = math.min(available, space // perCycle)
+	if taken <= 0 then return 0, available, available > 0 end
+	local corn = taken * perCycle
 	profile.rawCorn[field.cropId] = (profile.rawCorn[field.cropId] or 0) + corn
-	stalk.growthStartedAt = at - (available - taken) * crop.growthSeconds
-	return corn, available
+	stalk.growthStartedAt = at - (available - taken) * rules.growthSeconds
+	return corn, available, taken < available
 end
 
 -- Hand picking through a stalk's prompt. Always available, whatever tool is held.
@@ -68,11 +72,11 @@ function HarvestService.attempt(player: Player, ownerUserId: unknown, fieldId: u
 	if distance ~= distance or distance > Config.Manual.range then return result(false, "Too far away") end
 	if not Config.Crops[field.cropId] then return result(false, "Invalid crop") end
 	local at = now()
-	local corn, available = take(profile, field, stalk, at, 1)
+	local corn, available, leftOver = take(profile, field, stalk, at, 1)
 	if available == 0 then return result(false, "Corn is growing") end
 	if corn == 0 then return result(false, "Bag full · pop it at the microwave") end
 	player:SetAttribute("RawCorn", State.carried(profile))
-	return result(true, if corn < available then "Bag full" else "Harvested", corn)
+	return result(true, if leftOver then "Bag full" else "Harvested", corn)
 end
 
 -- One swing of an owned, equipped tool. The server picks the targets from the character's
@@ -95,19 +99,23 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	-- Candidates come from every owned plot; each stalk remembers its plot (Farms.fieldOf).
 	local candidates: { Types.TargetCandidate } = {}
 	local fieldOf: { [string]: Types.Field } = {}
+	local rulesOf: { [string]: Types.GrowthRules } = {}
+	for fieldId, field in profile.fields do
+		if Config.Crops[field.cropId] then rulesOf[fieldId] = FarmUpgrades.fieldRules(field) end
+	end
 	for id, part in Farms.stalkParts(player.UserId) do
 		local fieldId = Farms.fieldOf(player.UserId, id)
 		local field = if fieldId then profile.fields[fieldId] else nil
-		local crop = if field then Config.Crops[field.cropId] else nil
+		local rules = if fieldId then rulesOf[fieldId] else nil
 		local stalk = if field then field.stalks[id] else nil
-		if field and crop and stalk and field.ownerUserId == player.UserId and Growth.yields(stalk.growthStartedAt, at, crop) > 0 then
+		if field and rules and stalk and field.ownerUserId == player.UserId and Growth.yields(stalk.growthStartedAt, at, rules) > 0 then
 			table.insert(candidates, { id = id, position = part.Position })
 			fieldOf[id] = field
 		end
 	end
 	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool)
 	if #picked == 0 then return result(false, "Swing closer to ripe corn") end
-	if Config.Inventory.capacity - State.carried(profile) < tool.yieldMultiplier then
+	if State.carried(profile) >= State.bagCapacity(profile) then
 		return result(false, "Bag full · pop it at the microwave")
 	end
 	-- No yields between picking targets and committing every take.
@@ -115,12 +123,12 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	local targets: { Vector3 } = {}
 	for _, id in picked do
 		local field = fieldOf[id]
-		local corn, available = take(profile, field, field.stalks[id], at, tool.yieldMultiplier)
+		local corn, _, leftOver = take(profile, field, field.stalks[id], at, tool.yieldMultiplier)
 		if corn > 0 then
 			total += corn
 			table.insert(targets, (Farms.target(player.UserId, field.id, id) :: Part).Position)
 		end
-		if corn < available * tool.yieldMultiplier then full = true end
+		if leftOver then full = true end
 	end
 	if total == 0 then return result(false, "Bag full · pop it at the microwave") end
 	player:SetAttribute("RawCorn", State.carried(profile))

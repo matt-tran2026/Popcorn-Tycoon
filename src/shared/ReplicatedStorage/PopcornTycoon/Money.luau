@@ -17,7 +17,10 @@ function Money.short(amount: number): string
 	end
 	local digits = if scaled >= 100 then 0 elseif scaled >= 10 then 1 else 2
 	local factor = 10 ^ digits
-	local text = string.format("%." .. tostring(digits) .. "f", math.floor(scaled * factor) / factor)
+	-- Truncate from the whole amount: 2300 * 100 / 1000 = 230 exactly, where 2.3 * 100 would be
+	-- 229.99999 in floating point and show $2.29K (fixed Nov 4 2026).
+	local kept = math.floor(value * factor / 1000 ^ tier + 1e-9)
+	local text = string.format("%." .. tostring(digits) .. "f", kept / factor)
 	if digits > 0 then
 		text = (string.gsub(text, "0+$", ""))
 		text = (string.gsub(text, "%.$", ""))

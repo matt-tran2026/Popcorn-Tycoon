@@ -21,5 +21,13 @@ return {
 		Red = Color3.fromRGB(236, 52, 64), RedRim = Color3.fromRGB(174, 26, 38),
 		Blue = Color3.fromRGB(31, 127, 234), BlueRim = Color3.fromRGB(20, 80, 184),
 		Grey = Color3.fromRGB(138, 143, 152), GreyRim = Color3.fromRGB(92, 96, 104),
+		-- The Upgrades button's orange brick (assets/ui/hud/btn_upgrades.png).
+		Orange = Color3.fromRGB(255, 141, 38), OrangeRim = Color3.fromRGB(212, 88, 18),
 	},
+	-- Upgrades menu card icons (Blender renders, assets/ui/upgrades; ids in assets/ui/manifest.json).
+	-- An empty id falls back to the corn icon.
+	Upgrades = {
+		Backpack = "rbxassetid://72847825213081", Soil = "rbxassetid://97331979810095",
+		Yield = "rbxassetid://84896670931196", Storage = "rbxassetid://120382413611158",
+	} :: { [string]: string },
 }
