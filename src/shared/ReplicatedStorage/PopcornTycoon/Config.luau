@@ -10,9 +10,9 @@ local crops: { [string]: Types.CropDefinition } = {
 local tools: { [string]: Types.ToolDefinition } = {
 	Sickle = {
 		displayName = "Sickle", description = "Sweep up to 3 ripe stalks per swing",
-		-- 60 was the first hypothesis, but one 6x6 pass fills the 50-corn bag (100 coins), so
+		-- 60 was the first hypothesis, but one 6x6 pass fills the 50-corn bag ($100), so
 		-- 200 keeps the target of about two full harvest-and-sell passes.
-		price = 200, currency = "Coins",
+		price = 200, currency = "Cash",
 		reach = 9, arcDegrees = 140, maxTargets = 3, cooldownSeconds = 0.6, yieldMultiplier = 1,
 		-- Presentation timing, shared so the swing, snips and kernels line up.
 		swingSeconds = 0.32, snipStaggerSeconds = 0.07, kernelFlySeconds = 0.45,
@@ -32,13 +32,14 @@ local Config = {
 		landSeconds = 0.7, flySeconds = 0.9, staggerSeconds = 0.08,
 	},
 	-- Economy model (prototype, Nov 3 2026): popcorn is the product, sold at the farm's stand
-	-- for Coins; Coins are the spendable balance for tools and land. Every price names its
-	-- currency (docs/design/FIRST_LOOP_SLICE.md). Extra Row moved from 100 Popcorn to Coins on
-	-- the creator's request (Nov 3 2026); 200 keeps the same two full-bag passes.
-	Economy = { currencies = { Coins = true, Popcorn = true } :: { [string]: boolean } },
-	Upgrades = { ExtraRow = { displayName = "Extra Row", price = 200, currency = "Coins" :: Types.Currency, range = 10 } },
-	-- Sell stand: every popcorn in the balance converts to Coins at once (playtest hypothesis).
-	Sell = { coinsPerPopcorn = 2, range = 10 },
+	-- for Cash; Cash is the spendable balance for tools and land. Every price names its
+	-- currency (docs/design/FIRST_LOOP_SLICE.md). Extra Row moved from 100 Popcorn to the
+	-- spendable balance on the creator's request (Nov 3 2026); 200 keeps the same two full-bag
+	-- passes. The creator renamed Coins to Cash the same day (shown as $, see Money).
+	Economy = { currencies = { Cash = true, Popcorn = true } :: { [string]: boolean } },
+	Upgrades = { ExtraRow = { displayName = "Extra Row", price = 200, currency = "Cash" :: Types.Currency, range = 10 } },
+	-- Sell stand: every popcorn in the balance converts to Cash at once (playtest hypothesis).
+	Sell = { cashPerPopcorn = 2, range = 10 },
 	-- Tools are bought only from the Shop menu, from anywhere; requests (buy/equip) are throttled per player.
 	Shop = { requestCooldownSeconds = 0.25 },
 	Tools = tools,
@@ -77,7 +78,7 @@ function Config.validate()
 	assert(whole(microwave.pieces) and microwave.pieces >= 1, "Invalid popcorn piece count")
 	assert(microwave.landSeconds > 0 and microwave.flySeconds > 0 and microwave.staggerSeconds >= 0, "Invalid popcorn flight timing")
 	assert(whole(Config.Upgrades.ExtraRow.price) and Config.Economy.currencies[Config.Upgrades.ExtraRow.currency], "Invalid upgrade price")
-	assert(whole(Config.Sell.coinsPerPopcorn) and Config.Sell.coinsPerPopcorn >= 1 and Config.Sell.range > 0, "Invalid sell rate")
+	assert(whole(Config.Sell.cashPerPopcorn) and Config.Sell.cashPerPopcorn >= 1 and Config.Sell.range > 0, "Invalid sell rate")
 	for id, tool in Config.Tools do
 		assert(Config.Economy.currencies[tool.currency], "Invalid tool currency " .. id)
 		assert(whole(tool.price) and tool.reach > 0 and tool.arcDegrees > 0 and tool.arcDegrees <= 360, "Invalid tool " .. id)

@@ -205,7 +205,7 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 		stripe.Orientation = Vector3.new(14, 0, 0)
 	end
 	sign(stand, "SellSign", c(0, 7.1, 1.3), Vector3.new(7, 1.5, 0.35), "SELL POPCORN", true)
-	sign(stand, "SellRate", c(0, 1.6, -1.95), Vector3.new(6, 0.9, 0.25), "1 popcorn = " .. tostring(Config.Sell.coinsPerPopcorn) .. " coins")
+	sign(stand, "SellRate", c(0, 1.6, -1.95), Vector3.new(6, 0.9, 0.25), "1 popcorn = $" .. tostring(Config.Sell.cashPerPopcorn))
 	-- A striped popcorn bucket and a jar of coins on the counter.
 	for i = 0, 5 do
 		local angle = i * math.pi / 3

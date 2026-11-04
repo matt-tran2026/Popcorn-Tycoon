@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared:WaitForChild("Config"))
+local Money = require(Shared:WaitForChild("Money"))
 local Theme = require(script.Parent.UITheme)
 local player = Players.LocalPlayer
 local Controller = {}
@@ -101,7 +102,7 @@ function Controller.start(gui: ScreenGui, ui: Ui, request: RemoteEvent): (visibl
 	local seedsPage = tabs.Seeds.page
 	for cropId, crop in Config.Crops do
 		local details = "Grows " .. tostring(crop.growthSeconds) .. " s per yield · up to " .. tostring(crop.maxYields) .. " yields"
-		local _, action = card(seedsPage, 1, crop.displayName, tostring(Config.Sell.coinsPerPopcorn * crop.popcornValue) .. " coins per popcorn", details)
+		local _, action = card(seedsPage, 1, crop.displayName, Money.cash(Config.Sell.cashPerPopcorn * crop.popcornValue) .. " per popcorn", details)
 		action.Text, action.Active, action.AutoButtonColor, action.BackgroundColor3 = "Planted", false, false, Theme.Green
 		action.TextColor3 = Theme.Cream
 		action.Name = "Plant_" .. cropId
@@ -124,14 +125,14 @@ function Controller.start(gui: ScreenGui, ui: Ui, request: RemoteEvent): (visibl
 			elseif player:GetAttribute("Owned_" .. toolId) then
 				paint(b, "Owned\nEquip", Theme.Gold, Theme.Brown)
 			elseif balance >= tool.price then
-				paint(b, "Buy\n" .. tostring(tool.price) .. " " .. string.lower(tool.currency), Theme.Gold, Theme.Brown)
+				paint(b, "Buy\n" .. Money.price(tool.currency, tool.price), Theme.Gold, Theme.Brown)
 			else
-				paint(b, tostring(tool.price) .. " " .. string.lower(tool.currency) .. "\nneed " .. tostring(tool.price - balance) .. " more", Theme.Brown, Theme.Muted)
+				paint(b, Money.price(tool.currency, tool.price) .. "\nneed " .. Money.price(tool.currency, tool.price - balance) .. " more", Theme.Brown, Theme.Muted)
 			end
 		end
 	end
 	player.AttributeChanged:Connect(function(name)
-		if name == "Coins" or name == "Popcorn" or name == "EquippedTool" or string.sub(name, 1, 6) == "Owned_" then render() end
+		if name == "Cash" or name == "Popcorn" or name == "EquippedTool" or string.sub(name, 1, 6) == "Owned_" then render() end
 	end)
 	select("Tools")
 	render()

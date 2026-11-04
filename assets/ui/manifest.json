@@ -11,5 +11,21 @@
     "file": "popcorn-forge.png",
     "robloxAssetId": "101313976457910"
   },
-  "status": "Both approved image publications rendered in Studio playtest; ImageLabel.IsLoaded verified for both counters."
+  "status": "Both approved image publications rendered in Studio playtest; ImageLabel.IsLoaded verified for both counters.",
+  "hud": {
+    "source": "assets/ui/hud",
+    "uploaded": "2026-11-03",
+    "font": "FredokaOne",
+    "assets": {
+      "popcorn_counter.png": "80917126698468",
+      "cash_bar.png": "132039463006444",
+      "btn_index.png": "94122681293200",
+      "btn_settings.png": "135211638465712",
+      "btn_rebirth.png": "95432742957662",
+      "btn_shop.png": "127043114998171",
+      "btn_quests.png": "133951945676679",
+      "btn_upgrades.png": "75064606374733"
+    },
+    "status": "Uploaded from Studio; all eight ImageLabel/ImageButton IsLoaded verified in a Studio playtest."
+  }
 }

@@ -3,6 +3,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon"
 local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
 local Types = require(Shared.Types)
+local Money = require(Shared.Money)
 local Visuals = require(script.Parent.FarmVisuals)
 local Map = require(script.Parent.MapVisuals)
 local Templates = require(script.Parent.VisualTemplates)
@@ -90,8 +91,8 @@ local function buildRowSign(model: Model, origin: Vector3): Part
 	local board = part("RowForSale", Vector3.new(9, 2.4, 0.4), Vector3.new(center.X, origin.Y + 5.4, center.Z), Color3.fromRGB(101, 62, 37), model)
 	board.Material = Enum.Material.Wood
 	local upgrade = Config.Upgrades.ExtraRow
-	lettering(board, "FOR SALE\n" .. upgrade.displayName .. " · " .. tostring(upgrade.price) .. " " .. string.lower(upgrade.currency))
-	prompt("BuyRow", "Buy " .. upgrade.displayName, tostring(upgrade.price) .. " " .. string.lower(upgrade.currency), upgrade.range, board)
+	lettering(board, "FOR SALE\n" .. upgrade.displayName .. " · " .. Money.price(upgrade.currency, upgrade.price))
+	prompt("BuyRow", "Buy " .. upgrade.displayName, Money.price(upgrade.currency, upgrade.price), upgrade.range, board)
 	post.Parent = board -- Removing the board removes the whole sign.
 	for _, piece in { post, board } do
 		piece.CanCollide = true

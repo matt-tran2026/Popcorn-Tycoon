@@ -1,5 +1,5 @@
 --!strict
--- Temporary Server RunContext integration runner during Play (sell stand, Coins, Sickle).
+-- Temporary Server RunContext integration runner during Play (sell stand, Cash, Sickle).
 -- Install outside the synced PopcornTycoon folder; destroy after reading Results.
 local Http = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -56,54 +56,54 @@ local ok, err = pcall(function()
 
 	-- Selling.
 	local function standAt(part: BasePart) assert(player.Character):PivotTo(CFrame.new(part.Position + part.CFrame.LookVector * 4)) end
-	profile.popcorn, profile.coins = 0, 0
+	profile.popcorn, profile.cash = 0, 0
 	State.publish(player.UserId)
 	standAt(stand)
 	local response = Sell.sell(player, player.UserId)
-	check("sell with no popcorn is refused", not response.ok and profile.coins == 0)
+	check("sell with no popcorn is refused", not response.ok and profile.cash == 0)
 	profile.popcorn = 35
 	State.publish(player.UserId)
-	check("stand shows expected payout", waitFor(function() return (stand:FindFirstChild("Sell") :: ProximityPrompt).ObjectText == "35 popcorn → 70 coins" end, 1))
+	check("stand shows expected payout", waitFor(function() return (stand:FindFirstChild("Sell") :: ProximityPrompt).ObjectText == "35 popcorn → $70" end, 1))
 	assert(player.Character):PivotTo(CFrame.new(stand.Position + Vector3.new(0, 0, -40)))
 	response = Sell.sell(player, player.UserId)
-	check("sell out of range is refused without change", not response.ok and profile.popcorn == 35 and profile.coins == 0)
+	check("sell out of range is refused without change", not response.ok and profile.popcorn == 35 and profile.cash == 0)
 	response = Sell.sell(player, player.UserId + 1)
 	check("selling at another owner's stand is refused", not response.ok and profile.popcorn == 35)
 	standAt(stand)
 	response = Sell.sell(player, player.UserId)
-	check("sell converts all popcorn once", response.ok and response.amount == 70 and profile.popcorn == 0 and profile.coins == 70
-		and player:GetAttribute("Coins") == 70 and player:GetAttribute("Popcorn") == 0)
+	check("sell converts all popcorn once", response.ok and response.amount == 70 and profile.popcorn == 0 and profile.cash == 70
+		and player:GetAttribute("Cash") == 70 and player:GetAttribute("Popcorn") == 0)
 	response = Sell.sell(player, player.UserId)
-	check("repeat sell pays nothing", not response.ok and profile.coins == 70)
+	check("repeat sell pays nothing", not response.ok and profile.cash == 70)
 
 	-- Buying the sickle through the Shop menu, from anywhere.
-	profile.coins = sickle.price - 1
+	profile.cash = sickle.price - 1
 	task.wait(Config.Shop.requestCooldownSeconds)
 	response = assert(Tools.request(player, "Buy", "Sickle"))
-	check("buy without enough coins is refused", not response.ok and profile.coins == sickle.price - 1 and not profile.ownedTools.Sickle)
+	check("buy without enough cash is refused", not response.ok and profile.cash == sickle.price - 1 and not profile.ownedTools.Sickle)
 	task.wait(Config.Shop.requestCooldownSeconds)
 	response = assert(Tools.request(player, "Buy", "Flamethrower"))
 	check("unknown tool is refused", not response.ok)
-	-- Each price names its currency: popcorn cannot pay a Coins price.
-	check("sickle is priced in coins", sickle.currency == "Coins")
+	-- Each price names its currency: popcorn cannot pay a Cash price.
+	check("sickle is priced in cash", sickle.currency == "Cash")
 	profile.popcorn = sickle.price * 10
 	task.wait(Config.Shop.requestCooldownSeconds)
 	response = assert(Tools.request(player, "Buy", "Sickle"))
-	check("popcorn does not pay a coins price", not response.ok and profile.popcorn == sickle.price * 10 and not profile.ownedTools.Sickle)
+	check("popcorn does not pay a cash price", not response.ok and profile.popcorn == sickle.price * 10 and not profile.ownedTools.Sickle)
 	profile.popcorn = 0
-	profile.coins = sickle.price + 10
+	profile.cash = sickle.price + 10
 	-- Far from every station: the Shop needs no walk.
 	assert(player.Character):PivotTo(CFrame.new(stand.Position + Vector3.new(0, 0, -40)))
 	task.wait(Config.Shop.requestCooldownSeconds)
 	response = assert(Tools.request(player, "Buy", "Sickle"))
-	check("shop buy charges once and grants the tool", response.ok and profile.coins == 10 and profile.ownedTools.Sickle == true
-		and player:GetAttribute("Coins") == 10 and player:GetAttribute("Owned_Sickle") == true)
-	check("rapid repeat shop request is dropped", Tools.request(player, "Buy", "Sickle") == nil and profile.coins == 10)
+	check("shop buy charges once and grants the tool", response.ok and profile.cash == 10 and profile.ownedTools.Sickle == true
+		and player:GetAttribute("Cash") == 10 and player:GetAttribute("Owned_Sickle") == true)
+	check("rapid repeat shop request is dropped", Tools.request(player, "Buy", "Sickle") == nil and profile.cash == 10)
 	task.wait(Config.Shop.requestCooldownSeconds)
 	response = assert(Tools.request(player, "Buy", "Sickle"))
-	check("repeat shop buy refused without charge", not response.ok and response.reason == "Already owned" and profile.coins == 10)
+	check("repeat shop buy refused without charge", not response.ok and response.reason == "Already owned" and profile.cash == 10)
 	task.wait(Config.Shop.requestCooldownSeconds)
-	check("malformed shop requests are refused", not assert(Tools.request(player, "Steal", "Sickle")).ok and profile.coins == 10)
+	check("malformed shop requests are refused", not assert(Tools.request(player, "Steal", "Sickle")).ok and profile.cash == 10)
 	check("one Sickle tool in the backpack", waitFor(function() return #heldTools() == 1 end, 2) and heldTools()[1]:GetAttribute("ToolId") == "Sickle")
 	standAt(stand) -- Back onto the farm before the swing checks take their height from the avatar.
 	task.wait(0.5)

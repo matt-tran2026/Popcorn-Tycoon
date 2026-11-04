@@ -1,8 +1,9 @@
 --!strict
--- The sell stand turns the whole popcorn balance into Coins in one unyielding step.
+-- The sell stand turns the whole popcorn balance into Cash in one unyielding step.
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
 local Types = require(Shared.Types)
+local Money = require(Shared.Money)
 local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local SellService = {}
@@ -18,7 +19,7 @@ function SellService.refresh(userId: number)
 	local sell = if stand then stand:FindFirstChild("Sell") :: ProximityPrompt? else nil
 	if not profile or not sell then return end
 	sell.ObjectText = if profile.popcorn > 0
-		then tostring(profile.popcorn) .. " popcorn → " .. tostring(profile.popcorn * Config.Sell.coinsPerPopcorn) .. " coins"
+		then tostring(profile.popcorn) .. " popcorn → " .. Money.cash(profile.popcorn * Config.Sell.cashPerPopcorn)
 		else "No popcorn yet"
 end
 
@@ -34,10 +35,10 @@ function SellService.sell(player: Player, ownerUserId: unknown): Types.ActionRes
 	if distance ~= distance or distance > Config.Sell.range + 2 then return result(false, "Too far away") end
 	local sold = profile.popcorn
 	if sold <= 0 then return result(false, "No popcorn to sell · pop some corn first") end
-	local earned = sold * Config.Sell.coinsPerPopcorn
+	local earned = sold * Config.Sell.cashPerPopcorn
 	-- No yields between the checks above and this commit.
 	profile.popcorn = 0
-	profile.coins += earned
+	profile.cash += earned
 	State.publish(player.UserId)
 	SellService.refresh(player.UserId)
 	return result(true, "Sold " .. tostring(sold) .. " popcorn", earned)

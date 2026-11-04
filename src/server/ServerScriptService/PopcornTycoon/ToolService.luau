@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
 local Types = require(Shared.Types)
+local Money = require(Shared.Money)
 local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local Harvest = require(script.Parent.HarvestService)
@@ -86,8 +87,8 @@ function ToolService.purchase(player: Player, toolId: unknown): Types.ActionResu
 	if profile.ownedTools[toolId] then return result(false, "Already owned") end
 	local short = tool.price - State.balance(profile, tool.currency)
 	if short > 0 then
-		local hint = if tool.currency == "Coins" then " · sell popcorn at the stand" else ""
-		return result(false, "Need " .. tostring(short) .. " more " .. string.lower(tool.currency) .. hint)
+		local hint = if tool.currency == "Cash" then " · sell popcorn at the stand" else ""
+		return result(false, "Need " .. Money.price(tool.currency, short) .. " more" .. hint)
 	end
 	-- No yields between the checks above and this commit; ownership is set in the same step
 	-- as the charge, so a repeated request finds "Already owned" and is never charged twice.

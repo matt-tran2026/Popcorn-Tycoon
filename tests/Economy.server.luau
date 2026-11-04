@@ -126,24 +126,24 @@ local ok, err = pcall(function()
 	local price = Config.Upgrades.ExtraRow.price
 	local sign = assert(Farms.rowSign(player.UserId))
 	standAt(sign.Position + Vector3.new(0, -3, 3))
-	-- Extra Row is paid in Coins (Nov 3 2026); popcorn alone cannot buy it.
-	check("extra row is priced in coins", Config.Upgrades.ExtraRow.currency == "Coins")
-	profile.coins, profile.popcorn = price - 1, price * 10
+	-- Extra Row is paid in Cash (called Coins until the Nov 3 2026 rename); popcorn alone cannot buy it.
+	check("extra row is priced in cash", Config.Upgrades.ExtraRow.currency == "Cash")
+	profile.cash, profile.popcorn = price - 1, price * 10
 	response = Upgrades.buyExtraRow(player, player.UserId)
-	check("insufficient coins rejected even with popcorn", not response.ok and response.reason:find("Need 1 more coins") ~= nil and profile.coins == price - 1 and profile.popcorn == price * 10 and field.rows == Config.Starter.rows)
-	profile.coins, profile.popcorn = price + 5, 0
+	check("insufficient cash rejected even with popcorn", not response.ok and response.reason:find("Need $1 more", 1, true) ~= nil and profile.cash == price - 1 and profile.popcorn == price * 10 and field.rows == Config.Starter.rows)
+	profile.cash, profile.popcorn = price + 5, 0
 	response = Upgrades.buyExtraRow(player, fixtureId)
-	check("foreign row purchase rejected", not response.ok and profile.coins == price + 5 and fixture.fields.Starter.rows == Config.Starter.rows)
+	check("foreign row purchase rejected", not response.ok and profile.cash == price + 5 and fixture.fields.Starter.rows == Config.Starter.rows)
 	standAt(away)
 	response = Upgrades.buyExtraRow(player, player.UserId)
-	check("out of range purchase rejected", not response.ok and response.reason == "Too far away" and profile.coins == price + 5)
+	check("out of range purchase rejected", not response.ok and response.reason == "Too far away" and profile.cash == price + 5)
 	standAt(sign.Position + Vector3.new(0, -3, 3))
 	response = Upgrades.buyExtraRow(player, player.UserId)
 	local stalks, prompts = 0, 0
 	for _ in field.stalks do stalks += 1 end
 	local farm = workspace.PopcornFarms:FindFirstChild("Farm_" .. player.UserId) :: Model
 	for _, object in farm:GetDescendants() do if object:IsA("ProximityPrompt") and object.Name == "Harvest" then prompts += 1 end end
-	check("purchase charges coins once and plants a row", response.ok and profile.coins == 5 and player:GetAttribute("Coins") == 5 and profile.popcorn == 0 and profile.upgrades.ExtraRow == true and field.rows == Config.Starter.layoutRows)
+	check("purchase charges cash once and plants a row", response.ok and profile.cash == 5 and player:GetAttribute("Cash") == 5 and profile.popcorn == 0 and profile.upgrades.ExtraRow == true and field.rows == Config.Starter.layoutRows)
 	local planted = Config.Starter.layoutRows * Config.Starter.columns
 	check("extra row adds a row of stalks and harvest prompts", stalks == planted and prompts == planted)
 	check("for-sale sign removed", Farms.rowSign(player.UserId) == nil and farm:FindFirstChild("RowForSale") == nil)
@@ -154,7 +154,7 @@ local ok, err = pcall(function()
 	local function depth(position: Vector3): number return soil.CFrame:PointToObjectSpace(position).Z end
 	check("new row sits behind the old rows, away from the stations", depth(newTarget.Position) > depth(lastOld.Position) and depth(newTarget.Position) > depth(microwave.door.Position))
 	response = Upgrades.buyExtraRow(player, player.UserId)
-	check("second purchase rejected without charge", not response.ok and response.reason == "Already owned" and profile.coins == 5)
+	check("second purchase rejected without charge", not response.ok and response.reason == "Already owned" and profile.cash == 5)
 	standAt(newTarget.Position + Vector3.new(0, 0, -2))
 	task.wait(Config.Manual.cooldownSeconds + 0.05)
 	profile.rawCorn.Normal = 0

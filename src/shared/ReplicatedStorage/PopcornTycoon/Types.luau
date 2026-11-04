@@ -4,7 +4,7 @@ export type Field = { id: string, ownerUserId: number, cropId: string, rows: num
 export type Profile = {
 	schemaVersion: number,
 	popcorn: number,
-	coins: number,
+	cash: number,
 	rawCorn: { [string]: number },
 	ownedTools: { [string]: boolean },
 	equippedTool: string,
@@ -16,7 +16,7 @@ export type CropDefinition = { displayName: string, growthSeconds: number, popco
 -- tool and targets are set for swung tools so the client can play one snip per stalk.
 export type HarvestResult = { ok: boolean, reason: string, amount: number, tool: string?, targets: { Vector3 }? }
 -- Every price names the balance it is paid from (see Config.Economy).
-export type Currency = "Coins" | "Popcorn"
+export type Currency = "Cash" | "Popcorn"
 export type ToolDefinition = {
 	displayName: string, description: string, price: number, currency: Currency, reach: number, arcDegrees: number,
 	maxTargets: number, cooldownSeconds: number, yieldMultiplier: number,

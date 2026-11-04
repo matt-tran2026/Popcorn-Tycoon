@@ -4,6 +4,7 @@
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
 local Types = require(Shared.Types)
+local Money = require(Shared.Money)
 local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local UpgradeService = {}
@@ -25,11 +26,11 @@ function UpgradeService.buyExtraRow(player: Player, ownerUserId: unknown): Types
 	if not sign or not root or not root:IsA("BasePart") then return result(false, "Character unavailable") end
 	local distance = (root.Position - sign.Position).Magnitude
 	if distance ~= distance or distance > upgrade.range + 2 then return result(false, "Too far away") end
-	-- Paid from the configured balance (Coins since Nov 3 2026).
+	-- Paid from the configured balance (Cash since Nov 3 2026).
 	local short = upgrade.price - State.balance(profile, upgrade.currency)
 	if short > 0 then
-		local hint = if upgrade.currency == "Coins" then " · sell popcorn at the stand" else ""
-		return result(false, "Need " .. tostring(short) .. " more " .. string.lower(upgrade.currency) .. hint)
+		local hint = if upgrade.currency == "Cash" then " · sell popcorn at the stand" else ""
+		return result(false, "Need " .. Money.price(upgrade.currency, short) .. " more" .. hint)
 	end
 	-- No yields between the checks above and this commit.
 	assert(State.spend(profile, upgrade.currency, upgrade.price))
