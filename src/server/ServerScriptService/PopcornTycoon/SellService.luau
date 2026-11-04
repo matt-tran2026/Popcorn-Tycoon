@@ -41,6 +41,9 @@ function SellService.sell(player: Player, ownerUserId: unknown): Types.ActionRes
 	profile.cash += earned
 	State.publish(player.UserId)
 	SellService.refresh(player.UserId)
+	-- The stand's vendor waves and hops on every client (AmbientController); purely visual.
+	local vendor = if stand.Parent then stand.Parent:FindFirstChild("SellVendor", true) else nil
+	if vendor then vendor:SetAttribute("CheerAt", workspace:GetServerTimeNow()) end
 	return result(true, "Sold " .. tostring(sold) .. " popcorn", earned)
 end
 

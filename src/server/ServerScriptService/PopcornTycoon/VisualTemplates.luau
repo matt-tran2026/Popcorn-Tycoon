@@ -12,7 +12,9 @@ local ids = {Corn = 125811337408333, Microwave = 122309358743155}
 -- Microwave: the Blender-built brick kiosk (Assets/MicrowaveStand/MicrowaveStand.fbx, Nov 4 2026)
 -- with its MicrowaveBody mesh and named anchor attachments; the old generated kiosk asset
 -- stays the fallback.
-local localNames = {Corn = "CornStalk", Microwave = "MicrowaveStand"}
+-- Sell: the Blender sell stand with its vendor (Assets/SellStand/SellStand.fbx, Nov 4 2026). It has
+-- no published fallback: without the place template the farm keeps the part-built cart.
+local localNames = {Corn = "CornStalk", Microwave = "MicrowaveStand", Sell = "SellStand"}
 local function loadLocal(name: string): (boolean, any)
  local folder = ServerStorage:FindFirstChild("PopcornTemplates")
  local source = if folder and localNames[name] then folder:FindFirstChild(localNames[name]) else nil
@@ -24,9 +26,10 @@ local function loadLocal(name: string): (boolean, any)
  return false, nil
 end
 function Templates.load()
- for name,id in ids do
+ for name in localNames do
+  local id=ids[name]
   local ok,result=loadLocal(name)
-  if not ok then ok,result=pcall(function() return InsertService:LoadAsset(id) end) end
+  if not ok and id then ok,result=pcall(function() return InsertService:LoadAsset(id) end) end
   if ok then
    local model=result :: Model
    for _,v in model:GetDescendants() do
@@ -35,7 +38,7 @@ function Templates.load()
    end
    model.Name=name
    cache[name]=model
-  else warn("[PopcornTycoon] Visual template unavailable: "..name) end
+  elseif id then warn("[PopcornTycoon] Visual template unavailable: "..name) end
  end
 end
 -- True when the loaded template carries a descendant with this name (e.g. an anchor attachment).

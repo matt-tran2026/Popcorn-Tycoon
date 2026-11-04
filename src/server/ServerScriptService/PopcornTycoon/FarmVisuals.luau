@@ -6,6 +6,9 @@ local Templates = require(script.Parent.VisualTemplates)
 local FarmVisuals = {}
 -- The Blender kiosk is 15.77 studs tall as authored; this is its height on the farm.
 local KIOSK_HEIGHT, KIOSK_AUTHORED = 12.6, 15.7669
+-- The Blender sell stand (Nov 4 2026) is 15.95 studs tall as authored; same scale as the kiosk.
+local SELL_AUTHORED = 15.95
+local SELL_HEIGHT = SELL_AUTHORED * KIOSK_HEIGHT / KIOSK_AUTHORED
 local colors = {
 	grass = Color3.fromRGB(115, 174, 65), leaf = Color3.fromRGB(77, 143, 49),
 	wood = Color3.fromRGB(157, 99, 53), trim = Color3.fromRGB(101, 62, 37),
@@ -266,6 +269,18 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 		end
 		(station:FindFirstChild("StationSign") :: BasePart).Position = world(m(0, 9.2, -4.8))
 	end
+	-- The Blender sell stand and its vendor replace the part-built cart when the template is in the place.
+	local sellMesh = if Templates.has("Sell", "SellBase") then Templates.clone("Sell", stand, world(sellAnchor), SELL_HEIGHT) else nil
+	if sellMesh then
+		for _, child in stand:GetChildren() do
+			if child ~= sellMesh then child:Destroy() end
+		end
+		-- Centre the counter (the authored origin), not the bounds, which include the vendor's step.
+		local origin = (sellMesh:FindFirstChild("SellBase", true) :: BasePart):GetPivot().Position
+		local shift = world(sellAnchor) - origin
+		sellMesh:PivotTo(sellMesh:GetPivot() + Vector3.new(shift.X, 0, shift.Z))
+		FarmVisuals.dressSell(stand, sellMesh)
+	end
 	faceField(station, microwaveAnchor)
 	faceField(stand, sellAnchor)
 	-- The door stood 4.5 studs in front of the kiosk before the turn; it now faces the field (+Z).
@@ -280,6 +295,29 @@ end
 -- (stand front toward -Z, before the station turns to face the field). The microwave body and
 -- its window, glow and display go in a "MicrowaveUnit" model that clients shake while it cooks
 -- (MicrowaveController); marquee bulbs on the sign chase like the hub arches.
+local function piece(parent: Instance, name: string, sz: Vector3, cf: CFrame, color: Color3, material: Enum.Material): Part
+	local p = Instance.new("Part")
+	p.Name, p.Size, p.CFrame, p.Color, p.Material = name, sz, cf, color, material
+	p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery, p.CastShadow = true, false, false, false, false
+	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+	p:SetAttribute("WalkThrough", true)
+	p.Parent = parent
+	return p
+end
+
+-- Marquee bulbs along the top and bottom of a sign frame (chased by AmbientController).
+local function signBulbs(parent: Instance, signAt: CFrame, frame: Vector2, k: number)
+	local count = 11
+	for row, y in { frame.Y / 2 - 0.14 * k, -frame.Y / 2 + 0.14 * k } do
+		for i = 0, count - 1 do
+			local x = (i / (count - 1) - 0.5) * (frame.X - 0.9 * k)
+			local b = piece(parent, "Bulb", Vector3.one * 0.42 * k, signAt * CFrame.new(x, y, -0.06 * k), colors.gold, Enum.Material.Neon)
+			b.Shape = Enum.PartType.Ball
+			b:SetAttribute("Bulb", i + (row - 1) * 2)
+		end
+	end
+end
+
 function FarmVisuals.dressMicrowave(station: Model, kiosk: Model)
 	local _, size = kiosk:GetBoundingBox()
 	local k = size.Y / KIOSK_AUTHORED -- authored studs -> placed studs
@@ -287,15 +325,6 @@ function FarmVisuals.dressMicrowave(station: Model, kiosk: Model)
 		local a = kiosk:FindFirstChild(name, true) :: Attachment
 		local s = a:GetAttribute("Size")
 		return a.WorldCFrame, if typeof(s) == "Vector2" then s * k else Vector2.zero
-	end
-	local function piece(parent: Instance, name: string, sz: Vector3, cf: CFrame, color: Color3, material: Enum.Material): Part
-		local p = Instance.new("Part")
-		p.Name, p.Size, p.CFrame, p.Color, p.Material = name, sz, cf, color, material
-		p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery, p.CastShadow = true, false, false, false, false
-		p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
-		p:SetAttribute("WalkThrough", true)
-		p.Parent = parent
-		return p
 	end
 	local microwave = model("MicrowaveUnit", station)
 	local body = kiosk:FindFirstChild("MicrowaveBody", true) :: BasePart
@@ -338,15 +367,7 @@ function FarmVisuals.dressMicrowave(station: Model, kiosk: Model)
 	local bulbs = Instance.new("Folder")
 	bulbs.Name, bulbs.Parent = "Bulbs", station
 	local signAt, frame = anchor("SignFront")
-	local count = 11
-	for row, y in { frame.Y / 2 - 0.14 * k, -frame.Y / 2 + 0.14 * k } do
-		for i = 0, count - 1 do
-			local x = (i / (count - 1) - 0.5) * (frame.X - 0.9 * k)
-			local b = piece(bulbs, "Bulb", Vector3.one * 0.42 * k, signAt * CFrame.new(x, y, -0.06 * k), colors.gold, Enum.Material.Neon)
-			b.Shape = Enum.PartType.Ball
-			b:SetAttribute("Bulb", i + (row - 1) * 2)
-		end
-	end
+	signBulbs(bulbs, signAt, frame, k)
 	for _, name in { "PostTopL", "PostTopR" } do
 		local at = anchor(name)
 		local globe = piece(bulbs, "Globe", Vector3.one * 0.9 * k, at, colors.gold, Enum.Material.Neon)
@@ -357,6 +378,75 @@ function FarmVisuals.dressMicrowave(station: Model, kiosk: Model)
 		if d:IsA("MeshPart") then d.CanCollide, d.CanQuery = true, true end
 	end
 	body.CanCollide, body.CanQuery = true, true
+end
+
+-- Live pieces for the Blender sell stand (Assets/SellStand, anchors.json). Positions are the authored
+-- Blender studs (x, y, z; front = -y) from the SellBase origin, mapped to Studio (-x, z, y) before the
+-- stand turns to face the field. The vendor and coin meshes keep their authored pivots (shoulders,
+-- coin centre); AmbientController animates them from the Ambient attributes set here.
+function FarmVisuals.dressSell(stand: Model, kiosk: Model)
+	local _, size = kiosk:GetBoundingBox()
+	local k = size.Y / SELL_AUTHORED
+	local origin = (kiosk:FindFirstChild("SellBase", true) :: BasePart):GetPivot().Position
+	local function at(x: number, y: number, z: number): CFrame
+		return CFrame.new(origin + Vector3.new(-x, z, y) * k)
+	end
+	local function label(parent: BasePart, text: string, font: Enum.Font, color: Color3, background: Color3?): TextLabel
+		local gui = Instance.new("SurfaceGui")
+		gui.Name, gui.Face, gui.LightInfluence = "Lettering", Enum.NormalId.Front, 0.4
+		gui.SizingMode, gui.PixelsPerStud = Enum.SurfaceGuiSizingMode.PixelsPerStud, 60
+		local t = Instance.new("TextLabel")
+		t.Name, t.Size, t.Position = "Text", UDim2.fromScale(0.92, 0.8), UDim2.fromScale(0.04, 0.1)
+		t.BackgroundTransparency, t.Font, t.TextScaled, t.Text, t.TextColor3 = 1, font, true, text, color
+		if background then
+			t.Size, t.Position, t.BackgroundTransparency, t.BackgroundColor3 = UDim2.fromScale(1, 1), UDim2.new(), 0, background
+			gui.LightInfluence, gui.Brightness = 0, 1.6 -- a lit screen
+		end
+		local stroke = Instance.new("UIStroke")
+		stroke.Color, stroke.Thickness = Color3.fromRGB(68, 49, 38), 2
+		stroke.Parent, t.Parent, gui.Parent = t, gui, parent
+		return t
+	end
+	local rate = Config.Sell.cashPerPopcorn
+	-- The live price on the brown plaque at the counter front, and on the register's screen.
+	local plaque = piece(stand, "RateBoard", Vector3.new(6.8 * k, 1.3 * k, 0.05 * k), at(0, -2.81, 1.95), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
+	plaque.Transparency = 1
+	label(plaque, "1 popcorn = $" .. tostring(rate), Enum.Font.FredokaOne, Color3.fromRGB(255, 239, 198))
+	local screen = piece(stand, "RegisterScreen", Vector3.new(1.3 * k, 0.62 * k, 0.03 * k), at(3.2, -0.38, 6.89), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
+	screen.Transparency = 1
+	label(screen, "$" .. tostring(rate), Enum.Font.Arcade, Color3.fromRGB(124, 240, 122), Color3.fromRGB(35, 39, 44))
+	-- Marquee bulbs on the sign and a glowing globe on each post, like the microwave kiosk.
+	local bulbs = Instance.new("Folder")
+	bulbs.Name, bulbs.Parent = "Bulbs", stand
+	signBulbs(bulbs, at(0, 1.82, 11.95), Vector2.new(11.3, 2.8) * k, k)
+	for _, x in { -5.95, 5.95 } do
+		local globe = piece(bulbs, "Globe", Vector3.one * 0.9 * k, at(x, 2.2, 12.8), colors.gold, Enum.Material.Neon)
+		globe.Shape = Enum.PartType.Ball
+	end
+	-- Movers get an upright axis part as PrimaryPart, so their pivot follows every later turn.
+	local function mover(name: string, kind: string, axisAt: CFrame, parts: { string }): Model
+		local m = Instance.new("Model")
+		m.Name, m.Parent = name, stand
+		local axis = piece(m, "Axis", Vector3.one * 0.2, axisAt, Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
+		axis.Transparency = 1
+		m.PrimaryPart = axis
+		for _, partName in parts do
+			local p = kiosk:FindFirstChild(partName, true) :: BasePart
+			p:SetAttribute("WalkThrough", true)
+			p.CanCollide, p.CanQuery = false, false
+			p.Parent = m
+		end
+		m:SetAttribute("Ambient", kind)
+		return m
+	end
+	mover("SpinCoin", "Spin", at(0, 2.2, 14.75), { "SellCoin" }):SetAttribute("SpinSpeed", 1.6)
+	-- The vendor: SellService stamps CheerAt on a sale and every client plays the wave and hop.
+	local vendor = mover("SellVendor", "Vendor", at(-1, 3.75, 1.3), { "VendorBody", "VendorArmL", "VendorArmR" })
+	vendor:SetAttribute("CheerAt", 0)
+	-- The counter, posts, sign and awning are solid like the kiosk.
+	for _, d in kiosk:GetDescendants() do
+		if d:IsA("MeshPart") then d.CanCollide, d.CanQuery = true, true end
+	end
 end
 
 return FarmVisuals

@@ -5,6 +5,9 @@
 --                     by Bob studs, optionally spinning (SpinSpeed) and tumbling (Tumble)
 --   Ambient = "Fly"   like Orbit but faces its flight path, banks and flaps its wings
 --   Ambient = "Hover" BillboardGui bobbing gently
+--   Ambient = "Vendor" the sell-stand vendor: breathes and looks around, waves now and then, and
+--                     waves both arms and hops when CheerAt (server time) is fresh; arms
+--                     (VendorArm*) swing about their own pivots, the shoulders
 --   Bulb = n          marquee bulb n in its folder; folders chase their lights
 -- One Heartbeat loop moves every part with BulkMoveTo; nothing here reaches the server.
 local RunService = game:GetService("RunService")
@@ -17,7 +20,15 @@ type Mover = {
 	offsets: { CFrame },
 	base: CFrame,
 	wings: { [number]: number }, -- part index -> wing side (-1 / 1)
+	arms: { [number]: { hinge: Vector3, side: number, idle: boolean } }, -- part index -> shoulder
 }
+
+local VENDOR_WAVE_EVERY, VENDOR_WAVE_SECONDS, CHEER_SECONDS = 8, 1.8, 1.6
+
+-- 0 -> 1 -> 0 over a window, with quick ramps at both ends.
+local function envelope(u: number): number
+	return if u <= 0 or u >= 1 then 0 else math.min(1, u * 5, (1 - u) * 5)
+end
 
 local BULB_ON = Color3.fromRGB(255, 226, 96)
 local BULB_OFF = Color3.fromRGB(140, 84, 28)
@@ -30,7 +41,7 @@ end
 
 local function newMover(model: Model, kind: string): Mover
 	local pivot = model:GetPivot()
-	local parts, offsets, wings = {}, {}, {}
+	local parts, offsets, wings, arms = {}, {}, {}, {}
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then
 			table.insert(parts, d)
@@ -38,10 +49,13 @@ local function newMover(model: Model, kind: string): Mover
 			table.insert(offsets, offset)
 			if kind == "Fly" and (d.Name == "Wing" or d.Name == "WingTip") then
 				wings[#parts] = if offset.Position.X < 0 then -1 else 1
+			elseif kind == "Vendor" and string.sub(d.Name, 1, 9) == "VendorArm" then
+				local hinge = pivot:PointToObjectSpace(d:GetPivot().Position)
+				arms[#parts] = { hinge = hinge, side = if hinge.X < 0 then -1 else 1, idle = d.Name == "VendorArmL" }
 			end
 		end
 	end
-	return { model = model, kind = kind, parts = parts, offsets = offsets, base = pivot, wings = wings }
+	return { model = model, kind = kind, parts = parts, offsets = offsets, base = pivot, wings = wings, arms = arms }
 end
 
 function AmbientController.start()
@@ -92,8 +106,17 @@ function AmbientController.start()
 			end
 			local model = m.model
 			local pivot: CFrame
+			local armLift, idleLift = 0, 0
 			if m.kind == "Spin" then
 				pivot = m.base * CFrame.Angles(0, t * attr(model, "SpinSpeed", 0.3), 0)
+			elseif m.kind == "Vendor" then
+				local cheer = attr(model, "CheerAt", 0)
+				local since = if cheer > 0 then workspace:GetServerTimeNow() - cheer else math.huge
+				-- Two quick hops while both arms wave.
+				local hop = if since >= 0 and since < 0.9 then math.abs(math.sin(since * math.pi / 0.45)) * 0.7 else 0
+				armLift = envelope(since / CHEER_SECONDS) * (2.6 + math.sin(t * 16) * 0.3)
+				idleLift = envelope((t % VENDOR_WAVE_EVERY) / VENDOR_WAVE_SECONDS) * (2.3 + math.sin(t * 11) * 0.35)
+				pivot = m.base * CFrame.new(0, math.sin(t * 2.1) * 0.05 + hop, 0) * CFrame.Angles(0, math.sin(t * 0.5) * 0.12, 0)
 			else
 				local center = model:GetAttribute("OrbitCenter")
 				if typeof(center) ~= "Vector3" then continue end
@@ -117,6 +140,12 @@ function AmbientController.start()
 				if side then
 					local hinge = Vector3.new(side * 0.35, 0.3, 0)
 					offset = CFrame.new(hinge) * CFrame.Angles(0, 0, side * flap) * CFrame.new(-hinge) * offset
+				end
+				local arm = m.arms[index]
+				if arm then
+					-- Raise the arm outward about the shoulder (a cheer beats the idle wave).
+					local lift = math.max(armLift, if arm.idle then idleLift else 0)
+					offset = CFrame.new(arm.hinge) * CFrame.Angles(0, 0, arm.side * lift) * CFrame.new(-arm.hinge) * offset
 				end
 				table.insert(moveParts, p)
 				table.insert(moveFrames, pivot * offset)
