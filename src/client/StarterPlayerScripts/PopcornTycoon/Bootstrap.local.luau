@@ -176,9 +176,13 @@ actions.OnClientEvent:Connect(function(kind: string, response)
  elseif kind == "Equip" then
   show(response.reason)
  elseif kind == "Upgrade" then
+  -- Land from a step-on pad (Extra Row or New Plot); both are paid in Cash.
   local currency = Config.Upgrades.ExtraRow.currency
   show(response.reason .. "  ·  −" .. Money.price(currency, response.amount))
+  chime("rbxassetid://9113849492", 0.35)
   if currency == "Cash" then hud.pulseCash() else hud.pulsePopcorn() end
+  local cashBar = hud.targets.cash
+  UIFx.floatText(fx, "−" .. Money.price(currency, response.amount), Color3.fromRGB(255, 110, 100), UIFx.centerOf(fx, cashBar) - Vector2.new(0, cashBar.AbsoluteSize.Y), iconSize() * 0.9)
  end
 end)
 -- Server places each popcorn piece where it lands and credits it when its flight ends.
@@ -240,6 +244,7 @@ require(script.Parent.HarvestHighlight).start(gui)
 require(script.Parent.ToolController).start(feedback)
 require(script.Parent.AmbientController).start()
 require(script.Parent.MicrowaveController).start()
+require(script.Parent.PadController).start()
 -- Orient the initial normal third-person camera toward this player's farm.
 -- Camera controls remain Roblox's default after this one-time placement.
 task.spawn(function()

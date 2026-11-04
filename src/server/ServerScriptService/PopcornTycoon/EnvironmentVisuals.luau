@@ -44,7 +44,8 @@ function Environment.build()
  for i=1,count do
   local theta=(i-1)*2*math.pi/count+random:NextNumber(-0.06,0.06)
   local dir=Vector3.new(math.sin(theta),0,math.cos(theta))
-  local at=map.center+dir*random:NextNumber(400,460)
+  -- Past the 3x3 farm islands, which reach about 370 studs from the hub (Nov 4 2026).
+  local at=map.center+dir*random:NextNumber(470,530)
   local frame=CFrame.lookAt(at, map.center) -- Each isle turns its front toward the hub.
   local beach=map.waterLevel+1
   shape("DistantIsle",frame*CFrame.new(0,beach-2-at.Y,0),Vector3.new(72,4,64),sand)

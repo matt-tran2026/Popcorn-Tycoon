@@ -52,18 +52,36 @@ local ok, err = pcall(function()
 	-- 628 after the sell stand, shed/stand anchors and the sickle display; the tool shed was
 	-- removed on Nov 3 2026 (tools are bought in the Shop menu).
 	-- Lights: the two gate lanterns plus the microwave kiosk's cook light (Blender kiosk, Nov 4 2026;
-	-- 619 parts measured with it).
-	check("bounded plot geometry and lights", parts <= 650 and lights == 3)
-	local starterStalks = Config.Starter.rows * Config.Starter.columns
-	check("no decorative scripts; only harvest, microwave, row and sell prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1 and prompts.Sell == 1 and prompts.BuyTool == nil)
+	-- 619 parts measured with it). The 3x3 island (Nov 4 2026) measured 741: a longer fence,
+	-- grid walkways, eight 5-part locked cells and two land pads; open plots measured 663.
+	check("bounded plot geometry and lights", parts <= 780 and lights == 3)
+	local starterStalks = Config.Plot.baseRows * Config.Plot.columns
+	check("no decorative scripts; only harvest, microwave and sell prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.Sell == 1 and prompts.BuyRow == nil and prompts.BuyTool == nil)
+	-- Land is bought on step-on pads (Nov 4 2026): a row pad on the starter plot, a plot pad on cell 2.
+	local rowPad = assert(farm:FindFirstChild("RowPad_Plot1"), "row pad missing") :: BasePart
+	local plotPad = assert(farm:FindFirstChild("PlotPad"), "plot pad missing") :: BasePart
+	check("row and plot pads are priced and walk-through", rowPad.CanTouch and not rowPad.CanCollide and not plotPad.CanCollide
+		and typeof(rowPad:GetAttribute("Price")) == "number" and plotPad:GetAttribute("Plot") == 2)
 	-- Brick map (Nov 3 2026): decorations are solid structures; flat ground pieces, crops
 	-- and tiny details stay passable so paths and beds can be walked.
 	local function solid(name: string): boolean
 		local object = scenery:FindFirstChild(name, true)
 		return object ~= nil and object:IsA("BasePart") and object.CanCollide
 	end
-	check("fences, stations, props and signs are solid", solid("Post") and solid("Rail") and solid("Counter") and solid("HayBale") and solid("Barrel") and solid("OwnerSign"))
-	check("paths, beds and edging stay walkable", not solid("EntranceDirt") and not solid("CrossPath") and not solid("CultivatedRow_1") and not solid("Edging"))
+	-- The stations are Blender meshes since Nov 4 2026 (no part-built "Counter" any more).
+	local function meshSolid(station: Instance?): boolean
+		if not station then return false end
+		for _, object in station:GetDescendants() do
+			if object:IsA("MeshPart") and object.CanCollide then return true end
+		end
+		return false
+	end
+	check("fences, stations, props and signs are solid", solid("Post") and solid("Rail") and meshSolid(scenery:FindFirstChild("MicrowaveStation")) and meshSolid(scenery:FindFirstChild("SellStand")) and solid("HayBale") and solid("Barrel") and solid("OwnerSign"))
+	local function walkable(name: string): boolean
+		local object = farm:FindFirstChild(name, true)
+		return object ~= nil and object:IsA("BasePart") and not object.CanCollide
+	end
+	check("paths, beds and edging stay walkable", not solid("EntranceDirt") and not solid("CrossPath") and not solid("Walkway") and walkable("CultivatedRow_1") and walkable("Edging") and walkable("BoundaryMarker"))
 	local cropsPassable = true
 	for _, object in farm:GetChildren() do
 		if object:IsA("BasePart") and (object.Name:match("^Stalk_") or object.Name:match("^Ear_")) and object.CanCollide then cropsPassable = false end
@@ -76,16 +94,19 @@ local ok, err = pcall(function()
 	local ground = scenery:FindFirstChild("GrassFoundation") :: BasePart
 	check("brick plot uses classic stud surfaces, no texture objects", textures == 0 and ground.TopSurface == Enum.SurfaceType.Studs
 		and ground.Material == Enum.Material.Plastic and (farm:FindFirstChild("Soil") :: BasePart).TopSurface == Enum.SurfaceType.Studs)
-	check("microwave and sell stand work; no tool shed; expansion stays visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery:FindFirstChild("ToolShed") == nil and scenery.SellStand:GetAttribute("VisualOnly") == false and scenery.FutureExpansion:GetAttribute("VisualOnly"))
+	local lockedCells = 0
+	for _, child in farm:GetChildren() do if child.Name:match("^LockedCell_") then lockedCells += 1 end end
+	check("microwave and sell stand work; no tool shed; eight locked plot cells", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery:FindFirstChild("ToolShed") == nil and scenery.SellStand:GetAttribute("VisualOnly") == false and scenery:FindFirstChild("FutureExpansion") == nil and lockedCells == #Config.Grid.order - 1)
 	local soil = farm:FindFirstChild("Soil") :: BasePart
 	-- Layout in the farm's own frame (soil +Z points from the stations toward the back fence;
-	-- +X is the visitor's left): stations face the field from the front, the lawn sits left.
+	-- +X is the visitor's left): stations face the field from the front; plot 2 is the cell to the left.
 	local function local_(position: Vector3): Vector3 return soil.CFrame:PointToObjectSpace(position) end
 	local door = assert(Farms.microwave(player.UserId)).door
-	local lawn = scenery.FutureExpansion.ReservedGrass :: BasePart
+	local cell2 = assert(farm:FindFirstChild("LockedCell_2"), "locked cell 2 missing")
+	local lawn = assert(cell2:FindFirstChild("ReservedGrass"), "cell 2 lawn missing") :: BasePart
 	check("stations stand in front of the field", local_(door.Position).Z < -soil.Size.Z / 2 and local_(scenery.SellStand:GetPivot().Position).Z < -soil.Size.Z / 2)
 	check("microwave faces the field", door.CFrame.LookVector:Dot(soil.CFrame.ZVector) > 0.99)
-	check("expansion lawn is left of the field", local_(lawn.Position).X > (lawn.Size.X + soil.Size.X) / 2 - 1)
+	check("plot 2 is left of the starter plot", local_(lawn.Position).X > (lawn.Size.X + soil.Size.X) / 2 - 1 and math.abs(local_(lawn.Position).Z) < 1)
 	-- Map: the entrance faces the hub and a bridge-head sign names the owner.
 	local hubCenter = Config.Map.center
 	local entranceOffset = Config.Farm.plotSize.Z / 2 - Config.Farm.plotOffset.Z
@@ -109,8 +130,10 @@ local ok, err = pcall(function()
 	check("open slots show starter farms without prompts", #openPlots + #workspace.PopcornFarms:GetChildren() == Config.Map.slots and interactive == 0)
 	character:PivotTo(assert(workspace:FindFirstChildOfClass("SpawnLocation")).CFrame + Vector3.new(0, 4, 0))
 	task.wait(0.5)
+	local walkStart = os.clock()
 	walkPath(entrance - (entrance - hubCenter).Unit * 2 + Vector3.new(0, root.Position.Y - entrance.Y, 0))
 	walkTo(soil.Position - soil.CFrame.ZVector * (soil.Size.Z / 2 + 4) + Vector3.new(0, root.Position.Y - soil.Position.Y, 0))
+	script:SetAttribute("WalkSeconds", os.clock() - walkStart) -- 14.1 s on the 3x3 island (Nov 4 2026)
 	check("spawn across the hub and bridge to the cross path walkable", true)
 	-- Walking straight at the side fence from inside the plot stops at the rails. Jumping is
 	-- switched off for this check: a normal jump clears a 3-stud fence, as on any Roblox map.
@@ -119,27 +142,30 @@ local ok, err = pcall(function()
 	local jumpPower, jumpHeight = humanoid.JumpPower, humanoid.JumpHeight
 	humanoid.JumpPower, humanoid.JumpHeight = 0, 0
 	humanoid:MoveTo(inside + fenceSide + Vector3.new(0, root.Position.Y - inside.Y, 0))
-	task.wait(4)
+	task.wait(5) -- The side fence is about 60 studs away on the 3x3 island.
 	humanoid.JumpPower, humanoid.JumpHeight = jumpPower, jumpHeight
 	local plotCenter = soil.CFrame:PointToObjectSpace(root.Position)
 	local fenceLocalX = Config.Farm.plotSize.X / 2 - 1 - Config.Farm.plotOffset.X
 	check("the perimeter fence blocks walking through it", math.abs(plotCenter.X) < math.abs(fenceLocalX) + 1 and math.abs(plotCenter.X) > 5)
+	-- Walk back first: the way back is longer than walkTo's 7-second allowance.
+	humanoid:MoveTo(inside + Vector3.new(0, root.Position.Y - inside.Y, 0))
+	task.wait(5)
 	walkTo(inside + Vector3.new(0, root.Position.Y - inside.Y, 0))
 	local profile = assert(State.get(player.UserId))
 	local before, granted = profile.rawCorn.Normal, 0
-	local columns = Config.Starter.columns
+	local columns = Config.Plot.columns
 	-- A full 6x6 field can out-yield one bag; start empty and give each stalk exactly one yield.
 	profile.rawCorn.Normal, before = 0, 0
-	for row = 1, Config.Starter.rows do
+	for row = 1, Config.Plot.baseRows do
 		for step = 1, columns do
 			local col = if row % 2 == 1 then step else columns + 1 - step
-			local id = tostring((row - 1) * columns + col)
-			local target = assert(Farms.target(player.UserId, "Starter", id))
+			local id = State.stalkId(1, row, col)
+			local target = assert(Farms.target(player.UserId, "Plot1", id))
 			walkTo(target.Position - soil.CFrame.ZVector * 1.8)
 			task.wait(Config.Manual.cooldownSeconds + 0.05)
 			local owner, fieldId, stalkId = Farms.resolve(target.Harvest)
-			check("registered prompt " .. id, owner == player.UserId and fieldId == "Starter" and stalkId == id)
-			profile.fields.Starter.stalks[id].growthStartedAt = DateTime.now().UnixTimestampMillis / 1000 - Config.Crops.Normal.growthSeconds
+			check("registered prompt " .. id, owner == player.UserId and fieldId == "Plot1" and stalkId == id)
+			profile.fields.Plot1.stalks[id].growthStartedAt = DateTime.now().UnixTimestampMillis / 1000 - Config.Crops.Normal.growthSeconds
 			local result = Harvest.attempt(player, owner, fieldId, stalkId)
 			check("walk to and harvest stalk " .. id, result.ok and result.amount == 1)
 			granted += result.amount

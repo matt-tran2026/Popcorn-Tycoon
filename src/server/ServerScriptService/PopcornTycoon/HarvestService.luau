@@ -90,16 +90,19 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	if not profile.ownedTools[toolId] or profile.equippedTool ~= toolId then return result(false, tool.displayName .. " not equipped") end
 	local root = livingRoot(player)
 	if not root then return result(false, "Character unavailable") end
-	local field = profile.fields.Starter
-	if not field or field.ownerUserId ~= player.UserId or not Config.Crops[field.cropId] then return result(false, "No field") end
 	local at = now()
-	local crop = Config.Crops[field.cropId]
 	-- Only ripe stalks are candidates, so growing corn never soaks up a swing's targets.
+	-- Candidates come from every owned plot; each stalk remembers its plot (Farms.fieldOf).
 	local candidates: { Types.TargetCandidate } = {}
+	local fieldOf: { [string]: Types.Field } = {}
 	for id, part in Farms.stalkParts(player.UserId) do
-		local stalk = field.stalks[id]
-		if stalk and Growth.yields(stalk.growthStartedAt, at, crop) > 0 then
+		local fieldId = Farms.fieldOf(player.UserId, id)
+		local field = if fieldId then profile.fields[fieldId] else nil
+		local crop = if field then Config.Crops[field.cropId] else nil
+		local stalk = if field then field.stalks[id] else nil
+		if field and crop and stalk and field.ownerUserId == player.UserId and Growth.yields(stalk.growthStartedAt, at, crop) > 0 then
 			table.insert(candidates, { id = id, position = part.Position })
+			fieldOf[id] = field
 		end
 	end
 	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool)
@@ -111,6 +114,7 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	local total, full = 0, false
 	local targets: { Vector3 } = {}
 	for _, id in picked do
+		local field = fieldOf[id]
 		local corn, available = take(profile, field, field.stalks[id], at, tool.yieldMultiplier)
 		if corn > 0 then
 			total += corn

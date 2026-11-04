@@ -1,27 +1,38 @@
 --!strict
+local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
 local Types = require(Shared.Types)
 local Money = require(Shared.Money)
+local Pricing = require(Shared.Pricing)
 local Visuals = require(script.Parent.FarmVisuals)
 local Map = require(script.Parent.MapVisuals)
 local Templates = require(script.Parent.VisualTemplates)
 local Brick = require(script.Parent.BrickStyle)
+local State = require(script.Parent.PlayerStateService)
 
-type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model? }
+type StalkView = { part: Part, ear: Part, prompt: ProximityPrompt, leaves: { Part }, mesh: Model?, fieldId: string }
 export type MicrowaveView = { door: Part, prompt: ProximityPrompt, popping: ParticleEmitter, popcorn: Folder }
 -- Farms are built around the canonical origin (Config.Farm), then `placement` turns them onto their slot.
+-- fields is the owner's profile.fields table (shared, not copied). Purchase pads: one row pad per
+-- owned plot that still has bed room, and one plot pad on the next locked cell.
 type FarmView = {
-	model: Model, field: Types.Field, slot: number, placement: CFrame, stalks: { [string]: StalkView },
-	microwave: MicrowaveView, rowSign: Part?, sellStand: Part,
+	model: Model, fields: { [string]: Types.Field }, slot: number, placement: CFrame, stalks: { [string]: StalkView },
+	microwave: MicrowaveView, sellStand: Part, locked: { [number]: Model },
+	rowPads: { [string]: Part }, plotPad: Part?,
 }
+-- What a pad step-on asks for: kind "Row" (with the plot's fieldId) or "Plot".
+export type PadHandler = (player: Player, kind: string, fieldId: string?, pad: Part) -> ()
 local farms: { [number]: FarmView } = {}
 local occupied: { [number]: boolean } = {}
 local root: Folder? = nil
 -- Unclaimed slots show a fresh starter farm as scenery so the map always looks lived in.
 local openPlots: { [number]: Model } = {}
 local openRoot: Folder? = nil
+local padHandler: PadHandler? = nil
+-- The pad each player last stepped on; it re-arms once they step off (see FarmService.update).
+local padVisits: { [number]: { pad: Part, at: number, left: boolean } } = {}
 local FarmService = {}
 
 local function part(name: string, size: Vector3, position: Vector3, color: Color3, parent: Instance): Part
@@ -44,17 +55,25 @@ local function prompt(name: string, action: string, object: string, range: numbe
 	return p
 end
 
--- Rows are laid out for the full purchasable bed so planting a row never moves existing stalks.
-local function stalkPosition(origin: Vector3, row: number, col: number): Vector3
-	local s = Config.Starter
-	return origin + Vector3.new((col - (s.columns + 1) / 2) * s.spacing, 2.5, (row - (s.layoutRows + 1) / 2) * s.spacing)
+-- Canonical center of a plot cell at ground height.
+local function cellCenter(plot: number): Vector3
+	return Config.Farm.origin + Config.cellOffset(plot)
 end
 
-local function buildStalk(farm: Model, origin: Vector3, row: number, col: number): (string, StalkView)
-	local id = tostring((row - 1) * Config.Starter.columns + col)
-	local pos = stalkPosition(origin, row, col)
+-- Rows are laid out for the full purchasable bed so planting a row never moves existing stalks.
+local function stalkPosition(plot: number, row: number, col: number): Vector3
+	local s = Config.Plot
+	local rows = Config.layoutRows()
+	return cellCenter(plot) + Vector3.new((col - (s.columns + 1) / 2) * s.spacing, 2.5, (row - (rows + 1) / 2) * s.spacing)
+end
+
+local function buildStalk(farm: Model, field: Types.Field, row: number, col: number): (string, StalkView)
+	local origin = Config.Farm.origin
+	local id = State.stalkId(field.plot, row, col)
+	local pos = stalkPosition(field.plot, row, col)
 	local stem = part("Stalk_" .. id, Vector3.new(0.6, 4.5, 0.6), pos, Color3.fromRGB(68, 148, 56), farm)
 	stem:SetAttribute("StalkId", id)
+	stem:SetAttribute("FieldId", field.id)
 	local ear = part("Ear_" .. id, Vector3.new(0.9, 1.5, 0.9), pos + Vector3.new(0.4, 0.6, 0), Color3.fromRGB(255, 211, 63), farm)
 	ear.Shape = Enum.PartType.Ball
 	local leaves: { Part } = {}
@@ -68,39 +87,147 @@ local function buildStalk(farm: Model, origin: Vector3, row: number, col: number
 	if mesh then stem.Transparency = 1 for _, leaf in leaves do leaf:Destroy() end leaves = {} end
 	-- Lets clients find the visible stalk for a harvest target (HarvestHighlight).
 	if mesh then mesh:SetAttribute("StalkId", id) end
-	return id, { part = stem, ear = ear, prompt = harvest, leaves = leaves, mesh = mesh }
+	return id, { part = stem, ear = ear, prompt = harvest, leaves = leaves, mesh = mesh, fieldId = field.id }
 end
 
-local function lettering(board: Part, text: string)
-	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
-		local gui = Instance.new("SurfaceGui")
-		gui.Name, gui.Face, gui.PixelsPerStud = "Lettering", face, 40
-		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		local label = Instance.new("TextLabel")
-		label.Name, label.Size = "Text", UDim2.fromScale(0.94, 0.85)
-		label.Position, label.BackgroundTransparency = UDim2.fromScale(0.03, 0.075), 1
-		label.Font, label.TextScaled, label.TextWrapped = Enum.Font.GothamBold, true, true
-		label.TextColor3, label.Text = Color3.fromRGB(255, 239, 198), text
-		label.Parent, gui.Parent = gui, board
-	end
+-- Soil, edging and tilled strips of an owned plot. Plot 1's soil keeps the name "Soil"
+-- (the client turns the first camera toward it).
+local function buildPlotGround(model: Model, plot: number)
+	local s = Config.Plot
+	local center = cellCenter(plot)
+	local soil = part(if plot == 1 then "Soil" else "Soil_" .. tostring(plot), Vector3.new(s.columns * s.spacing + 2, 0.5, Config.layoutRows() * s.spacing + 3), center, Color3.fromRGB(100, 66, 41), model)
+	Brick.studs(soil)
+	local bed = Instance.new("Model")
+	bed.Name = "PlotBed_" .. tostring(plot)
+	Visuals.buildPlotBed(bed, center)
+	Brick.finish(bed, center.Y)
+	bed.Parent = model
 end
 
-local function buildRowSign(model: Model, origin: Vector3): Part
-	local row = Config.Starter.layoutRows
-	local center = (stalkPosition(origin, row, 1) + stalkPosition(origin, row, Config.Starter.columns)) / 2
-	local post = part("RowSignPost", Vector3.new(0.4, 4.6, 0.4), Vector3.new(center.X, origin.Y + 2.3, center.Z), Color3.fromRGB(101, 62, 37), model)
-	post.Material = Enum.Material.Wood
-	local board = part("RowForSale", Vector3.new(9, 2.4, 0.4), Vector3.new(center.X, origin.Y + 5.4, center.Z), Color3.fromRGB(101, 62, 37), model)
-	board.Material = Enum.Material.Wood
-	local upgrade = Config.Upgrades.ExtraRow
-	lettering(board, "FOR SALE\n" .. upgrade.displayName .. " · " .. Money.price(upgrade.currency, upgrade.price))
-	prompt("BuyRow", "Buy " .. upgrade.displayName, Money.price(upgrade.currency, upgrade.price), upgrade.range, board)
-	post.Parent = board -- Removing the board removes the whole sign.
-	for _, piece in { post, board } do
-		piece.CanCollide = true
-		Brick.studs(piece)
+local function buildLocked(model: Model, plot: number): Model
+	local cell = Instance.new("Model")
+	cell.Name = "LockedCell_" .. tostring(plot)
+	Visuals.buildLockedCell(cell, cellCenter(plot))
+	Brick.finish(cell, Config.Farm.origin.Y)
+	cell.Parent = model
+	return cell
+end
+
+-- Builds into a scratch model in canonical coordinates, turns it onto the farm's slot, then
+-- hands the pieces to the farm model.
+local function buildPlaced(farm: FarmView, build: (Model) -> ())
+	local batch = Instance.new("Model")
+	build(batch)
+	batch.WorldPivot = CFrame.identity
+	batch:PivotTo(farm.placement)
+	for _, child in batch:GetChildren() do child.Parent = farm.model end
+	batch:Destroy()
+end
+
+-- Purchase pads: a dark slab with a neon top, walk-through, and a floating price tag.
+-- Prices are attributes so the client can tint the pad by affordability (PadController).
+local function buildPad(parent: Instance, name: string, size: Vector2, at: Vector3, kind: string, title: string, fieldId: string?): Part
+	local pad = part(name, Vector3.new(size.X, 0.4, size.Y), at + Vector3.new(0, 0.3, 0), Color3.fromRGB(46, 52, 46), parent)
+	pad.Material, pad.CanTouch, pad.CanQuery = Enum.Material.SmoothPlastic, true, false
+	pad:SetAttribute("WalkThrough", true)
+	local glow = part("Glow", Vector3.new(size.X - 1, 0.1, size.Y - 1), at + Vector3.new(0, 0.55, 0), Color3.fromRGB(80, 220, 100), pad)
+	glow.Material, glow.CanQuery = Enum.Material.Neon, false
+	glow.Transparency = 0.15
+	pad:SetAttribute("PadKind", kind)
+	if fieldId then pad:SetAttribute("FieldId", fieldId) end
+	local tag = Instance.new("BillboardGui")
+	tag.Name, tag.Size, tag.StudsOffsetWorldSpace = "PriceTag", UDim2.fromOffset(190, 74), Vector3.new(0, 4, 0)
+	tag.MaxDistance, tag.LightInfluence, tag.ResetOnSpawn = 90, 0, false
+	local function label(name: string, text: string, y: number, height: number, color: Color3): TextLabel
+		local t = Instance.new("TextLabel")
+		t.Name, t.Text, t.TextColor3 = name, text, color
+		t.Size, t.Position = UDim2.new(1, 0, height, 0), UDim2.fromScale(0, y)
+		t.BackgroundTransparency, t.Font, t.TextScaled = 1, Enum.Font.FredokaOne, true
+		local stroke = Instance.new("UIStroke")
+		stroke.Color, stroke.Thickness, stroke.Parent = Color3.fromRGB(40, 16, 8), 3, t
+		t.Parent = tag
+		return t
 	end
-	return board
+	label("Title", title, 0, 0.45, Color3.fromRGB(255, 250, 238))
+	label("Price", "", 0.45, 0.55, Color3.fromRGB(255, 226, 74))
+	tag.Parent = pad
+	return pad
+end
+
+local function setPadPrice(pad: Part, currency: Types.Currency, price: number)
+	pad:SetAttribute("Price", price)
+	pad:SetAttribute("Currency", currency)
+	local tag = pad:FindFirstChild("PriceTag")
+	local label = if tag then tag:FindFirstChild("Price") :: TextLabel? else nil
+	if label then label.Text = Money.price(currency, price) end
+end
+
+local function connectPad(userId: number, pad: Part)
+	pad.Touched:Connect(function(hit: BasePart)
+		local character = hit.Parent
+		if character and character:IsA("Accessory") then character = character.Parent end
+		local player = if character then Players:GetPlayerFromCharacter(character) else nil
+		if not player or player.UserId ~= userId or not padHandler then return end
+		local visit = padVisits[userId]
+		local now = os.clock()
+		if visit and visit.pad == pad and (not visit.left or now - visit.at < Config.Pads.rearmSeconds) then return end
+		padVisits[userId] = { pad = pad, at = now, left = false }
+		local kind = pad:GetAttribute("PadKind")
+		local fieldId = pad:GetAttribute("FieldId")
+		if typeof(kind) ~= "string" then return end
+		padHandler(player, kind, if typeof(fieldId) == "string" then fieldId else nil, pad)
+	end)
+end
+
+-- Is `position` over the pad (within Config.Pads.reach of its edge and a little above it)?
+function FarmService.onPad(pad: Part, position: Vector3, slack: number?): boolean
+	local reach = Config.Pads.reach + (slack or 0)
+	local p = pad.CFrame:PointToObjectSpace(position)
+	return math.abs(p.X) <= pad.Size.X / 2 + reach and math.abs(p.Z) <= pad.Size.Z / 2 + reach and p.Y > -2 and p.Y < 9
+end
+
+-- Puts every pad where the owner's land currently allows and refreshes their prices.
+-- Row pads sit on the next empty row of their plot; the plot pad on the next locked cell.
+local function refreshPads(userId: number, farm: FarmView)
+	local rows = Config.layoutRows()
+	local rowPrice, plotPrice = Pricing.rowPrice(farm.fields), Pricing.plotPrice(farm.fields)
+	local rowUpgrade, plotUpgrade = Config.Upgrades.ExtraRow, Config.Upgrades.ExtraPlot
+	for fieldId, pad in farm.rowPads do
+		local field = farm.fields[fieldId]
+		if not field or field.rows >= rows or pad:GetAttribute("Row") ~= field.rows + 1 then
+			pad:Destroy()
+			farm.rowPads[fieldId] = nil
+		end
+	end
+	for fieldId, field in farm.fields do
+		if field.rows < rows and not farm.rowPads[fieldId] then
+			buildPlaced(farm, function(batch)
+				local at = stalkPosition(field.plot, field.rows + 1, (Config.Plot.columns + 1) / 2)
+				local pad = buildPad(batch, "RowPad_" .. fieldId, Vector2.new(8, 4), Vector3.new(at.X, Config.Farm.origin.Y, at.Z), "Row", "+1 Row", fieldId)
+				pad:SetAttribute("Row", field.rows + 1)
+				farm.rowPads[fieldId] = pad
+				connectPad(userId, pad)
+			end)
+		end
+		local pad = farm.rowPads[fieldId]
+		if pad then setPadPrice(pad, rowUpgrade.currency, rowPrice) end
+	end
+	local nextPlot = Pricing.plotsBought(farm.fields) + 2
+	local plotPad = farm.plotPad
+	if plotPad and (plotPad:GetAttribute("Plot") ~= nextPlot or not Config.Grid.order[nextPlot]) then
+		plotPad:Destroy()
+		farm.plotPad = nil
+	end
+	if not farm.plotPad and Config.Grid.order[nextPlot] then
+		buildPlaced(farm, function(batch)
+			local at = cellCenter(nextPlot) - Vector3.new(0, 0, Config.cellSize().Y / 2 - 7)
+			local pad = buildPad(batch, "PlotPad", Vector2.new(9, 9), at, "Plot", plotUpgrade.displayName)
+			pad:SetAttribute("Plot", nextPlot)
+			farm.plotPad = pad
+			connectPad(userId, pad)
+		end)
+	end
+	if farm.plotPad then setPadPrice(farm.plotPad, plotUpgrade.currency, plotPrice) end
 end
 
 local function buildMicrowave(model: Model, front: CFrame): MicrowaveView
@@ -133,26 +260,20 @@ local function station(model: Model, name: string, front: CFrame, promptName: st
 	return anchor
 end
 
-local function buildSoil(model: Model, origin: Vector3): Part
-	local s = Config.Starter
-	local soil = part("Soil", Vector3.new(s.columns * s.spacing + 2, 0.5, s.layoutRows * s.spacing + 3), origin, Color3.fromRGB(100, 66, 41), model)
-	Brick.studs(soil)
-	return soil
-end
-
--- What a new player's farm looks like on arrival (ripe starter corn, stations, lawn), with
--- no prompts, purchase sign, player state or growth updates. Replaced when the slot is claimed.
+-- What a new player's farm looks like on arrival (ripe starter corn, stations, locked cells),
+-- with no prompts, pads, player state or growth updates. Replaced when the slot is claimed.
 local function buildOpenPlot(slot: number)
 	local origin = Config.Farm.origin
 	local model = Instance.new("Model")
 	model.Name = "OpenPlot_" .. tostring(slot)
 	model:SetAttribute("Slot", slot)
-	buildSoil(model, origin)
+	buildPlotGround(model, 1)
+	for plot = 2, #Config.Grid.order do buildLocked(model, plot) end
 	Visuals.build(model, origin, nil)
 	Brick.finish(model:FindFirstChild("Scenery") :: Model, origin.Y)
-	for row = 1, Config.Starter.rows do
-		for col = 1, Config.Starter.columns do
-			local pos = stalkPosition(origin, row, col)
+	for row = 1, Config.Plot.baseRows do
+		for col = 1, Config.Plot.columns do
+			local pos = stalkPosition(1, row, col)
 			-- Same height FarmService.update gives a ripe stalk's mesh.
 			if not Templates.clone("Corn", model, Vector3.new(pos.X, origin.Y + 0.25, pos.Z), 4.5 * 1.4) then
 				part("Stalk", Vector3.new(0.6, 4.5, 0.6), pos, Color3.fromRGB(68, 148, 56), model)
@@ -183,7 +304,12 @@ function FarmService.init()
 	end
 end
 
-function FarmService.create(userId: number, field: Types.Field, ownerName: string?)
+-- Pad step-ons go to this handler (wired by Bootstrap to UpgradeService, which requires us).
+function FarmService.setPadHandler(handler: PadHandler)
+	padHandler = handler
+end
+
+function FarmService.create(userId: number, fields: { [string]: Types.Field }, ownerName: string?)
 	assert(root and not farms[userId], "Farm lifecycle error")
 	local slot = 0
 	while occupied[slot] do slot += 1 end
@@ -201,8 +327,13 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	local model = Instance.new("Model")
 	model.Name = "Farm_" .. tostring(userId)
 	model:SetAttribute("OwnerUserId", userId)
-	model:SetAttribute("FieldId", field.id)
-	local soil = buildSoil(model, origin)
+	local owned: { [number]: Types.Field } = {}
+	for _, field in fields do owned[field.plot] = field end
+	local locked: { [number]: Model } = {}
+	for plot = 1, #Config.Grid.order do
+		if owned[plot] then buildPlotGround(model, plot) else locked[plot] = buildLocked(model, plot) end
+	end
+	local soil = model:FindFirstChild("Soil") :: BasePart
 	local ownerBoard, microwaveFront, sellFront = Visuals.build(model, origin, ownerName or tostring(userId))
 	-- Brick look and solid decorations; crops and prompts are built outside Scenery and stay passable.
 	Brick.finish(model:FindFirstChild("Scenery") :: Model, origin.Y)
@@ -220,13 +351,14 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	title.Parent = ownerLabel
 	ownerLabel.Parent = soil
 	local views: { [string]: StalkView } = {}
-	for row = 1, field.rows do
-		for col = 1, Config.Starter.columns do
-			local id, view = buildStalk(model, origin, row, col)
-			views[id] = view
+	for _, field in fields do
+		for row = 1, field.rows do
+			for col = 1, Config.Plot.columns do
+				local id, view = buildStalk(model, field, row, col)
+				views[id] = view
+			end
 		end
 	end
-	local rowSign = if field.rows < Config.Starter.layoutRows then buildRowSign(model, origin) else nil
 	local microwave = buildMicrowave(model, microwaveFront)
 	local sellStand = station(model, "SellCounter", sellFront, "Sell", "Sell popcorn", "No popcorn yet", Config.Sell.range)
 	local placement = Map.farmFrame(slot)
@@ -234,33 +366,57 @@ function FarmService.create(userId: number, field: Types.Field, ownerName: strin
 	model:PivotTo(placement)
 	model.Parent = root
 	Map.setSlotOwner(slot, ownerName or tostring(userId))
-	farms[userId] = { model = model, field = field, slot = slot, placement = placement, stalks = views, microwave = microwave, rowSign = rowSign, sellStand = sellStand }
+	local farm: FarmView = {
+		model = model, fields = fields, slot = slot, placement = placement, stalks = views,
+		microwave = microwave, sellStand = sellStand, locked = locked, rowPads = {}, plotPad = nil,
+	}
+	farms[userId] = farm
+	refreshPads(userId, farm)
 end
 
 -- Visual counterpart of a committed Extra Row purchase; the profile already holds the stalks.
-function FarmService.plantRow(userId: number, row: number)
+function FarmService.plantRow(userId: number, fieldId: string, row: number)
 	local farm = assert(farms[userId], "Farm missing")
-	-- Build the row in canonical coordinates, turn it onto the slot, then hand it to the farm.
-	local batch = Instance.new("Model")
-	for col = 1, Config.Starter.columns do
-		local id, view = buildStalk(batch, Config.Farm.origin, row, col)
-		farm.stalks[id] = view
-	end
-	batch.WorldPivot = CFrame.identity
-	batch:PivotTo(farm.placement)
-	for _, child in batch:GetChildren() do child.Parent = farm.model end
-	batch:Destroy()
-	if farm.rowSign and farm.field.rows >= Config.Starter.layoutRows then
-		farm.rowSign:Destroy()
-		farm.rowSign = nil
-	end
+	local field = assert(farm.fields[fieldId], "Field missing")
+	buildPlaced(farm, function(batch)
+		for col = 1, Config.Plot.columns do
+			local id, view = buildStalk(batch, field, row, col)
+			farm.stalks[id] = view
+		end
+	end)
+	refreshPads(userId, farm)
+end
+
+-- Visual counterpart of a committed New Plot purchase: the lawn becomes a planted bed.
+function FarmService.addPlot(userId: number, fieldId: string)
+	local farm = assert(farms[userId], "Farm missing")
+	local field = assert(farm.fields[fieldId], "Field missing")
+	local cell = farm.locked[field.plot]
+	if cell then cell:Destroy() end
+	farm.locked[field.plot] = nil
+	buildPlaced(farm, function(batch)
+		buildPlotGround(batch, field.plot)
+		for row = 1, field.rows do
+			for col = 1, Config.Plot.columns do
+				local id, view = buildStalk(batch, field, row, col)
+				farm.stalks[id] = view
+			end
+		end
+	end)
+	refreshPads(userId, farm)
+end
+
+-- Re-prices every pad of a farm (after any purchase, prices of the other kind move too).
+function FarmService.refreshPads(userId: number)
+	local farm = farms[userId]
+	if farm then refreshPads(userId, farm) end
 end
 
 function FarmService.target(userId: number, fieldId: string, stalkId: string): Part?
 	local farm = farms[userId]
-	if not farm or farm.field.id ~= fieldId then return nil end
+	if not farm then return nil end
 	local view = farm.stalks[stalkId]
-	return if view then view.part else nil
+	return if view and view.fieldId == fieldId then view.part else nil
 end
 
 -- Stalk parts by ID, for server-side tool targeting.
@@ -269,6 +425,13 @@ function FarmService.stalkParts(userId: number): { [string]: Part }
 	local farm = farms[userId]
 	if farm then for id, view in farm.stalks do list[id] = view.part end end
 	return list
+end
+
+-- The field (plot) a stalk belongs to.
+function FarmService.fieldOf(userId: number, stalkId: string): string?
+	local farm = farms[userId]
+	local view = if farm then farm.stalks[stalkId] else nil
+	return if view then view.fieldId else nil
 end
 
 -- Where the owner's character appears: on the bridge just outside the farm entrance,
@@ -297,9 +460,16 @@ function FarmService.microwave(userId: number): MicrowaveView?
 	return if farm then farm.microwave else nil
 end
 
-function FarmService.rowSign(userId: number): Part?
+-- The live row pad of a plot, if it still has bed room.
+function FarmService.rowPad(userId: number, fieldId: string): Part?
 	local farm = farms[userId]
-	return if farm then farm.rowSign else nil
+	return if farm then farm.rowPads[fieldId] else nil
+end
+
+-- The live New Plot pad, while a cell is still locked.
+function FarmService.plotPad(userId: number): Part?
+	local farm = farms[userId]
+	return if farm then farm.plotPad else nil
 end
 
 function FarmService.resolve(prompt: ProximityPrompt): (number?, string?, string?)
@@ -311,10 +481,10 @@ function FarmService.resolve(prompt: ProximityPrompt): (number?, string?, string
 	local stalkId = if stem then stem:GetAttribute("StalkId") else nil
 	local view = if farm then farm.stalks[stalkId] else nil
 	if not view or view.prompt ~= prompt then return nil, nil, nil end
-	return userId, farm.field.id, stalkId
+	return userId, view.fieldId, stalkId
 end
 
--- Owner of a registered farm-level prompt (microwave, row sign or sell stand), else nil.
+-- Owner of a registered farm-level prompt (microwave or sell stand), else nil.
 function FarmService.resolveOwner(target: ProximityPrompt): number?
 	local holder = target.Parent
 	local model = if holder then holder.Parent else nil
@@ -322,15 +492,16 @@ function FarmService.resolveOwner(target: ProximityPrompt): number?
 	local userId = model:GetAttribute("OwnerUserId")
 	local farm = farms[userId]
 	if not farm then return nil end
-	if target == farm.microwave.prompt or (farm.rowSign and holder == farm.rowSign) or holder == farm.sellStand then return userId end
+	if target == farm.microwave.prompt or holder == farm.sellStand then return userId end
 	return nil
 end
 
 function FarmService.update(now: number)
 	for _, farm in farms do
-		local crop = Config.Crops[farm.field.cropId]
 		for id, view in farm.stalks do
-			local stalk = farm.field.stalks[id]
+			local field = farm.fields[view.fieldId]
+			local crop = Config.Crops[field.cropId]
+			local stalk = field.stalks[id]
 			local yields = Growth.yields(stalk.growthStartedAt, now, crop)
 			local stage = if yields > 0 then 3 else math.floor(Growth.progress(stalk.growthStartedAt, now, crop) * 3)
 			if view.part:GetAttribute("GrowthStage") ~= stage then
@@ -364,10 +535,20 @@ function FarmService.update(now: number)
 			end
 		end
 	end
+	-- Re-arm a pad once its player has stepped off it (or it is gone).
+	for userId, visit in padVisits do
+		if not visit.left then
+			local player = Players:GetPlayerByUserId(userId)
+			local character = if player then player.Character else nil
+			local rootPart = if character then character:FindFirstChild("HumanoidRootPart") :: BasePart? else nil
+			if not visit.pad.Parent or not rootPart or not FarmService.onPad(visit.pad, rootPart.Position) then visit.left = true end
+		end
+	end
 end
 
 function FarmService.remove(userId: number)
 	local farm = farms[userId]
+	padVisits[userId] = nil
 	if farm then
 		farm.model:Destroy()
 		Map.setSlotOwner(farm.slot, nil)

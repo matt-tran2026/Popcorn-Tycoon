@@ -26,7 +26,7 @@ The first harvest and conversion should happen quickly, and the first meaningful
 
 ## 3. Farms, growth, and accumulated yield
 
-Players own individual farms with fields. The prototype begins with one field per player; the data model should allow multiple fields with different corn varieties later. Players do not manually replant each stalk. Harvesting starts the next growth cycle automatically, with visible growth stages before maturity.
+Players own individual farms with fields. The prototype began with one field per player; since November 4, 2026 a farm holds up to nine plots (fields) bought on land pads (section 6, "Plots and land pads"), all Normal Corn for now; the data model allows different varieties per plot later. Players do not manually replant each stalk. Harvesting starts the next growth cycle automatically, with visible growth stages before maturity.
 
 Each variety defines its growth duration, base yield/value, appearance, and unlock conditions. Fully grown fields accumulate additional harvest yields up to configurable storage capacity, including while the player is offline. Returning players see clear feedback about accumulated harvests, and eventually a fuller offline summary.
 
@@ -89,8 +89,53 @@ The creator settled D4–D5. All numbers are configurable starting values to tun
 - **Microwave:** one per farm, usable by the owner only. Pressing E loads the whole inventory as one batch: corn leaves the inventory and the reward is fixed at load time. Only one batch cooks at a time; it cooks for 5 seconds with popping effects, and the player may walk away and keep farming. An empty bag gives "No corn to pop" feedback.
 - **Popcorn burst and magnet:** when cooking finishes, the popcorn bursts out of the microwave as a bounded number of pieces. Each piece carries part of the reward. After landing, the pieces fly one after another to the owner like a magnet, **wherever the owner is, with no range limit**, and each is credited when its flight ends (about 2 seconds after the burst). Nobody else can receive them. *(Revised November 2, 2026, by the creator: replaces walking-near pickup and the 30-second auto-collect.)*
 - **No lost popcorn:** if the owner leaves while a batch is cooking or pieces are in flight, the whole remaining reward is credited at once. When persistence arrives (M5), pending batches and pieces must be saved or settled before release.
-- **First upgrade, Extra Row:** a one-time purchase of $200 Cash (100 popcorn until Nov 3, 2026; the currency was called Coins until the same day) that adds a seventh row of six stalks (42 in total) to the existing field, at its back edge, away from the stations. New stalks start with one ready yield. The future-expansion lawn stays **reserved for other corn varieties** and is not used for rows. Repeat rows at rising prices are deferred to the farm-expansion feature; they also extend toward the back fence. *(Revised November 3, 2026, with the 6-by-6 starter field.)*
-- **Pacing targets:** first harvest within about 10 seconds, first conversion within about 1 minute, and Extra Row affordable after about 3 minutes (about two full bags). Record observed times during M3 playtests.
+- **First upgrade, Extra Row:** a one-time purchase of $200 Cash (100 popcorn until Nov 3, 2026; the currency was called Coins until the same day) that adds a seventh row of six stalks (42 in total) to the existing field, at its back edge, away from the stations. New stalks start with one ready yield. The future-expansion lawn stays **reserved for other corn varieties** and is not used for rows. Repeat rows at rising prices are deferred to the farm-expansion feature; they also extend toward the back fence. *(Revised November 3, 2026, with the 6-by-6 starter field.)* **Superseded November 4, 2026:** rows and plots are now bought repeatedly on step-on pads at rising prices; see "Plots and land pads" below.
+- **Pacing targets:** first harvest within about 10 seconds, first conversion within about 1 minute, and Extra Row affordable after about 3 minutes (about two full bags). Record observed times during M3 playtests. The first row still costs $200 (two full bags) under the November 4 price curve.
+
+### Plots and land pads (November 4, 2026)
+
+The creator replaced the "FOR SALE" row sign with **purchase pads** and opened up the island.
+
+- **Layout.** Each farm island holds a **3×3 grid of 9 plots**, about 122 × 234 studs, with dirt walkways between cells and the stations in a strip across the front. Every plot is a 6-column bed that starts with **6 planted rows** and has room for **6 extra rows** (12 rows, 72 stalks). The starter is the front-center plot. The other eight unlock in a fixed nearest-first order: front-left, front-right, middle (center, left, right), back (center, left, right). Locked cells show light lawn with a gold border.
+- **Pads.** A tycoon-style pad: you **step on it to buy**. Each owned plot with room has a row pad on its next empty row; it moves back one row after each purchase and disappears at 12 rows. One plot pad sits on the next locked cell and disappears once all 9 plots are owned. A price tag floats above every pad, and your own pads glow **green when you can afford them and red when you can't**. Other players' pads are hidden and do nothing for them. A pad buys once per step-on; if you are short you get one "Need $X more" message, and stepping off and on again tries again.
+- **Prices.** Both climb after every purchase and are rounded to two significant figures. Rows are counted across all plots.
+
+| Purchase | Formula | Sequence | Total |
+| --- | --- | --- | --- |
+| Extra Row (54 max) | $200 × 1.16 per row bought | 1st $200 · 6th $420 · 12th $1K · 18th $2.5K · 24th $6.1K · 30th $15K · 36th $36K · 42nd $88K · 48th $210K · 54th $520K | ≈ $3.8M |
+| New Plot (8 max) | $25K × 2.3 per plot bought | $25K · $58K · $130K · $300K · $700K · $1.6M · $3.7M · $8.5M | ≈ $15M |
+
+- **Fit with the progression stages.** The creator's stage table puts Beginner at $0–100K ("small cornfield, basic microwave"), Early game at $100K–10M ("multiple fields, improved machines") and Rebirth 1 at $10M (2×). The starter's 6 rows (about $1.8K) and plots 2–3 fall in Beginner; plots 4–9 fall in Early game, the last ($8.5M) just below Rebirth 1. Prices are derived from the land a player owns, so a rebirth that clears land resets them.
+- **Known gap.** Income today is about $100 per 50-corn bag trip, and the 6×6 starter already grows more corn than one bag can carry, so extra land barely raises income yet. The curve assumes the planned bag-capacity upgrades, improved machines and rebirth multipliers. All numbers live in `Config.Upgrades`.
+
+### Progression stages and rebirths (creator, November 4, 2026)
+
+The creator's target shape for the whole game. Rebirths are not implemented yet; future prices and income should be tuned against these bands.
+
+| Stage | Player wealth | Example progression |
+| --- | --- | --- |
+| Beginner | $0–$100K | Small cornfield, basic microwave |
+| Early game | $100K–$10M | Multiple fields, improved machines |
+| Midgame | $10M–$1B | Automated popcorn production |
+| Advanced | $1B–$1T | Industrial popcorn factory |
+| Late game | $1T–$1Qa | Massive production empire |
+| Endgame | $1Qa–$1Qi | Legendary machinery, prestige upgrades |
+| Extreme endgame | $1Qi+ | Rare upgrades, leaderboard competition |
+
+| Rebirth | Required money | Permanent income multiplier |
+| --- | --- | --- |
+| 1 | $10M | 2× |
+| 2 | $100M | 4× |
+| 3 | $1B | 8× |
+| 4 | $10B | 16× |
+| 5 | $100B | 32× |
+| 6 | $1T | 64× |
+| 7 | $10T | 128× |
+| 8 | $100T | 256× |
+| 9 | $1Qa | 512× |
+| 10 | $10Qa | 1,024× |
+
+Open before rebirths: what a rebirth resets (land is the natural candidate), whether "required money" means balance or lifetime earnings, and number formatting past $1T (the Money module's suffixes are K, M, B, T, Qd; the creator writes Qa and Qi). Cash values past 2^53 (about $9Qa) lose whole-number precision in Luau numbers, so the late stages need a big-number plan.
 
 The microwave should visibly and audibly pop corn and clearly report its result. A conversion must consume inputs and grant currency exactly once, including repeated requests, disconnects, and retries. Purchases validate balance, requirements, ownership, and duplicate requests on the server. Prevent negative balances, invalid numeric inputs, and duplicate unlock charges.
 
@@ -116,7 +161,7 @@ Prototype presentation should be polished enough to judge the loop. Do not produ
 
 ### Starter field and expansion layout (November 3, 2026)
 
-The creator enlarged the starter field to **6 by 6 (36 stalks)** and fixed the expansion directions. Seen from the entrance: the microwave (left of the entrance path) stands at the **front** of the farm and **face the field**; the starter field sits behind them; **every expansion goes to the left** of the starter field (the reserved lawn now sits there); **row upgrades add rows toward the back** fence. The entrance path lines up with the field. A future sell stand would fit the gap between the two stations, as in the creator's reference image, but no selling exists yet. The plot footprint grew to 82 by 72 studs. The pacing targets below were set for 12 stalks and need re-observing with 36.
+The creator enlarged the starter field to **6 by 6 (36 stalks)** and fixed the expansion directions. Seen from the entrance: the microwave (left of the entrance path) stands at the **front** of the farm and **face the field**; the starter field sits behind them; **every expansion goes to the left** of the starter field (the reserved lawn now sits there); **row upgrades add rows toward the back** fence. The entrance path lines up with the field. A future sell stand would fit the gap between the two stations, as in the creator's reference image, but no selling exists yet. The plot footprint grew to 82 by 72 studs. The pacing targets below were set for 12 stalks and need re-observing with 36. *(Superseded November 4, 2026: the expansion lawn became a 3×3 plot grid; see "Plots and land pads" in section 6.)*
 
 ### Hub map (November 3, 2026)
 

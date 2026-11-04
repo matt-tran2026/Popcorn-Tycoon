@@ -7,7 +7,7 @@ local Controller = {}
 -- Kept for ToolController; while a swung tool is held the highlight shows tool targets instead.
 function Controller.setHarvestSuppressed(_value: boolean) end
 function Controller.start(_gui: ScreenGui)
- local farmPrompts={Harvest=true, Microwave=true, BuyRow=true, Sell=true}
+ local farmPrompts={Harvest=true, Microwave=true, Sell=true} -- Land is bought on step-on pads (PadController).
  local function configure(object: Instance)
   if not object:IsA("ProximityPrompt") or not farmPrompts[object.Name] then return end
   local farm=object.Parent and object.Parent.Parent

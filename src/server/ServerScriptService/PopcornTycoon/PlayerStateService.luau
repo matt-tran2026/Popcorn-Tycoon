@@ -8,19 +8,43 @@ local Types = require(Shared.Types)
 local profiles: { [number]: Types.Profile } = {}
 local PlayerStateService = {}
 
--- Stalk IDs are row-major, so a purchased row continues the numbering.
+-- Stalk IDs are "<plot>_<n>" with n row-major, so a purchased row continues the numbering
+-- and every id is unique across the farm.
+function PlayerStateService.stalkId(plot: number, row: number, col: number): string
+	return tostring(plot) .. "_" .. tostring((row - 1) * Config.Plot.columns + col)
+end
+
 function PlayerStateService.plantRow(field: Types.Field, row: number, now: number)
 	local crop = Config.Crops[field.cropId]
-	for col = 1, Config.Starter.columns do
-		local id = tostring((row - 1) * Config.Starter.columns + col)
+	for col = 1, Config.Plot.columns do
+		local id = PlayerStateService.stalkId(field.plot, row, col)
 		field.stalks[id] = { id = id, growthStartedAt = now - crop.growthSeconds }
 	end
 end
 
+-- A new plot (grid index `plot`) with its base rows planted and ripe.
+local function newField(userId: number, plot: number, now: number): Types.Field
+	local field: Types.Field = {
+		id = "Plot" .. tostring(plot), plot = plot, ownerUserId = userId,
+		cropId = Config.Plot.cropId, rows = Config.Plot.baseRows, stalks = {},
+	}
+	for row = 1, field.rows do PlayerStateService.plantRow(field, row, now) end
+	return field
+end
+
+-- Adds the next plot in grid order. Must not yield (purchases commit in one step).
+function PlayerStateService.addPlot(profile: Types.Profile, userId: number, now: number): Types.Field
+	local plot = 1
+	while profile.fields["Plot" .. tostring(plot)] do plot += 1 end
+	assert(Config.Grid.order[plot], "No plot cell left")
+	local field = newField(userId, plot, now)
+	profile.fields[field.id] = field
+	return field
+end
+
 function PlayerStateService.load(userId: number, now: number): Types.Profile
 	assert(profiles[userId] == nil, "Profile is already loaded")
-	local field: Types.Field = { id = "Starter", ownerUserId = userId, cropId = Config.Starter.cropId, rows = Config.Starter.rows, stalks = {} }
-	for row = 1, field.rows do PlayerStateService.plantRow(field, row, now) end
+	local field = newField(userId, 1, now)
 	local profile: Types.Profile = {
 		schemaVersion = Config.SchemaVersion,
 		popcorn = 0,
@@ -30,7 +54,7 @@ function PlayerStateService.load(userId: number, now: number): Types.Profile
 		equippedTool = "Manual",
 		unlockedCrops = { Normal = true },
 		upgrades = {},
-		fields = { Starter = field },
+		fields = { [field.id] = field },
 	}
 	profiles[userId] = profile
 	return profile

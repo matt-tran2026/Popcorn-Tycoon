@@ -1,6 +1,7 @@
 --!strict
 export type Stalk = { id: string, growthStartedAt: number }
-export type Field = { id: string, ownerUserId: number, cropId: string, rows: number, stalks: { [string]: Stalk } }
+-- One plot. plot is its index in Config.Grid.order (1 = starter); stalk ids are "<plot>_<n>".
+export type Field = { id: string, plot: number, ownerUserId: number, cropId: string, rows: number, stalks: { [string]: Stalk } }
 export type Profile = {
 	schemaVersion: number,
 	popcorn: number,

@@ -52,7 +52,8 @@ Where to tune, all in `src/shared/ReplicatedStorage/PopcornTycoon/Config.luau`:
 | `Inventory.capacity` | 50 | The real bottleneck: a pass is bag-limited, not field-limited |
 | `Crops.Normal.popcornValue` | 1 | 1 raw corn → 1 popcorn |
 | `Tools.Sickle.maxTargets / reach / arcDegrees / cooldownSeconds` | 3 / 9 / 140° / 0.6 s | How satisfying the sweep feels |
-| `Upgrades.ExtraRow.price / currency` | 200 / Coins | Land pacing (two full-bag passes) |
+| `Upgrades.ExtraRow.base / growth` | $200 / ×1.16 per row (since Nov 4 2026; was a one-time 200) | Land pacing: the first row is still two full-bag passes |
+| `Upgrades.ExtraPlot.base / growth / max` | $25K / ×2.3 per plot / 8 | Plot pacing toward Rebirth 1 at $10M (GAME_DESIGN.md "Plots and land pads") |
 
 **Design consequence.** Because passes are bag-limited, the sickle speeds up *filling* the bag (about 6 swings instead of 17 picks) but does not raise income per pass. That makes the **Bigger Bag** the natural second purchase.
 
@@ -69,10 +70,10 @@ Where to tune, all in `src/shared/ReplicatedStorage/PopcornTycoon/Config.luau`:
   - Flamethrower: a wide cone while moving.
 
 **Farm**
-- More rows. Extra Row already plants row 7 behind row 6, away from the stations; check that placement before changing the layout.
+- ~~More rows.~~ **Live Nov 4 2026:** step-on land pads sell up to 6 rows per plot and 8 more plots in a 3x3 grid (docs/testing/LAND_PADS.md). More land does not raise income until the bag grows.
 - Bigger stalks that look bigger and yield more.
 - Faster soil (shorter `growthSeconds`).
-- Variety plots on the reserved lawn left of the field.
+- Variety plots: any plot of the 3x3 grid could hold another variety (the field record already carries a `cropId`).
 
 **Machines**
 - Starter microwave → faster microwave → Theater Popper (bigger batch) → Convection Oven (batch queue) → Gravity Popper (late game, bonus on big batches).

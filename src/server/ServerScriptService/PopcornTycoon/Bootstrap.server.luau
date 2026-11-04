@@ -38,6 +38,25 @@ shop.Name = "ShopRequest"
 shop.Parent = remotes
 remotes.Parent = Shared
 Tools.init(feedback)
+-- Step-on land pads (Extra Row / New Plot). FarmService has already checked the toucher owns the farm.
+Farms.setPadHandler(function(player: Player, kind: string, fieldId: string?, _pad: Part)
+	local response = if kind == "Plot" then Upgrades.buyPlot(player) else Upgrades.buyRow(player, fieldId)
+	if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
+	notice:FireClient(player, "Upgrade", response)
+end)
+-- Studio-only test hook: ServerStorage.DebugGrantCash:Invoke(userId, amount) from the command bar.
+if RunService:IsStudio() then
+	local grant = Instance.new("BindableFunction")
+	grant.Name = "DebugGrantCash"
+	grant.OnInvoke = function(userId: number, amount: number)
+		local profile = State.get(userId)
+		if not profile or typeof(amount) ~= "number" or amount % 1 ~= 0 then return false end
+		profile.cash = math.max(0, profile.cash + amount)
+		State.publish(userId)
+		return profile.cash
+	end
+	grant.Parent = game:GetService("ServerStorage")
+end
 shop.OnServerEvent:Connect(function(player: Player, action: unknown, toolId: unknown)
 	local response = Tools.request(player, action, toolId)
 	if response then notice:FireClient(player, if action == "Equip" then "Equip" else "Tool", response) end
@@ -71,7 +90,7 @@ end
 
 local function joined(player: Player)
 	local profile = State.load(player.UserId, DateTime.now().UnixTimestampMillis / 1000)
-	Farms.create(player.UserId, profile.fields.Starter, player.DisplayName)
+	Farms.create(player.UserId, profile.fields, player.DisplayName)
 	player:SetAttribute("RawCorn", 0)
 	player:SetAttribute("BatchState", "Idle")
 	State.publish(player.UserId)
@@ -101,17 +120,13 @@ Prompts.PromptTriggered:Connect(function(prompt: ProximityPrompt, player: Player
 		local response = Harvest.attempt(player, owner, fieldId, stalkId)
 		if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
 		feedback:FireClient(player, response)
-	elseif prompt.Name == "Microwave" or prompt.Name == "BuyRow" or prompt.Name == "Sell" then
+	elseif prompt.Name == "Microwave" or prompt.Name == "Sell" then
 		local owner = Farms.resolveOwner(prompt)
 		if owner == nil then return end
 		if prompt.Name == "Microwave" then
 			notice:FireClient(player, "Microwave", Conversion.start(player, owner))
-		elseif prompt.Name == "Sell" then
-			notice:FireClient(player, "Sell", Sell.sell(player, owner))
 		else
-			local response = Upgrades.buyExtraRow(player, owner)
-			if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
-			notice:FireClient(player, "Upgrade", response)
+			notice:FireClient(player, "Sell", Sell.sell(player, owner))
 		end
 	end
 end)
@@ -127,4 +142,4 @@ task.spawn(function()
 		end
 	end
 end)
-print("[PopcornTycoon] Farm ready with microwave, sell stand and sickle (in-memory; progression resets on leave).")
+print("[PopcornTycoon] Farm ready with microwave, sell stand, sickle and land pads (in-memory; progression resets on leave).")

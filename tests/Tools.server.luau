@@ -47,7 +47,7 @@ local ok, err = pcall(function()
 	check("targets: zero facing picks nothing", #ToolRules.pickTargets(Vector3.zero, Vector3.new(0, 1, 0), { c("a", 0, 1) }, sickle) == 0)
 
 	local profile = assert(State.get(player.UserId))
-	local field = profile.fields.Starter
+	local field = profile.fields.Plot1
 	local crop = Config.Crops[field.cropId]
 	local farm = workspace.PopcornFarms:FindFirstChild("Farm_" .. player.UserId) :: Model
 	local stand = assert(Farms.sellStand(player.UserId))
@@ -122,9 +122,9 @@ local ok, err = pcall(function()
 	check("shop equip succeeds", Tools.equip(player, "Sickle").ok)
 	check("equipping is tracked on the server", waitFor(function() return profile.equippedTool == "Sickle" and player:GetAttribute("EquippedTool") == "Sickle" end, 2))
 	-- Face into row 1 from the cross path, between columns 3 and 4.
-	local a = assert(Farms.target(player.UserId, "Starter", "3")).Position
-	local b = assert(Farms.target(player.UserId, "Starter", "4")).Position
-	local inward = (assert(Farms.target(player.UserId, "Starter", "9")).Position - a) * Vector3.new(1, 0, 1)
+	local a = assert(Farms.target(player.UserId, "Plot1", "1_3")).Position
+	local b = assert(Farms.target(player.UserId, "Plot1", "1_4")).Position
+	local inward = (assert(Farms.target(player.UserId, "Plot1", "1_9")).Position - a) * Vector3.new(1, 0, 1)
 	local spot = (a + b) / 2 - inward.Unit * 2.5
 	assert(player.Character):PivotTo(CFrame.lookAt(Vector3.new(spot.X, root().Position.Y, spot.Z), Vector3.new(spot.X, root().Position.Y, spot.Z) + inward))
 	task.wait(sickle.cooldownSeconds)
@@ -133,7 +133,7 @@ local ok, err = pcall(function()
 	for id in field.stalks do if ready(id) == 0 then table.insert(cut, id) end end
 	table.sort(cut)
 	check("one swing cuts the three nearest ripe stalks", response.ok and response.amount == 3 and #(response.targets or {}) == 3 and #cut == 3
-		and table.find(cut, "3") ~= nil and table.find(cut, "4") ~= nil and profile.rawCorn.Normal == 3 and player:GetAttribute("RawCorn") == 3)
+		and table.find(cut, "1_3") ~= nil and table.find(cut, "1_4") ~= nil and profile.rawCorn.Normal == 3 and player:GetAttribute("RawCorn") == 3)
 	response = Harvest.swing(player, "Sickle")
 	check("swings faster than the cadence are refused", not response.ok and response.reason == "Too fast" and profile.rawCorn.Normal == 3)
 	task.wait(sickle.cooldownSeconds)
@@ -160,10 +160,10 @@ local ok, err = pcall(function()
 	check("facing away from the corn cuts nothing", not response.ok and profile.rawCorn.Normal == 0)
 
 	-- Hand picking still works while the sickle is held.
-	local hand = assert(Farms.target(player.UserId, "Starter", "1"))
+	local hand = assert(Farms.target(player.UserId, "Plot1", "1_1"))
 	assert(player.Character):PivotTo(CFrame.new(hand.Position + Vector3.new(0, 0, -2)))
 	task.wait(Config.Manual.cooldownSeconds)
-	response = Harvest.attempt(player, player.UserId, "Starter", "1")
+	response = Harvest.attempt(player, player.UserId, "Plot1", "1_1")
 	check("hand picking works with the sickle held", response.ok and response.amount >= 1)
 
 	task.wait(Config.Shop.requestCooldownSeconds)

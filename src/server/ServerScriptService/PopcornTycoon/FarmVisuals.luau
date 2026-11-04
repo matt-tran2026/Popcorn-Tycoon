@@ -23,9 +23,48 @@ local function model(name: string, parent: Instance): Model
 	return result
 end
 
--- Layout, viewed from the entrance (-Z): stations across the front facing the field,
--- the starter field behind them on the right, its expansion lawn on the left.
--- Purchased rows extend the field toward the back fence.
+-- Plain anchored part at a world position, for the per-plot pieces built in canonical coordinates.
+local function plain(parent: Instance, name: string, size: Vector3, position: Vector3, color: Color3, material: Enum.Material?): Part
+	local p = Instance.new("Part")
+	p.Name, p.Size, p.Position = name, size, position
+	p.Color, p.Material = color, material or Enum.Material.SmoothPlastic
+	p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery = true, false, false, false
+	p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+
+-- Edging and tilled strips for every layout row of an owned plot centred on `center`
+-- (canonical frame, ground height). Empty strips show where bought rows will go.
+function FarmVisuals.buildPlotBed(parent: Instance, center: Vector3)
+	local s = Config.Plot
+	local rows = Config.layoutRows()
+	local halfWidth = (s.columns - 1) / 2 * s.spacing + 4.3
+	local halfDepth = (rows - 1) / 2 * s.spacing + 4.3
+	for _, x in { -halfWidth, halfWidth } do
+		plain(parent, "Edging", Vector3.new(0.35, 0.4, halfDepth * 2 - 0.1), center + Vector3.new(x, 0.15, 0), colors.wood, Enum.Material.Wood)
+	end
+	for _, z in { -halfDepth, halfDepth } do
+		plain(parent, "Edging", Vector3.new(halfWidth * 2 + 0.3, 0.4, 0.35), center + Vector3.new(0, 0.15, z), colors.wood, Enum.Material.Wood)
+	end
+	for row = 1, rows do
+		plain(parent, "CultivatedRow_" .. row, Vector3.new(s.columns * s.spacing + 1, 0.15, 2.5), center + Vector3.new(0, 0.28, (row - (rows + 1) / 2) * s.spacing), Color3.fromRGB(123, 78, 43), Enum.Material.Ground)
+	end
+end
+
+-- A plot cell not bought yet: lighter lawn with a thin gold border. Five parts per cell keeps
+-- eight locked cells on every island (open plots included) cheap.
+function FarmVisuals.buildLockedCell(parent: Instance, center: Vector3)
+	local size = Config.cellSize()
+	local halfX, halfZ = size.X / 2 - 1, size.Y / 2 - 1
+	plain(parent, "ReservedGrass", Vector3.new(halfX * 2, 0.1, halfZ * 2), center + Vector3.new(0, 0.15, 0), Color3.fromRGB(140, 186, 76), Enum.Material.Grass)
+	for _, z in { -halfZ, halfZ } do plain(parent, "BoundaryMarker", Vector3.new(halfX * 2, 0.12, 0.3), center + Vector3.new(0, 0.23, z), colors.gold) end
+	for _, x in { -halfX, halfX } do plain(parent, "BoundaryMarker", Vector3.new(0.3, 0.12, halfZ * 2), center + Vector3.new(x, 0.23, 0), colors.gold) end
+end
+
+-- Layout, viewed from the entrance (-Z): stations across the front facing the field, the
+-- 3x3 plot grid behind them with dirt walkways between the cells. Plot beds and locked
+-- cells are built by FarmService (buildPlotBed / buildLockedCell) as plots change hands.
 -- Returns the owner sign and the field-facing interaction frames of the microwave
 -- and sell stand (FarmService puts the prompts there).
 -- A nil ownerName builds an unclaimed plot's sign.
@@ -86,17 +125,17 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 		station:PivotTo(pivot * CFrame.Angles(0, math.pi, 0))
 	end
 
-	local s = Config.Starter
-	local fieldCenter = Vector3.new(Config.Farm.plotOffset.X, 0, -Config.Farm.plotOffset.Z)
-	local halfWidth = (s.columns - 1) / 2 * s.spacing + 4.3
-	local halfDepth = (s.layoutRows - 1) / 2 * s.spacing + 4.3
-	local fieldFront, fieldBack = fieldCenter.Z - halfDepth, fieldCenter.Z + halfDepth
+	-- Grid geometry in these mirrored, island-centred coordinates.
+	local cell = Config.cellSize()
+	local gap = Config.Grid.gap
+	local starter = Vector3.new(Config.Farm.plotOffset.X, 0, -Config.Farm.plotOffset.Z) -- plot 1's center
+	local gridFront = starter.Z - cell.Y / 2
+	local gridBack = gridFront + 3 * cell.Y + 2 * gap
+	local gridWidth = 3 * cell.X + 2 * gap
 	local fenceX, fenceZ = Config.Farm.plotSize.X / 2 - 1, Config.Farm.plotSize.Z / 2 - 1
-	local crossZ = fieldFront - 4
+	local crossZ = gridFront - 4
 	local stationZ = crossZ - 10
-	local gateX = fieldCenter.X -- The entrance lines up with the field and the gap between the stations.
-	local sideX = fieldCenter.X - halfWidth - 3
-	local lawnCenter = Vector3.new(sideX - 3 - halfWidth, 0, fieldCenter.Z)
+	local gateX = starter.X -- The entrance lines up with the starter plot and the gap between the stations.
 
 	local ground = part(scenery, "GrassFoundation", Config.Farm.plotSize, Vector3.new(0, -0.15, 0), colors.grass, Enum.Material.Grass)
 	ground.CanCollide, ground.CanQuery = true, true
@@ -104,23 +143,19 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 	local entranceLength = crossZ - (-fenceZ - 1)
 	part(paths, "EntranceDirt", Vector3.new(8, 0.12, entranceLength), Vector3.new(gateX, 0.12, crossZ - entranceLength / 2), colors.dirt, Enum.Material.Ground)
 	part(paths, "CrossPath", Vector3.new(fenceX * 2 - 4, 0.12, 4), Vector3.new(0, 0.12, crossZ), colors.dirt, Enum.Material.Ground)
-	part(paths, "SidePath", Vector3.new(4, 0.12, fieldBack - crossZ), Vector3.new(sideX, 0.12, (fieldBack + crossZ) / 2), colors.dirt, Enum.Material.Ground)
+	-- Walkways between the plot cells: two running back from the cross path, two across.
+	for _, side in { -1, 1 } do
+		local x = starter.X + side * (cell.X + gap) / 2
+		part(paths, "Walkway", Vector3.new(4, 0.12, gridBack - crossZ), Vector3.new(x, 0.12, (gridBack + crossZ) / 2), colors.dirt, Enum.Material.Ground)
+	end
+	for k = 1, 2 do
+		local z = gridFront + k * (cell.Y + gap) - gap / 2
+		part(paths, "Walkway", Vector3.new(gridWidth, 0.12, 4), Vector3.new(starter.X, 0.12, z), colors.dirt, Enum.Material.Ground)
+	end
 	for i = 1, 4 do
 		local stone = part(paths, "SteppingStone_" .. i, Vector3.new(0.22, 3.1, 5.1), Vector3.new(gateX + (if i % 2 == 0 then 0.35 else -0.3), 0.2, -fenceZ + 1 + i * 4.6), colors.stone, Enum.Material.Slate)
 		stone.Shape = Enum.PartType.Cylinder
 		stone.Orientation = Vector3.new(0, if i % 2 == 0 then 9 else -8, 90)
-	end
-
-	local field = model("FieldBorders", scenery)
-	-- Beds cover every layout row, including the purchasable Extra Row at the back.
-	for _, x in {-halfWidth, halfWidth} do
-		wood(field, "Edging", Vector3.new(0.35, 0.4, halfDepth * 2 - 0.1), Vector3.new(fieldCenter.X + x, 0.15, fieldCenter.Z))
-	end
-	for _, z in {fieldFront, fieldBack} do
-		wood(field, "Edging", Vector3.new(halfWidth * 2 + 0.3, 0.4, 0.35), Vector3.new(fieldCenter.X, 0.15, z))
-	end
-	for row = 1, s.layoutRows do
-		part(field, "CultivatedRow_" .. row, Vector3.new(s.columns * s.spacing + 1, 0.15, 2.5), Vector3.new(fieldCenter.X, 0.28, fieldCenter.Z + (row - (s.layoutRows + 1) / 2) * s.spacing), Color3.fromRGB(123, 78, 43), Enum.Material.Ground)
 	end
 
 	local fence = model("PerimeterFence", scenery)
@@ -148,29 +183,15 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 			end
 		end
 	end
-	-- Runs of roughly nine studs keep the larger perimeter within the part budget.
-	fenceRun(Vector3.new(-fenceX, 0, -fenceZ), Vector3.new(-fenceX, 0, fenceZ), 8)
-	fenceRun(Vector3.new(fenceX, 0, -fenceZ), Vector3.new(fenceX, 0, fenceZ), 8)
-	fenceRun(Vector3.new(-fenceX, 0, fenceZ), Vector3.new(fenceX, 0, fenceZ), 9)
-	fenceRun(Vector3.new(-fenceX, 0, -fenceZ), Vector3.new(gateX - 5, 0, -fenceZ), 6)
-	fenceRun(Vector3.new(gateX + 5, 0, -fenceZ), Vector3.new(fenceX, 0, -fenceZ), 2)
+	-- Runs of roughly 14 studs keep the 3x3 island's long perimeter within the part budget.
+	fenceRun(Vector3.new(-fenceX, 0, -fenceZ), Vector3.new(-fenceX, 0, fenceZ), 16)
+	fenceRun(Vector3.new(fenceX, 0, -fenceZ), Vector3.new(fenceX, 0, fenceZ), 16)
+	fenceRun(Vector3.new(-fenceX, 0, fenceZ), Vector3.new(fenceX, 0, fenceZ), 8)
+	fenceRun(Vector3.new(-fenceX, 0, -fenceZ), Vector3.new(gateX - 5, 0, -fenceZ), 4)
+	fenceRun(Vector3.new(gateX + 5, 0, -fenceZ), Vector3.new(fenceX, 0, -fenceZ), 4)
 	lantern(fence, Vector3.new(gateX - 5, 3, -fenceZ - 0.8), true)
 	lantern(fence, Vector3.new(gateX + 5, 3, -fenceZ - 0.8), true)
 	local ownerBoard = sign(fence, "OwnerSign", Vector3.new(gateX - 15, 3, -fenceZ - 0.5), Vector3.new(13, 2.6, 0.5), if ownerName then ownerName .. "'s Farm" else "Open Farm")
-
-	-- Every future expansion grows on the left of the starter field.
-	local expansion = model("FutureExpansion", scenery)
-	expansion:SetAttribute("VisualOnly", true)
-	part(expansion, "ReservedGrass", Vector3.new(halfWidth * 2, 0.1, halfDepth * 2), lawnCenter + Vector3.new(0, 0.15, 0), Color3.fromRGB(140, 186, 76), Enum.Material.Grass)
-	local lawnLeft, lawnRight = lawnCenter.X - halfWidth, lawnCenter.X + halfWidth
-	for x = lawnLeft + 2, lawnRight - 1, 4 do
-		for _, z in {fieldFront, fieldBack} do part(expansion, "BoundaryMarker", Vector3.new(2.2, 0.12, 0.2), Vector3.new(x, 0.23, z), colors.gold) end
-	end
-	for z = fieldFront + 2, fieldBack - 1, 4 do
-		for _, x in {lawnLeft, lawnRight} do part(expansion, "BoundaryMarker", Vector3.new(0.2, 0.12, 2.2), Vector3.new(x, 0.23, z), colors.gold) end
-	end
-	wood(expansion, "SignPost", Vector3.new(0.4, 3, 0.4), Vector3.new(lawnCenter.X, 1.5, fieldFront + 2))
-	sign(expansion, "ExpansionSign", Vector3.new(lawnCenter.X, 3, fieldFront + 2), Vector3.new(9, 2.5, 0.4), "ROOM TO GROW\nFuture expansion")
 
 	-- The working microwave (interaction lives in FarmService) stands left of the entrance path.
 	local microwaveAnchor = Vector3.new(gateX - 12, 0, stationZ)
@@ -422,6 +443,7 @@ function FarmVisuals.dressSell(stand: Model, kiosk: Model)
 	-- Movers get an upright axis part as PrimaryPart, so their pivot follows every later turn.
 	local function mover(name: string, kind: string, axisAt: CFrame, parts: { string }): Model
 		local m = Instance.new("Model")
+		m.ModelStreamingMode = Enum.ModelStreamingMode.Atomic -- arrives whole for the client animator
 		m.Name, m.Parent = name, stand
 		local axis = piece(m, "Axis", Vector3.one * 0.2, axisAt, Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
 		axis.Transparency = 1

@@ -159,7 +159,7 @@ local function showBadge(badge: Badge, target: Target, maxYields: number)
 end
 
 function HarvestHighlight.start(gui: ScreenGui)
-	local maxYields = Config.Crops[Config.Starter.cropId].maxYields
+	local maxYields = Config.Crops[Config.Plot.cropId].maxYields
 	local badges: { Badge } = {}
 	local pool: { Highlight } = {}
 	local function highlight(i: number): Highlight
