@@ -183,6 +183,13 @@ function MapVisuals.placeSpawn()
 	spawn.CFrame = CFrame.new(Config.Map.center + Vector3.new(0, 0.05 - spawn.Size.Y / 2, -22)) * CFrame.Angles(0, math.pi, 0)
 end
 
+-- Standing spot at the hub spawn (where new players first appear), or nil before the map exists.
+function MapVisuals.hubFrame(): CFrame?
+	local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+	if not spawn then return nil end
+	return spawn.CFrame + Vector3.new(0, spawn.Size.Y / 2 + 3.5, 0)
+end
+
 function MapVisuals.setSlotOwner(slot: number, ownerName: string?)
 	local label = slotSigns[slot]
 	if label then label.Text = if ownerName then ownerName .. "'s Farm" else "Open plot" end

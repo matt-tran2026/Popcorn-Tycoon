@@ -16,6 +16,7 @@ local Upgrades = require(script.Parent.UpgradeService)
 local Sell = require(script.Parent.SellService)
 local Tools = require(script.Parent.ToolService)
 local Looks = require(script.Parent.UpgradeVisuals)
+local Admin = require(script.Parent.AdminService)
 Config.validate()
 local Map = require(script.Parent.MapVisuals)
 Map.placeSpawn() -- Before the yielding loads below, so early joiners spawn in the right place.
@@ -41,6 +42,9 @@ shop.Parent = remotes
 local upgradeRequest = Instance.new("RemoteEvent")
 upgradeRequest.Name = "UpgradeRequest"
 upgradeRequest.Parent = remotes
+-- Owner-only Developer Panel: (requestId, command, args) -> response. Created only in Studio
+-- (AdminConfig); every request is authorized and validated again by AdminService.
+Admin.init(remotes)
 remotes.Parent = Shared
 Tools.init(feedback)
 -- Step-on land pads (Extra Row / New Plot). FarmService has already checked the toucher owns the farm.
@@ -124,6 +128,7 @@ Players.PlayerRemoving:Connect(function(player)
 	Harvest.release(player.UserId)
 	Upgrades.release(player.UserId)
 	Tools.release(player.UserId)
+	Admin.release(player.UserId)
 	Farms.remove(player.UserId)
 	State.release(player.UserId)
 end)

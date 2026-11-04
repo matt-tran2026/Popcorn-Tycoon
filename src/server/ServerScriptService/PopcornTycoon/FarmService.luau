@@ -466,6 +466,17 @@ function FarmService.spawnFrame(userId: number): CFrame?
 	return farm.placement * CFrame.lookAt(at, at + Vector3.new(0, 0, 1))
 end
 
+-- Where to stand to look over one owned plot: just in front of its first row, facing into it.
+-- nil for an unknown farm or plot.
+function FarmService.plotFrame(userId: number, fieldId: string): CFrame?
+	local farm = farms[userId]
+	local field = if farm then farm.fields[fieldId] else nil
+	if not farm or not field then return nil end
+	local front = cellCenter(field.plot) - Vector3.new(0, 0, Config.cellSize().Y / 2 + 3)
+	local at = Vector3.new(front.X, Config.Farm.origin.Y + 3.5, front.Z)
+	return farm.placement * CFrame.lookAt(at, at + Vector3.new(0, 0, 1))
+end
+
 function FarmService.has(userId: number): boolean
 	return farms[userId] ~= nil
 end

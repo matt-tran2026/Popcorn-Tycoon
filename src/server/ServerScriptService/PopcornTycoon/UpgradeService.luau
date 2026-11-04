@@ -37,6 +37,25 @@ local function shortfall(profile: Types.Profile, currency: Types.Currency, price
 	return result(false, "Need " .. Money.price(currency, short) .. " more" .. hint)
 end
 
+-- The land commits shared by pad purchases and the Studio-only Developer Panel (AdminService),
+-- so both plant rows and plots through the same state and visual functions. Callers check
+-- ownership, limits and (for purchases) payment first. Must not yield.
+function UpgradeService.grantRow(player: Player, profile: Types.Profile, field: Types.Field)
+	assert(field.rows < Config.layoutRows(), "Plot is full")
+	field.rows += 1
+	State.plantRow(field, field.rows, DateTime.now().UnixTimestampMillis / 1000)
+	State.publish(player.UserId)
+	Farms.plantRow(player.UserId, field.id, field.rows)
+end
+
+function UpgradeService.grantPlot(player: Player, profile: Types.Profile): Types.Field
+	assert(Pricing.plotsBought(profile.fields) < Config.Upgrades.ExtraPlot.max, "Every plot is owned")
+	local field = State.addPlot(profile, player.UserId, DateTime.now().UnixTimestampMillis / 1000)
+	State.publish(player.UserId)
+	Farms.addPlot(player.UserId, field.id)
+	return field
+end
+
 function UpgradeService.buyRow(player: Player, fieldId: unknown): Types.ActionResult
 	if typeof(fieldId) ~= "string" then return result(false, "Invalid plot") end
 	local profile = State.get(player.UserId)
@@ -52,10 +71,7 @@ function UpgradeService.buyRow(player: Player, fieldId: unknown): Types.ActionRe
 	if short then return short end
 	-- No yields between the checks above and this commit.
 	assert(State.spend(profile, upgrade.currency, price))
-	field.rows += 1
-	State.plantRow(field, field.rows, DateTime.now().UnixTimestampMillis / 1000)
-	State.publish(player.UserId)
-	Farms.plantRow(player.UserId, fieldId, field.rows)
+	UpgradeService.grantRow(player, profile, field)
 	return result(true, upgrade.displayName .. " planted!", price)
 end
 
@@ -71,10 +87,34 @@ function UpgradeService.buyPlot(player: Player): Types.ActionResult
 	if short then return short end
 	-- No yields between the checks above and this commit.
 	assert(State.spend(profile, upgrade.currency, price))
-	local field = State.addPlot(profile, player.UserId, DateTime.now().UnixTimestampMillis / 1000)
-	State.publish(player.UserId)
-	Farms.addPlot(player.UserId, field.id)
+	UpgradeService.grantPlot(player, profile)
 	return result(true, upgrade.displayName .. " ready to harvest!", price)
+end
+
+-- Sets a farm upgrade to `newLevel` and applies it: Soil/Storage changes settle every stalk of
+-- the plot under the old rules and rebase it onto the new ones (Growth.rebase), then the state
+-- is published and the looks follow. Shared by purchases (after the charge) and the Studio-only
+-- Developer Panel; callers validate the id, scope, ownership and level. Must not yield.
+function UpgradeService.applyLevel(player: Player, profile: Types.Profile, upgradeId: string, field: Types.Field?, newLevel: number)
+	assert(newLevel == FarmUpgrades.clampLevel(upgradeId, newLevel), "Invalid upgrade level")
+	local now = DateTime.now().UnixTimestampMillis / 1000
+	if field then
+		local oldRules = FarmUpgrades.fieldRules(field)
+		local levels: any = field.upgrades
+		levels[upgradeId] = newLevel
+		local newRules = FarmUpgrades.fieldRules(field)
+		if oldRules.growthSeconds ~= newRules.growthSeconds or oldRules.maxYields ~= newRules.maxYields then
+			for _, stalk in field.stalks do
+				stalk.growthStartedAt = Growth.rebase(stalk.growthStartedAt, now, oldRules, newRules)
+			end
+		end
+	else
+		local levels: any = profile.upgrades
+		levels[upgradeId] = newLevel
+	end
+	State.publish(player.UserId)
+	-- Visuals follow the committed state; they never change rewards.
+	if field then Farms.applyFieldLook(player.UserId, field.id) else Looks.backpack(player.Character, newLevel) end
 end
 
 -- Buys the next level of a farm upgrade. The client names only the upgrade and, for field
@@ -110,25 +150,8 @@ function UpgradeService.buyUpgrade(player: Player, upgradeId: unknown, fieldId: 
 	if short then return short end
 	-- No yields between the checks above and this commit.
 	assert(State.spend(profile, upgrade.currency, price))
-	local now = DateTime.now().UnixTimestampMillis / 1000
 	local newLevel = level + 1
-	if field then
-		local oldRules = FarmUpgrades.fieldRules(field)
-		local levels: any = field.upgrades
-		levels[upgradeId] = newLevel
-		local newRules = FarmUpgrades.fieldRules(field)
-		if oldRules.growthSeconds ~= newRules.growthSeconds or oldRules.maxYields ~= newRules.maxYields then
-			for _, stalk in field.stalks do
-				stalk.growthStartedAt = Growth.rebase(stalk.growthStartedAt, now, oldRules, newRules)
-			end
-		end
-	else
-		local levels: any = profile.upgrades
-		levels[upgradeId] = newLevel
-	end
-	State.publish(player.UserId)
-	-- Visuals follow the committed state; they never change rewards.
-	if field then Farms.applyFieldLook(player.UserId, field.id) else Looks.backpack(player.Character, newLevel) end
+	UpgradeService.applyLevel(player, profile, upgradeId, field, newLevel)
 	local response = result(true, upgrade.displayName .. " Lv " .. tostring(newLevel) .. "!", price)
 	response.upgradeId, response.level = upgradeId, newLevel
 	if field then response.fieldId = field.id end

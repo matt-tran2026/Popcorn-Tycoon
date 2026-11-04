@@ -117,6 +117,7 @@ function PlayerStateService.publish(userId: number)
 	player:SetAttribute("Popcorn", profile.popcorn)
 	player:SetAttribute("Cash", profile.cash)
 	player:SetAttribute("EquippedTool", profile.equippedTool)
+	player:SetAttribute("RawCorn", PlayerStateService.carried(profile))
 	-- Owned_<toolId> lets the Shop show owned state; the profile stays the authority.
 	for toolId, owned in profile.ownedTools do player:SetAttribute("Owned_" .. toolId, owned) end
 	-- Upgrade levels for the HUD and Upgrades menu: Upgrade_Backpack, Upgrade_<fieldId>_<id>,

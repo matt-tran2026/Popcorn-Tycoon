@@ -118,6 +118,42 @@ function ToolService.equip(player: Player, toolId: unknown): Types.ActionResult
 	return result(true, Config.Tools[toolId].displayName .. " equipped · click, tap or F to swing")
 end
 
+-- Whether a tool ID is defined in Config.Tools and has a model builder (so it can be held).
+function ToolService.implemented(toolId: unknown): boolean
+	return typeof(toolId) == "string" and Config.Tools[toolId] ~= nil and builders[toolId] ~= nil
+end
+
+-- Studio-only Developer Panel (AdminService): ownership without a charge, through the same
+-- profile field and Tool instance as a purchase. Returns false if already owned.
+function ToolService.grant(player: Player, toolId: string): boolean
+	assert(ToolService.implemented(toolId), "Unknown tool")
+	local profile = assert(State.get(player.UserId), "Profile unavailable")
+	if profile.ownedTools[toolId] then return false end
+	profile.ownedTools[toolId] = true
+	State.publish(player.UserId)
+	give(player, toolId)
+	return true
+end
+
+-- Studio-only Developer Panel: takes an owned tool away. The live Tool is destroyed and, if it
+-- was equipped, the player falls back to hands, so equippedTool never names an unowned tool.
+-- Manual (hand picking) is not a Tool and always stays. Returns false if it was not owned.
+function ToolService.revoke(player: Player, toolId: string): boolean
+	assert(toolId ~= "Manual" and Config.Tools[toolId], "Unknown tool")
+	local profile = assert(State.get(player.UserId), "Profile unavailable")
+	if not profile.ownedTools[toolId] then return false end
+	profile.ownedTools[toolId] = nil
+	if profile.equippedTool == toolId then setEquipped(player, "Manual") end
+	local tool = owned(player, toolId)
+	while tool do
+		tool:Destroy()
+		tool = owned(player, toolId)
+	end
+	player:SetAttribute("Owned_" .. toolId, nil)
+	State.publish(player.UserId)
+	return true
+end
+
 local lastRequest: { [number]: number } = {}
 -- Shop menu requests. Only the action and tool ID come from the client; everything else is
 -- read from the server's own state, and requests faster than the cooldown are dropped.
