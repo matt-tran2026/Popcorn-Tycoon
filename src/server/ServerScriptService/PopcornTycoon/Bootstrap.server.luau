@@ -1,5 +1,10 @@
 --!strict
 local Players = game:GetService("Players")
+-- Characters load only once the player's farm exists, then appear at their own farm entrance.
+-- Auto-loading during the yielding startup below dropped early joiners at the hub before the
+-- map existed, so they fell under it and were stuck. Set before anything can yield.
+Players.CharacterAutoLoads = false
+local RunService = game:GetService("RunService")
 local Prompts = game:GetService("ProximityPromptService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
@@ -38,6 +43,32 @@ shop.OnServerEvent:Connect(function(player: Player, action: unknown, toolId: unk
 	if response then notice:FireClient(player, if action == "Equip" then "Equip" else "Tool", response) end
 end)
 
+-- Moves a freshly loaded character to its owner's farm entrance (the engine first places it
+-- at the hub SpawnLocation, which stays as the fallback when there is no free farm slot).
+local function placeAtFarm(player: Player, character: Model)
+	local root = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
+	local frame = Farms.spawnFrame(player.UserId)
+	if not root or not frame then return end
+	if not character:IsDescendantOf(workspace) then character.AncestryChanged:Wait() end
+	RunService.Heartbeat:Wait()
+	if character.Parent == nil then return end
+	character:PivotTo(frame)
+	root.AssemblyLinearVelocity = Vector3.zero
+end
+
+-- With CharacterAutoLoads off, respawning after a death is ours to do.
+local function trackCharacters(player: Player)
+	player.CharacterAdded:Connect(function(character)
+		task.spawn(placeAtFarm, player, character)
+		local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
+		if not humanoid then return end
+		humanoid.Died:Once(function()
+			task.wait(Players.RespawnTime)
+			if player.Parent and player.Character == character then player:LoadCharacter() end
+		end)
+	end)
+end
+
 local function joined(player: Player)
 	local profile = State.load(player.UserId, DateTime.now().UnixTimestampMillis / 1000)
 	Farms.create(player.UserId, profile.fields.Starter, player.DisplayName)
@@ -49,6 +80,8 @@ local function joined(player: Player)
 	Sell.refresh(player.UserId)
 	Tools.track(player)
 	Farms.update(DateTime.now().UnixTimestampMillis / 1000)
+	trackCharacters(player)
+	if player.Parent then player:LoadCharacter() end
 end
 
 Players.PlayerAdded:Connect(joined)

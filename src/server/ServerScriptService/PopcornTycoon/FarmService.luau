@@ -266,6 +266,18 @@ function FarmService.stalkParts(userId: number): { [string]: Part }
 	return list
 end
 
+-- Where the owner's character appears: on the bridge just outside the farm entrance,
+-- facing into the farm. nil when the player has no farm (all slots taken).
+function FarmService.spawnFrame(userId: number): CFrame?
+	local farm = farms[userId]
+	if not farm then return nil end
+	local f = Config.Farm
+	local plotCenter = f.origin + f.plotOffset
+	local entrance = Vector3.new(f.origin.X, f.origin.Y, plotCenter.Z - f.plotSize.Z / 2)
+	local at = entrance + Vector3.new(0, 3.5, -4)
+	return farm.placement * CFrame.lookAt(at, at + Vector3.new(0, 0, 1))
+end
+
 function FarmService.has(userId: number): boolean
 	return farms[userId] ~= nil
 end
