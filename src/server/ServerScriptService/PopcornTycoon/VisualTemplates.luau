@@ -9,7 +9,10 @@ local cache: {[string]: Model} = {}
 local ids = {Corn = 125811337408333, Microwave = 122309358743155}
 -- Corn: the Blender-built blocky stalk (Assets/CornStalk/CornStalk_Roblox.fbx). Parts named "Corn_*"
 -- are the cobs and husks, which FarmService only shows once the stalk is ripe.
-local localNames = {Corn = "CornStalk"}
+-- Microwave: the Blender-built brick kiosk (Assets/MicrowaveStand/MicrowaveStand.fbx, Nov 4 2026)
+-- with its MicrowaveBody mesh and named anchor attachments; the old generated kiosk asset
+-- stays the fallback.
+local localNames = {Corn = "CornStalk", Microwave = "MicrowaveStand"}
 local function loadLocal(name: string): (boolean, any)
  local folder = ServerStorage:FindFirstChild("PopcornTemplates")
  local source = if folder and localNames[name] then folder:FindFirstChild(localNames[name]) else nil
@@ -34,6 +37,11 @@ function Templates.load()
    cache[name]=model
   else warn("[PopcornTycoon] Visual template unavailable: "..name) end
  end
+end
+-- True when the loaded template carries a descendant with this name (e.g. an anchor attachment).
+function Templates.has(name: string, descendant: string): boolean
+ local template=cache[name]
+ return template~=nil and template:FindFirstChild(descendant, true)~=nil
 end
 function Templates.clone(name: string, parent: Instance, bottom: Vector3, height: number): Model?
  local template=cache[name]

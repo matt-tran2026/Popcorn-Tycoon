@@ -33,7 +33,8 @@ function BrickStyle.finish(root: Instance, groundY: number)
 	for _, object in root:GetDescendants() do
 		if object:IsA("BasePart") and object.Transparency < 1 then
 			local mesh = isMesh(object)
-			if not mesh and not keepMaterial[object.Material] then BrickStyle.studs(object) end
+			-- KeepFinish opts a part out of the studs (e.g. the microwave's window pane).
+			if not mesh and not keepMaterial[object.Material] and not object:GetAttribute("KeepFinish") then BrickStyle.studs(object) end
 			if not object.CanCollide and not object:GetAttribute("WalkThrough") then
 				local extents = object.ExtentsSize
 				local bottom = object.Position.Y - extents.Y / 2 - groundY

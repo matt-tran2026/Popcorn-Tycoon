@@ -1,94 +1,172 @@
 --!strict
--- The Shop menu: a Tools tab (buy and equip) and a Seeds tab that previews crop varieties.
+-- The Shop menu, styled like the HUD's Shop button (Nov 3 2026): a studded green brick panel with
+-- a black outline, the striped shop bag in the corner, Fredoka One outlined text and chunky brick
+-- buttons. A Tools tab (buy and equip) and a Seeds tab that previews crop varieties.
 -- Buttons only send requests; the server decides every purchase and equip, and the panel
--- redraws from the replicated balance and Owned_/EquippedTool attributes.
+-- redraws from the replicated Cash balance and Owned_/EquippedTool attributes.
+-- The panel is laid out at one design size and scaled with UIScale to fit any screen.
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared:WaitForChild("Config"))
 local Money = require(Shared:WaitForChild("Money"))
 local Theme = require(script.Parent.UITheme)
+local UIFx = require(script.Parent.UIFx)
 local player = Players.LocalPlayer
+local Brick = Theme.Brick
 local Controller = {}
 
-export type Ui = {
-	frame: (name: string, parent: Instance, size: UDim2, position: UDim2) -> Frame,
-	text: (name: string, parent: Instance, value: string, size: UDim2, position: UDim2, fontSize: number) -> TextLabel,
-}
+local WIDTH, HEIGHT = 600, 400 -- design size in pixels before UIScale
+local BLACK = Color3.new(0, 0, 0)
+local WHITE = Color3.new(1, 1, 1)
 
-local function button(name: string, parent: Instance, size: UDim2, position: UDim2): TextButton
+local function corner(parent: Instance, radius: number)
+	local c = Instance.new("UICorner")
+	c.CornerRadius, c.Parent = UDim.new(0, radius), parent
+end
+
+local function outline(parent: GuiObject, thickness: number)
+	local s = Instance.new("UIStroke")
+	s.Color, s.Thickness, s.ApplyStrokeMode = BLACK, thickness, Enum.ApplyStrokeMode.Border
+	s.LineJoinMode, s.Parent = Enum.LineJoinMode.Round, parent
+end
+
+-- Top-lit shading for brick faces.
+local function shade(parent: GuiObject)
+	local g = Instance.new("UIGradient")
+	g.Rotation, g.Color = 90, ColorSequence.new(WHITE, Color3.fromRGB(200, 200, 200))
+	g.Parent = parent
+end
+
+-- White Fredoka One text with a black outline, like the HUD. Shrinks to fit, never grows past `size`.
+local function label(name: string, parent: Instance, text: string, size: number, position: UDim2, extent: UDim2): TextLabel
+	local t = Instance.new("TextLabel")
+	t.Name, t.BackgroundTransparency, t.Text = name, 1, text
+	t.Font, t.TextColor3, t.TextScaled, t.TextWrapped = Theme.Font, WHITE, true, true
+	t.Position, t.Size = position, extent
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MaxTextSize, limit.Parent = size, t
+	local s = Instance.new("UIStroke")
+	s.Color, s.Thickness, s.LineJoinMode = BLACK, math.max(1.5, size / 11), Enum.LineJoinMode.Round
+	s.Parent = t
+	t.Parent = parent
+	return t
+end
+
+type Chunky = { button: TextButton, paint: (color: Color3, caption: string) -> () }
+-- A chunky brick button: coloured face, black outline, outlined caption and a press bounce.
+local function chunky(name: string, parent: Instance, position: UDim2, extent: UDim2, textSize: number): Chunky
 	local b = Instance.new("TextButton")
-	b.Name, b.Size, b.Position = name, size, position
-	b.Font, b.TextSize, b.TextWrapped, b.AutoButtonColor = Enum.Font.GothamBold, 15, true, true
-	b.BackgroundColor3, b.TextColor3 = Theme.Gold, Theme.Brown
-	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 12)
+	b.Name, b.Text, b.AutoButtonColor = name, "", false
+	b.Position, b.Size, b.BackgroundColor3 = position, extent, Brick.Green
+	corner(b, 12)
+	outline(b, 3)
+	shade(b)
+	local caption = label("Caption", b, "", textSize, UDim2.fromScale(0.06, 0.08), UDim2.fromScale(0.88, 0.84))
+	local scale = Instance.new("UIScale")
+	scale.Parent = b
+	b.Activated:Connect(function()
+		scale.Scale = 0.9
+		TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end)
 	b.Parent = parent
-	return b
+	return {
+		button = b,
+		paint = function(color: Color3, text: string)
+			b.BackgroundColor3, caption.Text = color, text
+		end,
+	}
 end
 
 -- Returns a function that toggles the panel (or forces it with `visible`).
-function Controller.start(gui: ScreenGui, ui: Ui, request: RemoteEvent): (visible: boolean?) -> ()
-	local panel = ui.frame("ShopPanel", gui, UDim2.new(0.92, 0, 0.8, 0), UDim2.fromScale(0.5, 0.52))
-	panel.AnchorPoint, panel.Visible, panel.ZIndex = Vector2.new(0.5, 0.5), false, 10
-	Instance.new("UISizeConstraint", panel).MaxSize = Vector2.new(540, 340)
-	ui.text("Title", panel, "SHOP", UDim2.new(1, -80, 0, 40), UDim2.fromOffset(16, 8), 22)
-	local close = button("Close", panel, UDim2.fromOffset(44, 44), UDim2.new(1, -54, 0, 8))
-	close.Text, close.BackgroundColor3, close.TextColor3, close.TextSize = "X", Theme.Red, Theme.Cream, 22
+function Controller.start(gui: ScreenGui, request: RemoteEvent): (visible: boolean?) -> ()
+	local panel = Instance.new("Frame")
+	panel.Name, panel.AnchorPoint, panel.Position = "ShopPanel", Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
+	panel.Size, panel.BackgroundColor3 = UDim2.fromOffset(WIDTH, HEIGHT), Brick.GreenRim
+	panel.Visible, panel.ZIndex, panel.Active = false, 10, true
+	corner(panel, 24)
+	outline(panel, 5)
+	local fit = Instance.new("UIScale")
+	fit.Parent = panel
+	-- Studded green face inside the darker rim, like the button tile.
+	local face = Instance.new("ImageLabel")
+	face.Name, face.Image, face.ScaleType = "Face", Theme.Hud.Studs, Enum.ScaleType.Tile
+	face.TileSize, face.BackgroundColor3 = UDim2.fromOffset(44, 44), Brick.Green
+	face.Position, face.Size = UDim2.fromOffset(9, 9), UDim2.new(1, -18, 1, -18)
+	corner(face, 17)
+	face.Parent = panel
+
+	-- Header: the shop bag breaking out of the top-left corner, title, and a red close brick.
+	-- A golden sunburst turns behind the bag.
+	local glow = UIFx.sunburst(panel, Color3.fromRGB(255, 226, 90), 30)
+	glow.Position, glow.Size, glow.ZIndex, glow.ImageTransparency = UDim2.fromOffset(28, 14), UDim2.fromOffset(230, 230), 2, 0.25
+	local bag = Instance.new("ImageLabel")
+	bag.Name, bag.Image, bag.BackgroundTransparency, bag.ScaleType = "Bag", Theme.Hud.ShopBag, 1, Enum.ScaleType.Fit
+	bag.Position, bag.Size, bag.Rotation, bag.ZIndex = UDim2.fromOffset(-36, -50), UDim2.fromOffset(128, 128), -8, 3
+	bag.Parent = panel
+	local title = label("Title", panel, "Shop", 54, UDim2.fromOffset(0, 10), UDim2.new(1, 0, 0, 58))
+	title.ZIndex = 2
+	local close = chunky("Close", panel, UDim2.new(1, -40, 0, -16), UDim2.fromOffset(56, 56), 34)
+	close.paint(Brick.Red, "X")
+	close.button.ZIndex = 3
 
 	-- Tabs: Tools is live; Seeds previews the planned variety unlocks.
-	local tabs: { [string]: { tab: TextButton, page: ScrollingFrame } } = {}
+	local tabs: { [string]: { tab: Chunky, page: ScrollingFrame } } = {}
 	local function page(name: string): ScrollingFrame
 		local p = Instance.new("ScrollingFrame")
 		p.Name, p.BackgroundTransparency, p.BorderSizePixel = name .. "Page", 1, 0
-		p.Size, p.Position = UDim2.new(1, -24, 1, -104), UDim2.fromOffset(12, 98)
-		p.CanvasSize, p.AutomaticCanvasSize, p.ScrollBarThickness = UDim2.new(), Enum.AutomaticSize.Y, 6
-		local list = Instance.new("UIListLayout") list.Padding, list.SortOrder, list.Parent = UDim.new(0, 8), Enum.SortOrder.LayoutOrder, p
+		p.Position, p.Size = UDim2.fromOffset(22, 130), UDim2.new(1, -44, 1, -148)
+		p.CanvasSize, p.AutomaticCanvasSize, p.ScrollBarThickness = UDim2.new(), Enum.AutomaticSize.Y, 8
+		p.ScrollBarImageColor3, p.ScrollingDirection = BLACK, Enum.ScrollingDirection.Y
+		local list = Instance.new("UIListLayout")
+		list.Padding, list.SortOrder = UDim.new(0, 10), Enum.SortOrder.LayoutOrder
+		list.HorizontalAlignment, list.Parent = Enum.HorizontalAlignment.Center, p
+		local padding = Instance.new("UIPadding")
+		padding.PaddingTop, padding.PaddingBottom, padding.Parent = UDim.new(0, 4), UDim.new(0, 6), p
 		p.Parent = panel
 		return p
 	end
 	local function select(name: string)
 		for id, entry in tabs do
 			entry.page.Visible = id == name
-			entry.tab.BackgroundColor3 = if id == name then Theme.Gold else Theme.Dark
-			entry.tab.TextColor3 = if id == name then Theme.Brown else Theme.Cream
+			entry.tab.paint(if id == name then Brick.Yellow else Brick.GreenRim, id)
 		end
 	end
 	for i, name in { "Tools", "Seeds" } do
-		local tab = button(name .. "Tab", panel, UDim2.fromOffset(110, 38), UDim2.fromOffset(16 + (i - 1) * 118, 52))
-		tab.Text = name
+		local tab = chunky(name .. "Tab", panel, UDim2.new(0.5, (i - 1) * 150 - 140, 0, 74), UDim2.fromOffset(130, 44), 24)
 		tabs[name] = { tab = tab, page = page(name) }
-		tab.Activated:Connect(function() select(name) end)
+		tab.button.Activated:Connect(function() select(name) end)
 	end
 
 	-- One row per item: name, effect, details, and a state button on the right.
-	local function card(parent: Instance, order: number, title: string, effect: string, details: string): (Frame, TextButton)
+	local function card(parent: Instance, order: number, heading: string, effect: string, details: string): Chunky
 		local c = Instance.new("Frame")
-		c.Name, c.LayoutOrder, c.Size = title, order, UDim2.new(1, -8, 0, 78)
-		c.BackgroundColor3, c.BackgroundTransparency = Theme.Dark, 0.15
-		Instance.new("UICorner", c).CornerRadius = UDim.new(0, 12)
+		c.Name, c.LayoutOrder, c.Size = heading, order, UDim2.new(1, -14, 0, 88)
+		c.BackgroundColor3, c.BackgroundTransparency = Color3.fromRGB(20, 24, 30), 0.35
+		corner(c, 14)
+		local edge = Instance.new("UIStroke")
+		edge.Color, edge.Thickness, edge.Parent = BLACK, 2.5, c
 		c.Parent = parent
-		local name = ui.text("Name", c, title, UDim2.new(1, -150, 0, 24), UDim2.fromOffset(12, 6), 18)
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		local line = ui.text("Effect", c, effect, UDim2.new(1, -150, 0, 20), UDim2.fromOffset(12, 30), 14)
-		line.TextXAlignment = Enum.TextXAlignment.Left
-		local more = ui.text("Details", c, details, UDim2.new(1, -150, 0, 18), UDim2.fromOffset(12, 52), 12)
-		more.TextXAlignment, more.TextColor3 = Enum.TextXAlignment.Left, Theme.Muted
-		for _, label in { line, more } do label.TextScaled = true Instance.new("UITextSizeConstraint", label).MaxTextSize = label.TextSize end
-		local action = button("Action", c, UDim2.fromOffset(128, 52), UDim2.new(1, -138, 0, 13))
-		return c, action
+		local name = label("Name", c, heading, 28, UDim2.fromOffset(14, 6), UDim2.new(1, -190, 0, 32))
+		local line = label("Effect", c, effect, 18, UDim2.fromOffset(14, 39), UDim2.new(1, -190, 0, 22))
+		local more = label("Details", c, details, 15, UDim2.fromOffset(14, 62), UDim2.new(1, -190, 0, 18))
+		more.TextColor3 = Color3.fromRGB(205, 240, 190)
+		for _, t in { name, line, more } do t.TextXAlignment = Enum.TextXAlignment.Left end
+		return chunky("Action", c, UDim2.new(1, -166, 0.5, -29), UDim2.fromOffset(152, 58), 21)
 	end
 
 	local toolsPage = tabs.Tools.page
-	local _, handsButton = card(toolsPage, 1, "Hands", "Pick one ripe stalk at a time", "Always yours · E or tap a stalk")
-	handsButton.Activated:Connect(function() request:FireServer("Equip", "Manual") end)
-	local toolButtons: { [string]: TextButton } = {}
+	local hands = card(toolsPage, 1, "Hands", "Pick one ripe stalk at a time", "Always yours · E or tap a stalk")
+	hands.button.Activated:Connect(function() request:FireServer("Equip", "Manual") end)
+	local toolButtons: { [string]: Chunky } = {}
 	local order = 2
 	for toolId, tool in Config.Tools do
 		local details = "Reach " .. tostring(tool.reach) .. " studs · " .. tostring(tool.cooldownSeconds) .. " s per swing"
 			.. (if tool.yieldMultiplier > 1 then " · ×" .. tostring(tool.yieldMultiplier) .. " yield" else "")
-		local _, action = card(toolsPage, order, tool.displayName, tool.description, details)
+		local action = card(toolsPage, order, tool.displayName, tool.description, details)
 		order += 1
 		toolButtons[toolId] = action
-		action.Activated:Connect(function()
+		action.button.Activated:Connect(function()
 			if player:GetAttribute("Owned_" .. toolId) then
 				request:FireServer("Equip", if player:GetAttribute("EquippedTool") == toolId then "Manual" else toolId)
 			else
@@ -96,52 +174,101 @@ function Controller.start(gui: ScreenGui, ui: Ui, request: RemoteEvent): (visibl
 			end
 		end)
 	end
-	local soon = ui.text("ComingSoon", toolsPage, "More tools coming: Bigger Bag, Heavy Sickle", UDim2.new(1, -8, 0, 24), UDim2.new(), 13)
-	soon.LayoutOrder, soon.TextColor3 = 99, Theme.Muted
+	local soon = label("ComingSoon", toolsPage, "More tools coming: Bigger Bag, Heavy Sickle", 18, UDim2.new(), UDim2.new(1, -14, 0, 26))
+	soon.LayoutOrder = 99
 
 	local seedsPage = tabs.Seeds.page
 	for cropId, crop in Config.Crops do
 		local details = "Grows " .. tostring(crop.growthSeconds) .. " s per yield · up to " .. tostring(crop.maxYields) .. " yields"
-		local _, action = card(seedsPage, 1, crop.displayName, Money.cash(Config.Sell.cashPerPopcorn * crop.popcornValue) .. " per popcorn", details)
-		action.Text, action.Active, action.AutoButtonColor, action.BackgroundColor3 = "Planted", false, false, Theme.Green
-		action.TextColor3 = Theme.Cream
-		action.Name = "Plant_" .. cropId
+		local action = card(seedsPage, 1, crop.displayName, Money.cash(Config.Sell.cashPerPopcorn * crop.popcornValue) .. " per popcorn", details)
+		action.paint(Brick.Blue, "Planted")
+		action.button.Name = "Plant_" .. cropId
 	end
-	local seedsSoon = ui.text("ComingSoon", seedsPage, "New corn varieties unlock here soon. Choose what to plant in each field.", UDim2.new(1, -8, 0, 40), UDim2.new(), 13)
-	seedsSoon.LayoutOrder, seedsSoon.TextColor3 = 99, Theme.Muted
+	local seedsSoon = label("ComingSoon", seedsPage, "New corn varieties unlock here soon.\nChoose what to plant in each field.", 18, UDim2.new(), UDim2.new(1, -14, 0, 46))
+	seedsSoon.LayoutOrder = 99
 
-	local function paint(b: TextButton, label: string, color: Color3, textColor: Color3)
-		b.Text, b.BackgroundColor3, b.TextColor3 = label, color, textColor
-	end
 	local function render()
 		local equipped = player:GetAttribute("EquippedTool")
 		local holdingTool = typeof(equipped) == "string" and Config.Tools[equipped] ~= nil
-		paint(handsButton, if holdingTool then "Use hands" else "In use", if holdingTool then Theme.Gold else Theme.Green, if holdingTool then Theme.Brown else Theme.Cream)
-		for toolId, b in toolButtons do
+		if holdingTool then hands.paint(Brick.Yellow, "Use hands") else hands.paint(Brick.Blue, "In use") end
+		for toolId, action in toolButtons do
 			local tool = Config.Tools[toolId]
 			local balance = (player:GetAttribute(tool.currency) or 0) :: number
 			if equipped == toolId then
-				paint(b, "Equipped\nput away", Theme.Green, Theme.Cream)
+				action.paint(Brick.Blue, "Equipped\nPut away")
 			elseif player:GetAttribute("Owned_" .. toolId) then
-				paint(b, "Owned\nEquip", Theme.Gold, Theme.Brown)
+				action.paint(Brick.Yellow, "Owned\nEquip")
 			elseif balance >= tool.price then
-				paint(b, "Buy\n" .. Money.price(tool.currency, tool.price), Theme.Gold, Theme.Brown)
+				action.paint(Brick.Green, "Buy\n" .. Money.price(tool.currency, tool.price))
 			else
-				paint(b, Money.price(tool.currency, tool.price) .. "\nneed " .. Money.price(tool.currency, tool.price - balance) .. " more", Theme.Brown, Theme.Muted)
+				action.paint(Brick.Grey, Money.price(tool.currency, tool.price) .. "\nNeed " .. Money.price(tool.currency, tool.price - balance))
 			end
 		end
 	end
 	player.AttributeChanged:Connect(function(name)
 		if name == "Cash" or name == "Popcorn" or name == "EquippedTool" or string.sub(name, 1, 6) == "Owned_" then render() end
 	end)
-	select("Tools")
-	render()
+
+	-- Whole panel (plus the bag and close button that break out of it) fits the safe screen area.
+	local function fitToScreen()
+		local screen = gui.AbsoluteSize
+		if screen.X <= 0 or screen.Y <= 0 then return end
+		fit.Scale = math.clamp(math.min(screen.X * 0.92 / (WIDTH + 60), screen.Y * 0.94 / (HEIGHT + 50)), 0.4, 1.25)
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitToScreen)
+
+	-- Opening blurs and dims the world behind the panel (local camera effect only).
+	local blur = Instance.new("BlurEffect")
+	blur.Name, blur.Size, blur.Enabled = "ShopBlur", 0, false
+	local dim = Instance.new("Frame")
+	dim.Name, dim.BackgroundColor3, dim.BackgroundTransparency = "ShopDim", BLACK, 1
+	dim.Size, dim.Position, dim.ZIndex, dim.Visible = UDim2.new(1, 400, 1, 400), UDim2.fromOffset(-200, -200), 9, false
+	dim.Parent = gui
+	local function backdrop(on: boolean)
+		blur.Parent = workspace.CurrentCamera
+		if on then
+			blur.Enabled, dim.Visible = true, true
+			TweenService:Create(blur, TweenInfo.new(0.25), { Size = 14 }):Play()
+			TweenService:Create(dim, TweenInfo.new(0.25), { BackgroundTransparency = 0.55 }):Play()
+		else
+			blur.Size, blur.Enabled = 0, false
+			dim.BackgroundTransparency, dim.Visible = 1, false
+		end
+	end
 
 	local function toggle(visible: boolean?)
-		panel.Visible = if visible == nil then not panel.Visible else visible
-		if panel.Visible then render() end
+		local open = if visible == nil then not panel.Visible else visible
+		if open and not panel.Visible then
+			fitToScreen()
+			render()
+			-- Pops in from small with an overshoot, cards sliding up after it.
+			local target = fit.Scale
+			fit.Scale = target * 0.55
+			panel.Position, panel.Rotation = UDim2.fromScale(0.5, 0.5), -4
+			panel.Visible = true
+			backdrop(true)
+			TweenService:Create(fit, TweenInfo.new(0.38, Enum.EasingStyle.Back), { Scale = target }):Play()
+			TweenService:Create(panel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic), { Rotation = 0 }):Play()
+			for _, entry in tabs do
+				for index, child in entry.page:GetChildren() do
+					if child:IsA("Frame") then
+						local slide = child:FindFirstChild("Slide") :: UIScale? or Instance.new("UIScale")
+						;(slide :: UIScale).Name, (slide :: UIScale).Parent = "Slide", child
+						;(slide :: UIScale).Scale = 0.6
+						TweenService:Create(slide :: UIScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0.08 + index * 0.05), { Scale = 1 }):Play()
+					end
+				end
+			end
+		elseif not open then
+			panel.Visible = false
+			backdrop(false)
+		end
 	end
-	close.Activated:Connect(function() toggle(false) end)
+	close.button.Activated:Connect(function() toggle(false) end)
+	panel.Parent = gui
+	select("Tools")
+	render()
+	fitToScreen()
 	return toggle
 end
 

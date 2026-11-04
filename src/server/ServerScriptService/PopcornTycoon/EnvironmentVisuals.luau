@@ -20,7 +20,8 @@ function Environment.build()
  if baseplate and baseplate:IsA("BasePart") then
   baseplate.Size=Vector3.new(ocean,4,ocean)
   baseplate.Position=map.center+Vector3.new(0,floorTop-2,0)
-  baseplate.Color=Color3.fromRGB(205,186,140) baseplate.Material=Enum.Material.Sand
+  -- Deep-sea blue, so the floor far past the water's edge reads as open ocean on the horizon.
+  baseplate.Color=Color3.fromRGB(44,150,196) baseplate.Material=Enum.Material.Sand
   Brick.studs(baseplate) -- The sea floor is studded brick like the rest of the map.
   for _,d in baseplate:GetChildren() do if d:IsA("Texture") then d.Transparency=1 end end
  end
@@ -63,5 +64,18 @@ function Environment.build()
  lighting.GlobalShadows=true
  local atmosphere=lighting:FindFirstChildOfClass("Atmosphere")
  if atmosphere then atmosphere.Density=0.23 atmosphere.Haze=1.3 atmosphere.Color=Color3.fromRGB(200,224,239) atmosphere.Decay=Color3.fromRGB(171,190,205) end
+ -- Punchier toy colours (Nov 3 2026 spectacle pass): a little extra saturation and contrast,
+ -- a soft glow on neon bulbs, and slow-moving volumetric clouds. Added, never replacing the
+ -- creator's own Sky or effects.
+ local grade=lighting:FindFirstChild("PopcornGrade") :: ColorCorrectionEffect?
+ if not grade then
+  local g=Instance.new("ColorCorrectionEffect") g.Name="PopcornGrade" g.Parent=lighting grade=g
+ end
+ if grade then grade.Saturation=0.18 grade.Contrast=0.08 grade.Brightness=0.02 grade.TintColor=Color3.fromRGB(255,250,240) end
+ local bloom=lighting:FindFirstChildOfClass("BloomEffect")
+ if bloom then bloom.Intensity=0.6 bloom.Size=28 bloom.Threshold=1.6 end
+ if not terrain:FindFirstChildOfClass("Clouds") then
+  local clouds=Instance.new("Clouds") clouds.Cover=0.55 clouds.Density=0.55 clouds.Color=Color3.fromRGB(255,252,246) clouds.Parent=terrain
+ end
 end
 return Environment

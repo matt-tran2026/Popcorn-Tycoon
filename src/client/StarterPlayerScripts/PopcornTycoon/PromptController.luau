@@ -1,25 +1,12 @@
 --!strict
-local Prompts = game:GetService("ProximityPromptService")
+-- Owner-only farm prompts. Your own pick prompts use the Custom style, so Roblox draws no
+-- button; HarvestHighlight shows the glow, the key chip and the corn pips instead (Nov 3 2026,
+-- replacing the brown "E · Pick corn" button). Other players' farm prompts are disabled here.
 local Players = game:GetService("Players")
-local Theme = require(script.Parent.UITheme)
 local Controller = {}
--- While a swung tool is held, hand-pick buttons stay hidden (E still picks one stalk).
-local suppressed = false
-local hideAll: () -> () = function() end
-function Controller.setHarvestSuppressed(value: boolean)
- suppressed = value
- if value then hideAll() end
-end
-function Controller.start(gui: ScreenGui)
- local active: {[ProximityPrompt]: BillboardGui} = {}
- local watchers: {[ProximityPrompt]: RBXScriptConnection} = {}
- local function remove(prompt: ProximityPrompt)
-  local watcher=watchers[prompt]
-  if watcher then watcher:Disconnect() watchers[prompt]=nil end
-  local display=active[prompt]
-  if display then display:Destroy() active[prompt]=nil end
- end
- hideAll=function() for prompt in active do if prompt.Name=="Harvest" then remove(prompt) end end end
+-- Kept for ToolController; while a swung tool is held the highlight shows tool targets instead.
+function Controller.setHarvestSuppressed(_value: boolean) end
+function Controller.start(_gui: ScreenGui)
  local farmPrompts={Harvest=true, Microwave=true, BuyRow=true, Sell=true}
  local function configure(object: Instance)
   if not object:IsA("ProximityPrompt") or not farmPrompts[object.Name] then return end
@@ -36,25 +23,5 @@ function Controller.start(gui: ScreenGui)
  local farms=workspace:WaitForChild("PopcornFarms")
  for _,object in farms:GetDescendants() do configure(object) end
  farms.DescendantAdded:Connect(configure)
- Prompts.PromptShown:Connect(function(prompt, inputType)
-  if prompt.Name~="Harvest" or prompt.Style~=Enum.ProximityPromptStyle.Custom or suppressed then return end
-  local farm=prompt.Parent and prompt.Parent.Parent
-  if not farm or farm:GetAttribute("OwnerUserId")~=Players.LocalPlayer.UserId then return end
-  remove(prompt)
-  local display=Instance.new("BillboardGui")
-  display.Name="HarvestPrompt" display.Size=UDim2.fromOffset(172,64) display.StudsOffset=Vector3.new(0,2,0)
-  display.AlwaysOnTop=true display.Adornee=prompt.Parent :: BasePart display.Active=true
-  local button=Instance.new("TextButton") button.Name="Pick" button.Size=UDim2.fromScale(1,1)
-  button.BackgroundColor3=Theme.Brown button.TextColor3=Theme.Cream button.Font=Enum.Font.GothamBold button.TextSize=15
-  local action=if inputType==Enum.ProximityPromptInputType.Touch then "Tap · Pick corn" elseif inputType==Enum.ProximityPromptInputType.Gamepad then "X · Pick corn" else "E · Pick corn"
-  local function refresh() button.Text=action.."\n"..prompt.ObjectText end
-  refresh()
-  watchers[prompt]=prompt:GetPropertyChangedSignal("ObjectText"):Connect(refresh) -- Count keeps growing while shown.
-  Instance.new("UICorner",button).CornerRadius=UDim.new(0,14)
-  local border=Instance.new("UIStroke",button) border.Color=Theme.Gold border.Thickness=2 border.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
-  button.Activated:Connect(function() prompt:InputHoldBegin() prompt:InputHoldEnd() end)
-  button.Parent=display display.Parent=gui active[prompt]=display
- end)
- Prompts.PromptHidden:Connect(remove)
 end
 return Controller

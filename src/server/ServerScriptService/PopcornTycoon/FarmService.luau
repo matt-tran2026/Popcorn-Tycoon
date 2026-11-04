@@ -66,6 +66,8 @@ local function buildStalk(farm: Model, origin: Vector3, row: number, col: number
 	local harvest = prompt("Harvest", "Pick corn", "Normal Corn", Config.Manual.range, stem)
 	local mesh = Templates.clone("Corn", farm, Vector3.new(pos.X, origin.Y + 0.25, pos.Z), 4.5)
 	if mesh then stem.Transparency = 1 for _, leaf in leaves do leaf:Destroy() end leaves = {} end
+	-- Lets clients find the visible stalk for a harvest target (HarvestHighlight).
+	if mesh then mesh:SetAttribute("StalkId", id) end
 	return id, { part = stem, ear = ear, prompt = harvest, leaves = leaves, mesh = mesh }
 end
 
@@ -109,8 +111,10 @@ local function buildMicrowave(model: Model, front: CFrame): MicrowaveView
 	local pop = prompt("Microwave", "Pop corn", "Microwave", Config.Microwave.range, door)
 	local popping = Instance.new("ParticleEmitter")
 	popping.Name, popping.Enabled, popping.Rate = "Popping", false, 18
-	popping.Color = ColorSequence.new(Color3.fromRGB(255, 250, 230), Color3.fromRGB(255, 220, 120))
-	popping.Size = NumberSequence.new(0.35, 0.15)
+	-- Tiny Blender popcorn pieces hop out while it cooks (Nov 3 2026).
+	popping.Texture = require(script.Parent.HubSpectacle).Art.Popcorn
+	popping.Rotation, popping.RotSpeed = NumberRange.new(0, 360), NumberRange.new(-240, 240)
+	popping.Size = NumberSequence.new(0.6, 0.35)
 	popping.Lifetime, popping.Speed = NumberRange.new(0.4, 0.7), NumberRange.new(6, 10)
 	popping.SpreadAngle, popping.Acceleration = Vector2.new(35, 35), Vector3.new(0, -25, 0)
 	popping.EmissionDirection = Enum.NormalId.Top

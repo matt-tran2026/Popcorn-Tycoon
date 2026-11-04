@@ -42,16 +42,52 @@ local function part(parent: Instance, name: string, size: Vector3, cframe: CFram
 	return p
 end
 
-local function lettering(board: Part, text: string): TextLabel
+-- Fredoka One lettering with a dark outline, matching the HUD.
+local function lettering(board: Part, text: string, face: Enum.NormalId?, color: Color3?): TextLabel
 	local gui = Instance.new("SurfaceGui")
-	gui.Name, gui.Face, gui.PixelsPerStud = "Lettering", Enum.NormalId.Front, 40
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.Name, gui.Face, gui.PixelsPerStud = "Lettering", face or Enum.NormalId.Front, 40
+	gui.SizingMode, gui.LightInfluence = Enum.SurfaceGuiSizingMode.PixelsPerStud, 0.3
 	local label = Instance.new("TextLabel")
-	label.Name, label.Size = "Text", UDim2.fromScale(0.94, 0.85)
-	label.Position, label.BackgroundTransparency = UDim2.fromScale(0.03, 0.075), 1
-	label.Font, label.TextScaled, label.TextWrapped = Enum.Font.GothamBold, true, true
-	label.TextColor3, label.Text = Color3.fromRGB(255, 239, 198), text
+	label.Name, label.Size = "Text", UDim2.fromScale(0.92, 0.8)
+	label.Position, label.BackgroundTransparency = UDim2.fromScale(0.04, 0.1), 1
+	label.Font, label.TextScaled, label.TextWrapped = Enum.Font.FredokaOne, true, true
+	label.TextColor3, label.Text = color or Color3.fromRGB(255, 226, 74), text
+	local stroke = Instance.new("UIStroke")
+	stroke.Color, stroke.Thickness, stroke.Parent = Color3.fromRGB(40, 16, 8), 4, label
 	label.Parent, gui.Parent = gui, board
+	return label
+end
+
+-- A theatre-marquee arch over a bridge head: candy-striped posts, a red sign with a gold frame
+-- and chasing bulbs. The hub side names the farm, the bridge side welcomes players to the hub.
+local function arch(parent: Instance, yaw: CFrame, width: number, apothem: number, slot: number): TextLabel
+	local m = Instance.new("Model")
+	m.Name, m.Parent = "Arch_" .. slot, parent
+	local at = yaw * CFrame.new(0, 0, apothem - 1.2)
+	local span = width / 2 + 1.7
+	for _, side in { -1, 1 } do
+		for i = 0, 4 do
+			part(m, "Post", Vector3.new(1.8, 2.4, 1.8), at * CFrame.new(side * span, 1.2 + i * 2.4, 0), if i % 2 == 0 then colors.red else colors.white, Enum.Material.SmoothPlastic, true)
+		end
+		local cap = part(m, "PostCap", Vector3.new(2.3, 2.3, 2.3), at * CFrame.new(side * span, 16.1, 0), colors.gold, Enum.Material.Neon)
+		cap.Shape = Enum.PartType.Ball
+	end
+	local center = (at * CFrame.new(0, 13.4, 0)).Position
+	local facing = CFrame.lookAt(center, Vector3.new(Config.Map.center.X, center.Y, Config.Map.center.Z))
+	part(m, "Frame", Vector3.new(span * 2 + 2.2, 4.6, 1.1), facing, colors.gold, Enum.Material.SmoothPlastic, true)
+	local board = part(m, "Board", Vector3.new(span * 2 + 1, 3.6, 1.4), facing, colors.red, Enum.Material.SmoothPlastic, true)
+	-- The bridge-side greeting gets its own name so "Lettering" stays the owner's sign.
+	;(lettering(board, "POPCORN HUB", Enum.NormalId.Back, Color3.fromRGB(255, 250, 238)).Parent :: SurfaceGui).Name = "HubLettering"
+	local label = lettering(board, "Open plot", Enum.NormalId.Front)
+	local bulbs = Instance.new("Folder")
+	bulbs.Name, bulbs.Parent = "Bulbs", m
+	local count = 11
+	for i = 0, count - 1 do
+		local x = -span - 0.6 + i * (span * 2 + 1.2) / (count - 1)
+		local bulb = part(bulbs, "Bulb", Vector3.new(0.8, 0.8, 0.8), facing * CFrame.new(x, 2.75, 0), colors.gold, Enum.Material.Neon)
+		bulb.Shape = Enum.PartType.Ball
+		bulb:SetAttribute("Bulb", i)
+	end
 	return label
 end
 
@@ -79,17 +115,8 @@ local function buildHub(root: Model)
 		local yaw = CFrame.new(center) * CFrame.Angles(0, angle(slot), 0)
 		part(paths, "RingPath", Vector3.new(2 * ring / math.sqrt(3) + 8 / math.sqrt(3), 0.12, 8), yaw * CFrame.new(0, 0.06, ring), colors.dirt, Enum.Material.Ground)
 		part(paths, "Spoke", Vector3.new(width, 0.12, a - ring + 2), yaw * CFrame.new(0, 0.07, (a + ring) / 2), colors.dirt, Enum.Material.Ground)
-		-- Lanterns mark each bridge head; lettering beside it names the farm across the water.
-		for _, side in {-1, 1} do
-			local post = yaw * CFrame.new(side * (width / 2 + 1), 0, a - 1.5)
-			part(hub, "LanternPost", Vector3.new(0.8, 4, 0.8), post * CFrame.new(0, 2, 0), colors.trim, Enum.Material.Wood, true)
-			part(hub, "LanternCap", Vector3.new(1.3, 0.3, 1.3), post * CFrame.new(0, 5.2, 0), colors.metal, Enum.Material.Metal)
-			part(hub, "LanternGlass", Vector3.new(0.9, 1.1, 0.9), post * CFrame.new(0, 4.5, 0), colors.gold, Enum.Material.Neon)
-		end
-		local signAt = yaw * CFrame.new(width / 2 + 5, 0, a - 6)
-		part(hub, "SlotSignPost", Vector3.new(0.4, 3, 0.4), signAt * CFrame.new(0, 1.5, 0), colors.trim, Enum.Material.Wood)
-		local board = part(hub, "SlotSign_" .. slot, Vector3.new(9, 2.4, 0.4), CFrame.lookAt((signAt * CFrame.new(0, 3.4, 0)).Position, center + Vector3.new(0, 3.4, 0)), colors.trim, Enum.Material.Wood)
-		slotSigns[slot] = lettering(board, "Open plot")
+		-- A marquee arch over each bridge head names the farm across the water.
+		slotSigns[slot] = arch(hub, yaw, width, a, slot)
 		-- Scenery between the spokes.
 		local between = CFrame.new(center) * CFrame.Angles(0, angle(slot) + math.pi / map.slots, 0)
 		Brick.tree(hub, (between * CFrame.new(0, 0, a - 11)).Position, 17 + (slot % 3) * 2, 900 + slot)
@@ -99,29 +126,10 @@ local function buildHub(root: Model)
 		local rock = part(hub, "Rock", Vector3.new(2.6, 1.6, 2.2), between * CFrame.new(7, 0.5, a - 17), colors.stone, Enum.Material.Slate)
 		rock.Shape = Enum.PartType.Ball
 	end
-	-- Centerpiece: a giant striped popcorn bucket on a stone plinth.
-	local bucket = Instance.new("Model")
-	bucket.Name, bucket.Parent = "PopcornBucket", hub
-	local upright = CFrame.Angles(0, 0, math.pi / 2)
-	part(bucket, "Plinth", Vector3.new(0.6, 22, 22), CFrame.new(center + Vector3.new(0, 0.3, 0)) * upright, colors.stone, Enum.Material.Slate, true).Shape = Enum.PartType.Cylinder
-	part(bucket, "Body", Vector3.new(14, 13, 13), CFrame.new(center + Vector3.new(0, 7.6, 0)) * upright, colors.red, Enum.Material.SmoothPlastic, true).Shape = Enum.PartType.Cylinder
-	for i = 0, 7 do
-		local out = Vector3.new(math.sin(i * math.pi / 4), 0, math.cos(i * math.pi / 4))
-		local at = center + out * 6.55 + Vector3.new(0, 7.6, 0)
-		part(bucket, "Stripe", Vector3.new(2.4, 14, 0.25), CFrame.lookAt(at, at + out), colors.white)
-	end
-	part(bucket, "Rim", Vector3.new(1.2, 14.2, 14.2), CFrame.new(center + Vector3.new(0, 14.6, 0)) * upright, colors.white).Shape = Enum.PartType.Cylinder
-	local kernels = Random.new(2611)
-	for i = 1, 16 do
-		local r, theta = kernels:NextNumber(0, 5), kernels:NextNumber(0, 2 * math.pi)
-		local lift = 15.4 + (5 - r) * 0.55 + kernels:NextNumber(0, 0.8)
-		local size = kernels:NextNumber(2.6, 4.2)
-		local piece = part(bucket, "Popcorn", Vector3.new(size, size * 0.85, size), CFrame.new(center + Vector3.new(math.cos(theta) * r, lift, math.sin(theta) * r)), if i % 3 == 0 then Color3.fromRGB(255, 232, 160) else colors.white)
-		piece.Shape = Enum.PartType.Ball
-	end
-	local welcome = part(hub, "WelcomeSign", Vector3.new(12, 2.6, 0.5), CFrame.new(center + Vector3.new(0, 2.4, -13)), colors.trim, Enum.Material.Wood)
-	lettering(welcome, "POPCORN TYCOON\nCross a bridge to your farm")
-	for _, x in {-5, 5} do part(hub, "WelcomePost", Vector3.new(0.4, 2.4, 0.4), CFrame.new(center + Vector3.new(x, 1.2, -13)), colors.trim, Enum.Material.Wood) end
+	-- The centrepiece (popcorn fountain, spinning giant bucket, floating logo) is HubSpectacle.
+	local welcome = part(hub, "WelcomeSign", Vector3.new(12, 2.6, 0.5), CFrame.new(center + Vector3.new(0, 2.4, -17)), colors.trim, Enum.Material.Wood)
+	lettering(welcome, "Cross a bridge to your farm!")
+	for _, x in {-5, 5} do part(hub, "WelcomePost", Vector3.new(0.4, 2.4, 0.4), CFrame.new(center + Vector3.new(x, 1.2, -17)), colors.trim, Enum.Material.Wood) end
 end
 
 local function buildBridgesAndIslands(root: Model)
@@ -158,6 +166,7 @@ function MapVisuals.build()
 	root.Name = "PopcornMap"
 	buildHub(root)
 	buildBridgesAndIslands(root)
+	require(script.Parent.HubSpectacle).build(root)
 	-- Studded brick finish; signs, lanterns, rocks, bales and the bucket become solid.
 	Brick.finish(root, Config.Map.center.Y)
 	root.Parent = workspace

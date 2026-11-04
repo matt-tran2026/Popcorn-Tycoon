@@ -13,6 +13,7 @@ type Piece = { part: Part, value: number, arrivesAt: number }
 local batches: { [number]: Batch } = {}
 local pieces: { [number]: { Piece } } = {}
 local scatter = Random.new()
+local POPCORN_ART = require(script.Parent.HubSpectacle).Art.Popcorn
 local ConversionService = {}
 
 local function result(ok: boolean, reason: string, amount: number?): Types.ActionResult
@@ -59,6 +60,8 @@ function ConversionService.start(player: Player, ownerUserId: unknown): Types.Ac
 	player:SetAttribute("RawCorn", 0)
 	local now = DateTime.now().UnixTimestampMillis / 1000 -- Same clock as update().
 	batches[player.UserId] = { reward = reward, corn = corn, readyAt = now + Config.Microwave.cookSeconds }
+	-- Clients count down on the kiosk display (MicrowaveController), against GetServerTimeNow().
+	view.door:SetAttribute("CookEndsAt", now + Config.Microwave.cookSeconds)
 	setStatus(player.UserId, "Popping… " .. tostring(math.ceil(Config.Microwave.cookSeconds)) .. "s", true)
 	publishBatch(player.UserId, "Popping", corn, math.ceil(Config.Microwave.cookSeconds))
 	return result(true, "Popping", corn)
@@ -83,6 +86,16 @@ local function burst(userId: number, batch: Batch, now: number)
 		piece.Size, piece.Position = Vector3.new(1.1, 1.1, 1.1), landing
 		piece.Color, piece.Material = Color3.fromRGB(255, 246, 214), Enum.Material.SmoothPlastic
 		piece.Anchored, piece.CanCollide, piece.CanTouch, piece.CanQuery = true, false, false, false
+		-- Shown as the Blender-rendered popcorn sprite (creator request, Nov 3 2026); the part
+		-- itself is an invisible carrier the client animates.
+		piece.Transparency, piece.CastShadow = 1, false
+		local sprite = Instance.new("BillboardGui")
+		sprite.Name, sprite.Size, sprite.LightInfluence = "Sprite", UDim2.fromScale(2.4, 2.4), 0.4
+		local image = Instance.new("ImageLabel")
+		image.Name, image.Image, image.BackgroundTransparency = "Popcorn", POPCORN_ART, 1
+		image.Size, image.Rotation = UDim2.fromScale(1, 1), scatter:NextNumber(0, 360)
+		image.Parent = sprite
+		sprite.Parent = piece
 		local value = base + (if i <= extra then 1 else 0)
 		local delay = (i - 1) * microwave.staggerSeconds -- Pieces leave the ground one after another.
 		piece:SetAttribute("Value", value)

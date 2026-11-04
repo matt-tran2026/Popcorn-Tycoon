@@ -4,6 +4,8 @@
 local Config = require(game.ReplicatedStorage.PopcornTycoon.Config)
 local Templates = require(script.Parent.VisualTemplates)
 local FarmVisuals = {}
+-- The Blender kiosk is 15.77 studs tall as authored; this is its height on the farm.
+local KIOSK_HEIGHT, KIOSK_AUTHORED = 12.6, 15.7669
 local colors = {
 	grass = Color3.fromRGB(115, 174, 65), leaf = Color3.fromRGB(77, 143, 49),
 	wood = Color3.fromRGB(157, 99, 53), trim = Color3.fromRGB(101, 62, 37),
@@ -250,8 +252,15 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 	end
 
 	-- Keep native signs readable while replacing structural placeholders with textured models.
-	local microwaveMesh = Templates.clone("Microwave", station, world(microwaveAnchor), 12)
-	if microwaveMesh then
+	local brickKiosk = Templates.has("Microwave", "WindowCenter")
+	local microwaveMesh = Templates.clone("Microwave", station, world(microwaveAnchor), if brickKiosk then KIOSK_HEIGHT else 12)
+	if microwaveMesh and brickKiosk then
+		-- The Blender brick kiosk (Nov 4 2026) carries its own sign, so every placeholder goes.
+		for _, child in station:GetChildren() do
+			if child ~= microwaveMesh then child:Destroy() end
+		end
+		FarmVisuals.dressMicrowave(station, microwaveMesh)
+	elseif microwaveMesh then
 		for _, child in station:GetChildren() do
 			if child:IsA("BasePart") and not child:FindFirstChildOfClass("SurfaceGui") then child:Destroy() end
 		end
@@ -265,6 +274,89 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 		return CFrame.lookAt(at, at + Vector3.new(0, 0, 1))
 	end
 	return ownerBoard, front(m(0, 3.5, 4.5)), front(c(0, 3.5, 3.5))
+end
+
+-- Live pieces for the brick kiosk, placed from the anchor attachments authored in the template
+-- (stand front toward -Z, before the station turns to face the field). The microwave body and
+-- its window, glow and display go in a "MicrowaveUnit" model that clients shake while it cooks
+-- (MicrowaveController); marquee bulbs on the sign chase like the hub arches.
+function FarmVisuals.dressMicrowave(station: Model, kiosk: Model)
+	local _, size = kiosk:GetBoundingBox()
+	local k = size.Y / KIOSK_AUTHORED -- authored studs -> placed studs
+	local function anchor(name: string): (CFrame, Vector2)
+		local a = kiosk:FindFirstChild(name, true) :: Attachment
+		local s = a:GetAttribute("Size")
+		return a.WorldCFrame, if typeof(s) == "Vector2" then s * k else Vector2.zero
+	end
+	local function piece(parent: Instance, name: string, sz: Vector3, cf: CFrame, color: Color3, material: Enum.Material): Part
+		local p = Instance.new("Part")
+		p.Name, p.Size, p.CFrame, p.Color, p.Material = name, sz, cf, color, material
+		p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery, p.CastShadow = true, false, false, false, false
+		p.TopSurface, p.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth
+		p:SetAttribute("WalkThrough", true)
+		p.Parent = parent
+		return p
+	end
+	local microwave = model("MicrowaveUnit", station)
+	local body = kiosk:FindFirstChild("MicrowaveBody", true) :: BasePart
+	body.Parent = microwave
+	local windowAt, window = anchor("WindowCenter")
+	-- Warm light behind tinted glass; dark until it cooks.
+	local glow = piece(microwave, "WindowGlow", Vector3.new(window.X, window.Y, 0.05 * k), windowAt * CFrame.new(0, 0, 0.03 * k), Color3.fromRGB(255, 146, 40), Enum.Material.Neon)
+	glow.Transparency = 1
+	local light = Instance.new("PointLight")
+	light.Name, light.Color, light.Range, light.Brightness, light.Shadows = "CookLight", Color3.fromRGB(255, 180, 80), 7, 0, false
+	light.Parent = glow
+	-- A faint tinted pane. Not Glass material: Roblox hides transparent parts (the glow) behind Glass.
+	local glass = piece(microwave, "WindowGlass", Vector3.new(window.X, window.Y, 0.04 * k), windowAt * CFrame.new(0, 0, -0.05 * k), Color3.fromRGB(170, 215, 235), Enum.Material.SmoothPlastic)
+	glass.Transparency, glass.Reflectance = 0.82, 0.2
+	glass:SetAttribute("KeepFinish", true)
+	local displayAt, display = anchor("DisplayCenter")
+	local screen = piece(microwave, "Display", Vector3.new(display.X, display.Y, 0.04 * k), displayAt, Color3.fromRGB(20, 26, 30), Enum.Material.SmoothPlastic)
+	screen.Transparency = 1
+	local gui = Instance.new("SurfaceGui")
+	gui.Name, gui.Face, gui.LightInfluence, gui.Brightness = "Readout", Enum.NormalId.Front, 0, 1.6
+	gui.SizingMode, gui.PixelsPerStud = Enum.SurfaceGuiSizingMode.PixelsPerStud, 80
+	local readout = Instance.new("TextLabel")
+	readout.Name, readout.BackgroundTransparency, readout.Size = "Time", 1, UDim2.fromScale(1, 1)
+	readout.Font, readout.TextScaled, readout.Text = Enum.Font.Arcade, true, "0:00"
+	readout.TextColor3 = Color3.fromRGB(110, 255, 200)
+	readout.Parent, gui.Parent = gui, screen
+	-- Popcorn bursting out of the top while it cooks (client-toggled).
+	local topAt = anchor("MicrowaveTop")
+	local vent = piece(microwave, "PopVent", Vector3.new(2, 0.2, 1.5) * k, topAt, Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
+	vent.Transparency = 1
+	local burst = Instance.new("ParticleEmitter")
+	burst.Name, burst.Enabled, burst.Rate = "PopBurst", false, 0
+	burst.Texture = "rbxassetid://112894460849000" -- Blender popcorn piece (HubSpectacle.Art.Popcorn)
+	burst.Speed, burst.SpreadAngle = NumberRange.new(9, 14), Vector2.new(30, 30)
+	burst.Acceleration, burst.Lifetime = Vector3.new(0, -30, 0), NumberRange.new(0.7, 1)
+	burst.Size = NumberSequence.new(0.7 * k, 0.5 * k)
+	burst.Rotation, burst.RotSpeed = NumberRange.new(0, 360), NumberRange.new(-300, 300)
+	burst.EmissionDirection, burst.Parent = Enum.NormalId.Top, vent
+	-- Marquee bulbs along the top and bottom of the sign frame, and a glowing globe on each post.
+	local bulbs = Instance.new("Folder")
+	bulbs.Name, bulbs.Parent = "Bulbs", station
+	local signAt, frame = anchor("SignFront")
+	local count = 11
+	for row, y in { frame.Y / 2 - 0.14 * k, -frame.Y / 2 + 0.14 * k } do
+		for i = 0, count - 1 do
+			local x = (i / (count - 1) - 0.5) * (frame.X - 0.9 * k)
+			local b = piece(bulbs, "Bulb", Vector3.one * 0.42 * k, signAt * CFrame.new(x, y, -0.06 * k), colors.gold, Enum.Material.Neon)
+			b.Shape = Enum.PartType.Ball
+			b:SetAttribute("Bulb", i + (row - 1) * 2)
+		end
+	end
+	for _, name in { "PostTopL", "PostTopR" } do
+		local at = anchor(name)
+		local globe = piece(bulbs, "Globe", Vector3.one * 0.9 * k, at, colors.gold, Enum.Material.Neon)
+		globe.Shape = Enum.PartType.Ball
+	end
+	-- The kiosk meshes are solid (players bump the counter and posts), the awning and sign too.
+	for _, d in kiosk:GetDescendants() do
+		if d:IsA("MeshPart") then d.CanCollide, d.CanQuery = true, true end
+	end
+	body.CanCollide, body.CanQuery = true, true
 end
 
 return FarmVisuals

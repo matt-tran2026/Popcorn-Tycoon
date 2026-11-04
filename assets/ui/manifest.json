@@ -24,8 +24,22 @@
       "btn_rebirth.png": "95432742957662",
       "btn_shop.png": "127043114998171",
       "btn_quests.png": "133951945676679",
-      "btn_upgrades.png": "75064606374733"
+      "btn_upgrades.png": "75064606374733",
+      "shop_header_bag.png": "110102567004174",
+      "shop_panel_studs.png": "97083921962489"
     },
     "status": "Uploaded from Studio; all eight ImageLabel/ImageButton IsLoaded verified in a Studio playtest."
+  },
+  "spectacle": {
+    "source": "Obsidian vault Assets/UI/v2 (UI_v2.blend for the 3D renders)",
+    "uploaded": "2026-11-03",
+    "assets": {
+      "logo.png": "121151235150792",
+      "coin_sheet.png": "101301469414041",
+      "popcorn_piece.png": "112894460849000",
+      "sparkle.png": "96542276860825",
+      "sunburst.png": "90019751463359"
+    },
+    "status": "Uploaded from Studio; logo, coin, popcorn and sunburst seen rendering in a Studio playtest (splash, Cash bar, Shop, hub)."
   }
 }

@@ -14,6 +14,8 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon"
 local Config = require(Shared:WaitForChild("Config"))
 local Money = require(Shared:WaitForChild("Money"))
 local Theme = require(script.Parent.UITheme)
+local UIFx = require(script.Parent.UIFx)
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local HudController = {}
 
@@ -23,6 +25,11 @@ export type Hud = {
 	pulseCorn: () -> (),
 	pulsePopcorn: () -> (),
 	pulseCash: () -> (),
+	-- Juice layer (Nov 3 2026): the effects ScreenGui, the counters icons fly into, and the
+	-- current size unit in pixels.
+	fx: ScreenGui,
+	targets: { bag: GuiObject, popcorn: GuiObject, cash: GuiObject },
+	unit: () -> number,
 }
 -- Button name -> what it opens. Buttons without an action say their feature is coming soon.
 export type Actions = { [string]: () -> () }
@@ -166,8 +173,9 @@ local function menuButton(name: string, parent: Instance, order: number, onActiv
 	local function to(value: number, seconds: number, style: Enum.EasingStyle)
 		TweenService:Create(scale, TweenInfo.new(seconds, style), { Scale = value }):Play()
 	end
-	b.MouseEnter:Connect(function() to(1.07, 0.12, Enum.EasingStyle.Quad) end)
-	b.MouseLeave:Connect(function() to(1, 0.12, Enum.EasingStyle.Quad) end)
+	-- Hover pops the tile and tilts it; the idle sway (HudController.start) leaves it alone meanwhile.
+	b.MouseEnter:Connect(function() b:SetAttribute("Hover", true) to(1.12, 0.18, Enum.EasingStyle.Back) end)
+	b.MouseLeave:Connect(function() b:SetAttribute("Hover", false) to(1, 0.15, Enum.EasingStyle.Quad) end)
 	b.Activated:Connect(function()
 		scale.Scale = 0.88
 		to(1, 0.25, Enum.EasingStyle.Back)
@@ -216,11 +224,17 @@ function HudController.start(actions: Actions): Hud
 	-- Feedback: outlined text below the bucket, no panel, matching the rest of the HUD.
 	local toast = label("Feedback", gui, WHITE, BLACK, 0.09)
 	toast.Visible, toast.ZIndex = false, 5
+	local toastPop = Instance.new("UIScale")
+	toastPop.Parent = toast
 	local toastRevision = 0
 	local function show(message: string, seconds: number?)
 		toastRevision += 1
 		local revision = toastRevision
 		toast.Text, toast.Visible = message, true
+		-- Each message slams in: overshooting scale and a little wobble.
+		toastPop.Scale, toast.Rotation = 0.55, if toastRevision % 2 == 0 then -3 else 3
+		TweenService:Create(toastPop, TweenInfo.new(0.32, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+		TweenService:Create(toast, TweenInfo.new(0.5, Enum.EasingStyle.Elastic), { Rotation = 0 }):Play()
 		task.delay(seconds or 2.5, function()
 			if revision == toastRevision then toast.Visible = false end
 		end)
@@ -265,14 +279,33 @@ function HudController.start(actions: Actions): Hud
 	cash.Name, cash.Image, cash.BackgroundTransparency = "CashBar", Theme.Hud.Cash, 1
 	cash.ScaleType, cash.Parent = Enum.ScaleType.Stretch, gui
 	local cashText = label("Amount", cash, Color3.fromRGB(124, 240, 74), Color3.fromRGB(16, 58, 14), 0.1)
-	cashText.AnchorPoint, cashText.Position, cashText.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.52), UDim2.fromScale(0.84, 0.72)
+	cashText.AnchorPoint, cashText.Position, cashText.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.62, 0.52), UDim2.fromScale(0.66, 0.72)
+	-- A spinning Blender-rendered coin breaking out of the bar's left end.
+	local coin = UIFx.coin(cash)
+	coin.SizeConstraint, coin.AnchorPoint = Enum.SizeConstraint.RelativeYY, Vector2.new(0.5, 0.5)
+	coin.Position, coin.Size, coin.ZIndex = UDim2.fromScale(0.18, 0.5), UDim2.fromScale(1.3, 1.3), 2
 
+	local setPopcorn = UIFx.counter(popcornCount, Money.short)
+	local setCash = UIFx.counter(cashText, Money.cash)
 	local capacity = Config.Inventory.capacity
+	local wasFull = false
 	local function render()
 		local carried = (player:GetAttribute("RawCorn") or 0) :: number
-		popcornCount.Text = Money.short((player:GetAttribute("Popcorn") or 0) :: number)
-		cashText.Text = Money.cash((player:GetAttribute("Cash") or 0) :: number)
+		setPopcorn((player:GetAttribute("Popcorn") or 0) :: number)
+		setCash((player:GetAttribute("Cash") or 0) :: number)
 		bagText.Text = tostring(carried) .. "/" .. tostring(capacity)
+		-- The bag shakes when it fills up.
+		local full = carried >= capacity
+		if full and not wasFull then
+			task.spawn(function()
+				for i = 1, 8 do
+					bag.Rotation = (if i % 2 == 0 then 1 else -1) * (9 - i) * 0.7
+					task.wait(0.04)
+				end
+				bag.Rotation = 0
+			end)
+		end
+		wasFull = full
 		fill.Size = UDim2.fromScale(math.clamp(carried / capacity, 0, 1), 1)
 		gradient.Color = if carried >= capacity
 			then ColorSequence.new(Color3.fromRGB(255, 122, 110), Color3.fromRGB(214, 48, 58))
@@ -321,17 +354,68 @@ function HudController.start(actions: Actions): Hud
 	UserInput.LastInputTypeChanged:Connect(layout)
 	pcall(function() UserInput:GetPropertyChangedSignal("PreferredInput" :: any):Connect(layout) end)
 
+	-- Shop badge: a bouncing "!" whenever a tool you don't own is affordable.
+	local shopButton = right:FindFirstChild("Shop") :: ImageButton?
+	local badge = label("Badge", nil, WHITE, BLACK, 0.08)
+	badge.Text, badge.BackgroundTransparency = "!", 0
+	badge.BackgroundColor3, badge.AnchorPoint = Color3.fromRGB(236, 52, 64), Vector2.new(0.5, 0.5)
+	badge.Position, badge.Size, badge.ZIndex, badge.Visible = UDim2.fromScale(0.9, 0.12), UDim2.fromScale(0.34, 0.34), 4, false
+	Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
+	local ring = Instance.new("UIStroke")
+	ring.Color, ring.Thickness, ring.ApplyStrokeMode, ring.Parent = BLACK, 2.5, Enum.ApplyStrokeMode.Border, badge
+	badge.Parent = shopButton
+	local function refreshBadge()
+		local affordable = false
+		for toolId, tool in Config.Tools do
+			local balance = (player:GetAttribute(tool.currency) or 0) :: number
+			if not player:GetAttribute("Owned_" .. toolId) and balance >= tool.price then affordable = true end
+		end
+		badge.Visible = affordable
+	end
+	player.AttributeChanged:Connect(refreshBadge)
+	refreshBadge()
+
+	-- Idle life: tiles sway gently out of step, the badged Shop tile wiggles for attention and
+	-- the badge bounces. A hovered tile tilts and holds still.
+	local buttons: { ImageButton } = {}
+	for _, group in { left, right } do
+		for _, child in group:GetChildren() do
+			if child:IsA("ImageButton") then table.insert(buttons, child) end
+		end
+	end
+	RunService.Heartbeat:Connect(function()
+		local t = os.clock()
+		for i, b in buttons do
+			if b:GetAttribute("Hover") then
+				b.Rotation = -6
+			elseif b == shopButton and badge.Visible and t % 2.4 < 0.5 then
+				b.Rotation = math.sin(t * 40) * 9 * (1 - (t % 2.4) / 0.5)
+			else
+				b.Rotation = math.sin(t * 1.4 + i * 1.1) * 2.2
+			end
+		end
+		if badge.Visible then
+			badge.Position = UDim2.fromScale(0.9, 0.12 - math.abs(math.sin(t * 5)) * 0.06)
+		end
+	end)
+
 	render()
 	local playerGui = player:WaitForChild("PlayerGui")
 	topGui.Parent = playerGui
 	gui.Parent = playerGui
 	layout()
+	local fx = UIFx.layer(playerGui)
 	return {
 		gui = gui,
 		show = show,
 		pulseCorn = pulser(bag),
 		pulsePopcorn = pulser(popcorn),
 		pulseCash = pulser(cash),
+		fx = fx,
+		targets = { bag = bag, popcorn = popcorn, cash = cash },
+		unit = function(): number
+			return HudController.placements(gui.AbsoluteSize, topGui.AbsoluteSize, touchOnly(), GuiService.TopbarInset).unit
+		end,
 	}
 end
 

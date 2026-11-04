@@ -1,6 +1,8 @@
 --!strict
--- Presentation for swung tools: the swing, target markers, staggered snips and kernels
--- arcing into the bag. Purely local; the server decides every harvest and reward.
+-- Presentation for swung tools: the swing, the white glow on the stalks the next swing will
+-- cut (HarvestHighlight; replaced the gold rings on the soil, Nov 3 2026) and staggered snips. (The yellow
+-- kernels that used to arc out of cut stalks were removed on creator request, Nov 3 2026;
+-- the HUD's flying corn icons show the reward instead.) Purely local; the server decides every harvest and reward.
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -9,8 +11,8 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon"
 local Config = require(Shared:WaitForChild("Config"))
 local ToolRules = require(Shared:WaitForChild("ToolRules"))
 local Types = require(Shared:WaitForChild("Types"))
-local Theme = require(script.Parent.UITheme)
 local Prompts = require(script.Parent.PromptController)
+local Highlight = require(script.Parent.HarvestHighlight)
 local player = Players.LocalPlayer
 local Controller = {}
 
@@ -56,20 +58,8 @@ local function myStalks(): { Types.TargetCandidate }
 	return list
 end
 
--- Glowing gold rings on the soil under the stalks a swing would cut right now.
-local markers: { Part } = {}
-local function marker(index: number): Part
-	if markers[index] then return markers[index] end
-	local ring = Instance.new("Part")
-	ring.Name, ring.Shape = "SickleTarget", Enum.PartType.Cylinder
-	ring.Size, ring.Color, ring.Material = Vector3.new(0.12, 2.6, 2.6), Theme.Gold, Enum.Material.Neon
-	ring.Transparency, ring.CastShadow = 1, false
-	ring.Anchored, ring.CanCollide, ring.CanTouch, ring.CanQuery = true, false, false, false
-	ring.Parent = workspace
-	markers[index] = ring
-	return ring
-end
-local function hideMarkers() for _, ring in markers do ring.Transparency = 1 end end
+-- With no swung tool held, the glow goes back to the hand-pick rule.
+local function hideMarkers() Highlight.setToolTargets(nil) end
 
 -- The swing layers a turn of the right shoulder over the animated hold pose, written after
 -- the animator each frame. R15 shoulders are Motor6Ds on classic rigs and
@@ -111,27 +101,9 @@ local function swing(tool: Tool, definition: Types.ToolDefinition)
 	end)
 end
 
--- One kernel per cut stalk hops out of the stalk and arcs into the player's bag.
-local function kernel(from: Vector3, delay: number, flight: number)
-	task.delay(delay, function()
-		play(Sounds.Snip, from)
-		local bit = Instance.new("Part")
-		bit.Name, bit.Shape, bit.Size = "Kernel", Enum.PartType.Ball, Vector3.new(0.55, 0.55, 0.55)
-		bit.Color, bit.Material = Theme.Gold, Enum.Material.SmoothPlastic
-		bit.Anchored, bit.CanCollide, bit.CanTouch, bit.CanQuery, bit.CastShadow = true, false, false, false, false
-		bit.Position, bit.Parent = from, workspace
-		local started = os.clock()
-		local connection: RBXScriptConnection
-		connection = RunService.RenderStepped:Connect(function()
-			local t = math.clamp((os.clock() - started) / flight, 0, 1)
-			local character = player.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-			local goal = if root then root.Position else from
-			bit.Position = from:Lerp(goal, t * t) + Vector3.new(0, math.sin(t * math.pi) * 3.5, 0)
-			bit.Size = Vector3.one * (0.55 * (1 - 0.5 * t))
-			if t >= 1 then connection:Disconnect() bit:Destroy() end
-		end)
-	end)
+-- One snip sound per cut stalk, at the stalk.
+local function snip(from: Vector3, delay: number)
+	task.delay(delay, function() play(Sounds.Snip, from) end)
 end
 
 function Controller.start(feedback: RemoteEvent)
@@ -189,27 +161,12 @@ function Controller.start(feedback: RemoteEvent)
 		lastScan = os.clock()
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not root then hideMarkers() return end
-		local candidates = myStalks()
-		local positions: { [string]: Vector3 } = {}
-		for _, c in candidates do positions[c.id] = c.position end
-		local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, Config.Tools[heldId])
-		for i = 1, Config.Tools[heldId].maxTargets do
-			local ring = marker(i)
-			local id = picked[i]
-			local farms = workspace:FindFirstChild("PopcornFarms")
-			local farm = farms and farms:FindFirstChild("Farm_" .. player.UserId)
-			local stalk = if id and farm then farm:FindFirstChild("Stalk_" .. id) :: BasePart? else nil
-			if stalk then
-				ring.CFrame = CFrame.new(stalk.Position - Vector3.new(0, stalk.Size.Y / 2 - 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90))
-				ring.Transparency = 0.45 + 0.1 * (i - 1) -- The first cut glows brightest.
-			else
-				ring.Transparency = 1
-			end
-		end
+		if not root then Highlight.setToolTargets({}) return end
+		-- Same targeting rule as the server, so the glow shows exactly what the swing will cut.
+		Highlight.setToolTargets(ToolRules.pickTargets(root.Position, root.CFrame.LookVector, myStalks(), Config.Tools[heldId]))
 	end)
 
-	-- Server-confirmed cuts: one snip and kernel per stalk, staggered after the blade passes.
+	-- Server-confirmed cuts: one snip per stalk, staggered after the blade passes.
 	feedback.OnClientEvent:Connect(function(response)
 		if not response.ok or typeof(response.tool) ~= "string" or typeof(response.targets) ~= "table" then return end
 		local definition = Config.Tools[response.tool]
@@ -218,7 +175,7 @@ function Controller.start(feedback: RemoteEvent)
 		local lead = (definition.swingSeconds or 0.3) * 0.35
 		for i, position in response.targets do
 			if typeof(position) == "Vector3" then
-				kernel(position + Vector3.new(0, 2.5, 0), lead + (i - 1) * stagger, definition.kernelFlySeconds or 0.45)
+				snip(position + Vector3.new(0, 2.5, 0), lead + (i - 1) * stagger)
 			end
 		end
 	end)

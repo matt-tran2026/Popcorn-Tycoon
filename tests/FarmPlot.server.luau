@@ -51,7 +51,9 @@ local ok, err = pcall(function()
 	-- 36 starter stalks (stem, ear, three-part mesh) plus a larger fence; measured 573 on Nov 3 2026,
 	-- 628 after the sell stand, shed/stand anchors and the sickle display; the tool shed was
 	-- removed on Nov 3 2026 (tools are bought in the Shop menu).
-	check("bounded plot geometry and lights", parts <= 650 and lights == 2)
+	-- Lights: the two gate lanterns plus the microwave kiosk's cook light (Blender kiosk, Nov 4 2026;
+	-- 619 parts measured with it).
+	check("bounded plot geometry and lights", parts <= 650 and lights == 3)
 	local starterStalks = Config.Starter.rows * Config.Starter.columns
 	check("no decorative scripts; only harvest, microwave, row and sell prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1 and prompts.Sell == 1 and prompts.BuyTool == nil)
 	-- Brick map (Nov 3 2026): decorations are solid structures; flat ground pieces, crops
@@ -90,7 +92,8 @@ local ok, err = pcall(function()
 	local entrance = soil.Position - soil.CFrame.ZVector * entranceOffset
 	check("farm entrance faces the hub", (hubCenter - entrance).Unit:Dot(-soil.CFrame.ZVector) > 0.99)
 	local named = false
-	for _, object in workspace.PopcornMap.HubIsland:GetChildren() do
+	-- The owner's name sits on the marquee arch over the bridge head (nested under HubIsland).
+	for _, object in workspace.PopcornMap.HubIsland:GetDescendants() do
 		local text = object:FindFirstChild("Lettering") and object.Lettering:FindFirstChild("Text")
 		if text and text.Text == player.DisplayName .. "'s Farm" then named = true end
 	end
