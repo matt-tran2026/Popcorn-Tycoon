@@ -210,7 +210,6 @@ function FarmVisuals.build(farm: Model, origin: Vector3, ownerName: string?): (B
 		stripe.Orientation = Vector3.new(14, 0, 0)
 	end
 	sign(stand, "SellSign", c(0, 7.1, 1.3), Vector3.new(7, 1.5, 0.35), "SELL POPCORN", true)
-	sign(stand, "SellRate", c(0, 1.6, -1.95), Vector3.new(6, 0.9, 0.25), "1 popcorn = $" .. tostring(Config.Sell.cashPerPopcorn))
 	-- A striped popcorn bucket and a jar of coins on the counter.
 	for i = 0, 5 do
 		local angle = i * math.pi / 3
@@ -407,14 +406,11 @@ function FarmVisuals.dressSell(stand: Model, kiosk: Model)
 		stroke.Parent, t.Parent, gui.Parent = t, gui, parent
 		return t
 	end
-	local rate = Config.Sell.cashPerPopcorn
-	-- The live price on the brown plaque at the counter front, and on the register's screen.
-	local plaque = piece(stand, "RateBoard", Vector3.new(6.8 * k, 1.3 * k, 0.05 * k), at(0, -2.81, 1.95), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
-	plaque.Transparency = 1
-	label(plaque, "1 popcorn = $" .. tostring(rate), Enum.Font.FredokaOne, Color3.fromRGB(255, 239, 198))
+	-- No price on the stand: popcorn variants sell for different amounts (creator, Nov 4 2026).
+	-- The prompt's ObjectText shows the actual payout. The register screen just shows cash.
 	local screen = piece(stand, "RegisterScreen", Vector3.new(1.3 * k, 0.62 * k, 0.03 * k), at(3.2, -0.38, 6.89), Color3.new(1, 1, 1), Enum.Material.SmoothPlastic)
 	screen.Transparency = 1
-	label(screen, "$" .. tostring(rate), Enum.Font.Arcade, Color3.fromRGB(124, 240, 122), Color3.fromRGB(35, 39, 44))
+	label(screen, "$$$", Enum.Font.Arcade, Color3.fromRGB(124, 240, 122), Color3.fromRGB(35, 39, 44))
 	-- Marquee bulbs on the sign and a glowing globe on each post, like the microwave kiosk.
 	local bulbs = Instance.new("Folder")
 	bulbs.Name, bulbs.Parent = "Bulbs", stand
