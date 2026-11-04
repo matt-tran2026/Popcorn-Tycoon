@@ -93,7 +93,7 @@ inventory.AnchorPoint, inventory.Visible, inventory.ZIndex = Vector2.new(0.5, 0.
 Instance.new("UISizeConstraint", inventory).MaxSize = Vector2.new(460, 250)
 text("Title", inventory, "YOUR HARVEST", UDim2.new(1, -80, 0, 44), UDim2.fromOffset(16, 12), 22)
 local contents = text("Contents", inventory, "", UDim2.new(1, -40, 0, 110), UDim2.fromOffset(20, 65), 20)
-text("SessionNotice", inventory, "Progress resets when you leave.\nPop corn at the microwave, sell popcorn at the stand, buy tools at the shed.", UDim2.new(1, -40, 0, 55), UDim2.fromOffset(20, 181), 13)
+text("SessionNotice", inventory, "Progress resets when you leave.\nPop corn at the microwave, sell popcorn at the stand, buy tools in the Shop (B).", UDim2.new(1, -40, 0, 55), UDim2.fromOffset(20, 181), 13)
 local close = Instance.new("TextButton")
 close.Name, close.Text, close.Size, close.Position = "Close", "X", UDim2.fromOffset(44, 44), UDim2.new(1, -54, 0, 10)
 close.BackgroundColor3, close.TextColor3, close.TextSize, close.Font = Theme.Red, Theme.Cream, 22, Enum.Font.GothamBold

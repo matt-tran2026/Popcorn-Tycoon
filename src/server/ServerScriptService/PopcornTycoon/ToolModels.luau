@@ -78,22 +78,4 @@ function ToolModels.sickle(): Tool
 	return tool
 end
 
--- Anchored, script-free copy for the shed display.
-function ToolModels.display(tool: Tool): Model
-	local model = Instance.new("Model")
-	model.Name = tool.Name .. "Display"
-	for _, object in tool:GetChildren() do
-		if object:IsA("BasePart") then
-			object.Anchored = true
-			for _, child in object:GetChildren() do
-				if not child:IsA("Attachment") or child.Name:find("Trail") then child:Destroy() end
-			end
-			object.Parent = model
-		end
-	end
-	model.PrimaryPart = model:FindFirstChild("Handle") :: BasePart
-	tool:Destroy()
-	return model
-end
-
 return ToolModels

@@ -74,21 +74,15 @@ function ToolService.track(player: Player)
 	end
 	spawnConnections[player.UserId] = player.CharacterAdded:Connect(spawned)
 	if player.Character then task.spawn(spawned) end
-	local profile = State.get(player.UserId)
-	if profile then
-		for toolId, owned in profile.ownedTools do
-			if owned then Farms.markToolOwned(player.UserId, toolId) end
-		end
-	end
 end
 
--- The one purchase transaction, shared by the shed prompt and the Shop menu.
+-- The one purchase transaction, reached through the Shop menu.
 function ToolService.purchase(player: Player, toolId: unknown): Types.ActionResult
 	if typeof(toolId) ~= "string" then return result(false, "Unknown tool") end
 	local tool = Config.Tools[toolId]
 	if not tool or not builders[toolId] then return result(false, "Unknown tool") end
 	local profile = State.get(player.UserId)
-	if not profile or not Farms.shed(player.UserId) then return result(false, "Profile unavailable") end
+	if not profile or not Farms.has(player.UserId) then return result(false, "Profile unavailable") end
 	if profile.ownedTools[toolId] then return result(false, "Already owned") end
 	local short = tool.price - State.balance(profile, tool.currency)
 	if short > 0 then
@@ -100,22 +94,8 @@ function ToolService.purchase(player: Player, toolId: unknown): Types.ActionResu
 	assert(State.spend(profile, tool.currency, tool.price))
 	profile.ownedTools[toolId] = true
 	State.publish(player.UserId)
-	Farms.markToolOwned(player.UserId, toolId)
 	give(player, toolId)
 	return result(true, tool.displayName .. " bought! Equip it from the hotbar or the Shop", tool.price)
-end
-
--- Shed prompt: the owner, standing at their own shed.
-function ToolService.buy(player: Player, ownerUserId: unknown, toolId: unknown): Types.ActionResult
-	if typeof(ownerUserId) ~= "number" or ownerUserId ~= player.UserId then return result(false, "Not your shed") end
-	local shed = Farms.shed(player.UserId)
-	local tool = if typeof(toolId) == "string" then Config.Tools[toolId] else nil
-	local character = player.Character
-	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
-	if not shed or not root or not root:IsA("BasePart") then return result(false, "Character unavailable") end
-	local distance = (root.Position - shed.Position).Magnitude
-	if distance ~= distance or distance > (if tool then tool.range or 10 else 10) + 2 then return result(false, "Too far away") end
-	return ToolService.purchase(player, toolId)
 end
 
 -- Equips an owned tool, or "Manual" for bare hands. The engine moves the Tool; the

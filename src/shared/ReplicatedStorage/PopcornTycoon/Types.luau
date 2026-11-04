@@ -18,7 +18,7 @@ export type HarvestResult = { ok: boolean, reason: string, amount: number, tool:
 -- Every price names the balance it is paid from (see Config.Economy).
 export type Currency = "Coins" | "Popcorn"
 export type ToolDefinition = {
-	displayName: string, description: string, price: number, currency: Currency, range: number?, reach: number, arcDegrees: number,
+	displayName: string, description: string, price: number, currency: Currency, reach: number, arcDegrees: number,
 	maxTargets: number, cooldownSeconds: number, yieldMultiplier: number,
 	swingSeconds: number?, snipStaggerSeconds: number?, kernelFlySeconds: number?,
 }

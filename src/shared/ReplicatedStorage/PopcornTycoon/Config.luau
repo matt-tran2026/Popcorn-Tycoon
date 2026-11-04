@@ -12,7 +12,7 @@ local tools: { [string]: Types.ToolDefinition } = {
 		displayName = "Sickle", description = "Sweep up to 3 ripe stalks per swing",
 		-- 60 was the first hypothesis, but one 6x6 pass fills the 50-corn bag (100 coins), so
 		-- 200 keeps the target of about two full harvest-and-sell passes.
-		price = 200, currency = "Coins", range = 10,
+		price = 200, currency = "Coins",
 		reach = 9, arcDegrees = 140, maxTargets = 3, cooldownSeconds = 0.6, yieldMultiplier = 1,
 		-- Presentation timing, shared so the swing, snips and kernels line up.
 		swingSeconds = 0.32, snipStaggerSeconds = 0.07, kernelFlySeconds = 0.45,
@@ -39,7 +39,7 @@ local Config = {
 	Upgrades = { ExtraRow = { displayName = "Extra Row", price = 200, currency = "Coins" :: Types.Currency, range = 10 } },
 	-- Sell stand: every popcorn in the balance converts to Coins at once (playtest hypothesis).
 	Sell = { coinsPerPopcorn = 2, range = 10 },
-	-- Shop menu requests (buy/equip) are throttled per player; purchases need no walk to the shed.
+	-- Tools are bought only from the Shop menu, from anywhere; requests (buy/equip) are throttled per player.
 	Shop = { requestCooldownSeconds = 0.25 },
 	Tools = tools,
 	-- Farms are authored in this canonical frame (entrance on -Z, field toward +Z), then

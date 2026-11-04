@@ -20,7 +20,7 @@ function Controller.start(gui: ScreenGui)
   if display then display:Destroy() active[prompt]=nil end
  end
  hideAll=function() for prompt in active do if prompt.Name=="Harvest" then remove(prompt) end end end
- local farmPrompts={Harvest=true, Microwave=true, BuyRow=true, Sell=true, BuyTool=true}
+ local farmPrompts={Harvest=true, Microwave=true, BuyRow=true, Sell=true}
  local function configure(object: Instance)
   if not object:IsA("ProximityPrompt") or not farmPrompts[object.Name] then return end
   local farm=object.Parent and object.Parent.Parent

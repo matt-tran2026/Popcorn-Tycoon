@@ -49,10 +49,11 @@ local ok, err = pcall(function()
 		elseif object:IsA("LuaSourceContainer") then scripts += 1 end
 	end
 	-- 36 starter stalks (stem, ear, three-part mesh) plus a larger fence; measured 573 on Nov 3 2026,
-	-- 628 after the sell stand, shed/stand anchors and the sickle display.
+	-- 628 after the sell stand, shed/stand anchors and the sickle display; the tool shed was
+	-- removed on Nov 3 2026 (tools are bought in the Shop menu).
 	check("bounded plot geometry and lights", parts <= 650 and lights == 2)
 	local starterStalks = Config.Starter.rows * Config.Starter.columns
-	check("no decorative scripts; only harvest, microwave, row, sell and tool prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1 and prompts.Sell == 1 and prompts.BuyTool == 1)
+	check("no decorative scripts; only harvest, microwave, row and sell prompts", scripts == 0 and prompts.Harvest == starterStalks and prompts.Microwave == 1 and prompts.BuyRow == 1 and prompts.Sell == 1 and prompts.BuyTool == nil)
 	-- Brick map (Nov 3 2026): decorations are solid structures; flat ground pieces, crops
 	-- and tiny details stay passable so paths and beds can be walked.
 	local function solid(name: string): boolean
@@ -73,14 +74,14 @@ local ok, err = pcall(function()
 	local ground = scenery:FindFirstChild("GrassFoundation") :: BasePart
 	check("brick plot uses classic stud surfaces, no texture objects", textures == 0 and ground.TopSurface == Enum.SurfaceType.Studs
 		and ground.Material == Enum.Material.Plastic and (farm:FindFirstChild("Soil") :: BasePart).TopSurface == Enum.SurfaceType.Studs)
-	check("microwave, shed and sell stand work; expansion stays visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery.ToolShed:GetAttribute("VisualOnly") == false and scenery.SellStand:GetAttribute("VisualOnly") == false and scenery.FutureExpansion:GetAttribute("VisualOnly"))
+	check("microwave and sell stand work; no tool shed; expansion stays visual only", scenery.MicrowaveStation:GetAttribute("VisualOnly") == false and scenery:FindFirstChild("ToolShed") == nil and scenery.SellStand:GetAttribute("VisualOnly") == false and scenery.FutureExpansion:GetAttribute("VisualOnly"))
 	local soil = farm:FindFirstChild("Soil") :: BasePart
 	-- Layout in the farm's own frame (soil +Z points from the stations toward the back fence;
 	-- +X is the visitor's left): stations face the field from the front, the lawn sits left.
 	local function local_(position: Vector3): Vector3 return soil.CFrame:PointToObjectSpace(position) end
 	local door = assert(Farms.microwave(player.UserId)).door
 	local lawn = scenery.FutureExpansion.ReservedGrass :: BasePart
-	check("stations stand in front of the field", local_(door.Position).Z < -soil.Size.Z / 2 and local_(scenery.ToolShed:GetPivot().Position).Z < -soil.Size.Z / 2)
+	check("stations stand in front of the field", local_(door.Position).Z < -soil.Size.Z / 2 and local_(scenery.SellStand:GetPivot().Position).Z < -soil.Size.Z / 2)
 	check("microwave faces the field", door.CFrame.LookVector:Dot(soil.CFrame.ZVector) > 0.99)
 	check("expansion lawn is left of the field", local_(lawn.Position).X > (lawn.Size.X + soil.Size.X) / 2 - 1)
 	-- Map: the entrance faces the hub and a bridge-head sign names the owner.

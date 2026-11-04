@@ -68,16 +68,13 @@ Prompts.PromptTriggered:Connect(function(prompt: ProximityPrompt, player: Player
 		local response = Harvest.attempt(player, owner, fieldId, stalkId)
 		if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
 		feedback:FireClient(player, response)
-	elseif prompt.Name == "Microwave" or prompt.Name == "BuyRow" or prompt.Name == "Sell" or prompt.Name == "BuyTool" then
+	elseif prompt.Name == "Microwave" or prompt.Name == "BuyRow" or prompt.Name == "Sell" then
 		local owner = Farms.resolveOwner(prompt)
 		if owner == nil then return end
 		if prompt.Name == "Microwave" then
 			notice:FireClient(player, "Microwave", Conversion.start(player, owner))
 		elseif prompt.Name == "Sell" then
 			notice:FireClient(player, "Sell", Sell.sell(player, owner))
-		elseif prompt.Name == "BuyTool" then
-			local holder = prompt.Parent
-			notice:FireClient(player, "Tool", Tools.buy(player, owner, if holder then holder:GetAttribute("ToolId") else nil))
 		else
 			local response = Upgrades.buyExtraRow(player, owner)
 			if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end

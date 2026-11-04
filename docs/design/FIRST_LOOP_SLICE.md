@@ -99,7 +99,7 @@ Where to tune, all in `src/shared/ReplicatedStorage/PopcornTycoon/Config.luau`:
 3. A typed popcorn balance for varieties: how are mixed-variety batches handled?
 4. Should other players see the sickle swing? It is local only today; showing it needs an uploaded animation.
 5. Is the 140° arc generous or sloppy in hand?
-6. What do the Bigger Bag and Heavy Sickle cost, and should they be sold at the shed, in the Shop, or both?
+6. What do the Bigger Bag and Heavy Sickle cost, and should they be sold at the shed, in the Shop, or both? Answered Nov 3 2026: Shop only; the tool shed was removed.
 
 ## Verified vs. needs a human
 

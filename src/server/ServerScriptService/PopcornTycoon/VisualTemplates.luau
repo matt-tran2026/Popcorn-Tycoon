@@ -4,7 +4,7 @@
 local InsertService = game:GetService("InsertService")
 local Templates = {}
 local cache: {[string]: Model} = {}
-local ids = {Corn = 125811337408333, Microwave = 122309358743155, Shed = 74041170609438}
+local ids = {Corn = 125811337408333, Microwave = 122309358743155}
 function Templates.load()
  for name,id in ids do
   local ok,result=pcall(function() return InsertService:LoadAsset(id) end)

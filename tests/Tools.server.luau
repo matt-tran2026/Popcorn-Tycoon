@@ -50,10 +50,9 @@ local ok, err = pcall(function()
 	local field = profile.fields.Starter
 	local crop = Config.Crops[field.cropId]
 	local farm = workspace.PopcornFarms:FindFirstChild("Farm_" .. player.UserId) :: Model
-	local shed = assert(Farms.shed(player.UserId))
 	local stand = assert(Farms.sellStand(player.UserId))
-	check("shed sells and stand exists with owner prompts", farm.Scenery.ToolShed:GetAttribute("VisualOnly") == false
-		and shed:FindFirstChild("BuyTool") ~= nil and stand:FindFirstChild("Sell") ~= nil and farm:FindFirstChild("SickleDisplay", true) ~= nil)
+	check("stand has its owner prompt; no tool shed or in-world tool prompt", stand:FindFirstChild("Sell") ~= nil
+		and farm.Scenery:FindFirstChild("ToolShed") == nil and farm:FindFirstChild("BuyTool", true) == nil)
 
 	-- Selling.
 	local function standAt(part: BasePart) assert(player.Character):PivotTo(CFrame.new(part.Position + part.CFrame.LookVector * 4)) end
@@ -77,24 +76,24 @@ local ok, err = pcall(function()
 	response = Sell.sell(player, player.UserId)
 	check("repeat sell pays nothing", not response.ok and profile.coins == 70)
 
-	-- Buying the sickle.
+	-- Buying the sickle through the Shop menu, from anywhere.
 	profile.coins = sickle.price - 1
-	standAt(shed)
-	response = Tools.buy(player, player.UserId, "Sickle")
+	task.wait(Config.Shop.requestCooldownSeconds)
+	response = assert(Tools.request(player, "Buy", "Sickle"))
 	check("buy without enough coins is refused", not response.ok and profile.coins == sickle.price - 1 and not profile.ownedTools.Sickle)
-	response = Tools.buy(player, player.UserId, "Flamethrower")
+	task.wait(Config.Shop.requestCooldownSeconds)
+	response = assert(Tools.request(player, "Buy", "Flamethrower"))
 	check("unknown tool is refused", not response.ok)
 	-- Each price names its currency: popcorn cannot pay a Coins price.
 	check("sickle is priced in coins", sickle.currency == "Coins")
 	profile.popcorn = sickle.price * 10
-	response = Tools.buy(player, player.UserId, "Sickle")
+	task.wait(Config.Shop.requestCooldownSeconds)
+	response = assert(Tools.request(player, "Buy", "Sickle"))
 	check("popcorn does not pay a coins price", not response.ok and profile.popcorn == sickle.price * 10 and not profile.ownedTools.Sickle)
 	profile.popcorn = 0
 	profile.coins = sickle.price + 10
-	assert(player.Character):PivotTo(CFrame.new(shed.Position + Vector3.new(0, 0, -40)))
-	response = Tools.buy(player, player.UserId, "Sickle")
-	check("shed purchase out of range is refused", not response.ok and response.reason == "Too far away" and profile.coins == sickle.price + 10)
-	-- The Shop menu buys from anywhere; same transaction as the shed.
+	-- Far from every station: the Shop needs no walk.
+	assert(player.Character):PivotTo(CFrame.new(stand.Position + Vector3.new(0, 0, -40)))
 	task.wait(Config.Shop.requestCooldownSeconds)
 	response = assert(Tools.request(player, "Buy", "Sickle"))
 	check("shop buy charges once and grants the tool", response.ok and profile.coins == 10 and profile.ownedTools.Sickle == true
@@ -106,10 +105,8 @@ local ok, err = pcall(function()
 	task.wait(Config.Shop.requestCooldownSeconds)
 	check("malformed shop requests are refused", not assert(Tools.request(player, "Steal", "Sickle")).ok and profile.coins == 10)
 	check("one Sickle tool in the backpack", waitFor(function() return #heldTools() == 1 end, 2) and heldTools()[1]:GetAttribute("ToolId") == "Sickle")
-	check("shed display and prompt retire", farm:FindFirstChild("SickleDisplay", true) == nil and not (shed:FindFirstChild("BuyTool") :: ProximityPrompt).Enabled)
-	standAt(shed)
-	response = Tools.buy(player, player.UserId, "Sickle")
-	check("second buy at the shed refused without charge", not response.ok and profile.coins == 10)
+	standAt(stand) -- Back onto the farm before the swing checks take their height from the avatar.
+	task.wait(0.5)
 
 	-- Swinging.
 	local function ripen(count: number)
