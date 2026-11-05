@@ -107,7 +107,18 @@
      "source": "original, synthesised",
      "assetId": "rbxassetid://136321679774475",
      "fallback": "rbxasset://sounds/swordslash.wav",
-     "uploaded": "2026-11-05 via Asset Manager import"
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": false,
+     "note": "Plain air swoosh; replaced in game by Sickle_SwishShing (creator request, Nov 5)"
+    },
+    {
+     "name": "Sickle_SwishShing",
+     "file": "assets/tools/Common/Sickle/audio/Sickle_SwishShing.wav",
+     "source": "original, synthesised: the swoosh with a metal shing about 7 dB under it (swish_shing in scripts/synth_sickle_audio.py)",
+     "assetId": "rbxassetid://111045205785758",
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": true,
+     "fallback": "rbxasset://sounds/swordslash.wav"
     },
     {
      "name": "Stalk_Snap",

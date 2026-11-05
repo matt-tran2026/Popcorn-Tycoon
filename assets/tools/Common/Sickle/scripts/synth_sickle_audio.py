@@ -97,7 +97,42 @@ def snap():
     return crack * 0.9 + knock + rustle
 
 
+def rms(signal):
+    return float(np.sqrt(np.mean(signal ** 2)))
+
+
+def shing(length):
+    """A quick bright metal 'shing' as the blade whips through the air: ringing partials that
+    glide up a little, over a thin edge-scrape. Shorter and higher than the equip ring."""
+    t = t_axis(length)
+    onset = 0.055  # lands as the blade accelerates, just before the whoosh peaks
+    local = np.maximum(t - onset, 0)
+    gate = (t >= onset).astype(float)
+    attack = np.clip(local / 0.006, 0, 1)
+    ring = np.zeros_like(t)
+    for freq, amp, decay in [(3150, 1.0, 14), (4870, 0.65, 18), (6620, 0.4, 24), (8350, 0.2, 30)]:
+        glide = 1 + 0.035 * (1 - np.exp(-local * 18))  # slight upward sweep
+        phase = 2 * np.pi * np.cumsum(freq * glide) / RATE
+        ring += amp * np.sin(phase) * np.exp(-local * decay)
+    scrape_env = attack * np.exp(-local * 40)
+    scrape = band(rng.standard_normal(len(t)), 4000, 11000) * scrape_env * 0.5
+    return (ring * attack + scrape) * gate
+
+
+def swish_shing(whoosh):
+    """The air swoosh with the metal shing mixed under it (creator request, Nov 5 2026).
+    The shing sits about 7 dB below the whoosh so the swoosh still leads."""
+    metal = shing(len(whoosh) / RATE)
+    metal *= rms(whoosh) / (rms(metal) + 1e-9) * 10 ** (-7 / 20)
+    return whoosh + metal
+
+
 if __name__ == "__main__":
+    made = {}
     for name, make in [("Sickle_Equip", equip), ("Sickle_Swish", swish), ("Stalk_Snap", snap)]:
-        path, seconds = save(name, make())
+        made[name] = make()
+        path, seconds = save(name, made[name])
         print(f"{name}: {seconds:.2f} s -> {os.path.relpath(path)}")
+    # In use since Nov 5 2026: the swing plays the swoosh with a metal shing mixed in.
+    path, seconds = save("Sickle_SwishShing", swish_shing(made["Sickle_Swish"]))
+    print(f"Sickle_SwishShing: {seconds:.2f} s -> {os.path.relpath(path)}")
