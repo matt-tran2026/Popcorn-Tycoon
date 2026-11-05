@@ -1,6 +1,12 @@
 --!strict
--- Procedural tool models, kept in source so they sync and diff like code.
--- Built in the handle's own frame: the grip runs along +X, the blade hooks off its far end.
+-- Builds the Roblox Tool for a tool ID. The Blender model (imported into
+-- ServerStorage.PopcornTemplates.Tools.<template>, place file only) is preferred; the procedural
+-- part-built model below is the fallback, kept in source so it syncs and diffs like code.
+-- Procedural models are built in the handle's own frame: the grip runs along +X, the blade
+-- hooks off its far end.
+local ServerStorage = game:GetService("ServerStorage")
+local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
+local ToolPresentation = require(Shared.ToolPresentation)
 local ToolModels = {}
 
 local colors = {
@@ -76,6 +82,128 @@ function ToolModels.sickle(): Tool
 	-- Held in the right hand with the grip pointing forward and the blade curling left, flat.
 	tool.Grip = CFrame.new(0, 0, 0.35) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(math.rad(90), 0, 0)
 	return tool
+end
+
+local procedural: { [string]: () -> Tool } = { Sickle = ToolModels.sickle }
+
+-- The tool frame (see ToolPresentation.Model) recovered from the imported meshes, so it does
+-- not matter how the importer oriented or centred them: X runs along the handle mesh's long
+-- axis toward the other meshes, Y is the head's thinnest axis, Z the side the head sits on.
+local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre: number): CFrame?
+	if #others == 0 then return nil end
+	local function axes(part: BasePart): { { axis: Vector3, size: number } }
+		local cf, size = part.CFrame, part.Size
+		return { { axis = cf.RightVector, size = size.X }, { axis = cf.UpVector, size = size.Y }, { axis = cf.LookVector, size = size.Z } }
+	end
+	local list = axes(handle)
+	table.sort(list, function(a, b) return a.size > b.size end)
+	local headCentre = Vector3.zero
+	for _, part in others do headCentre += part.Position end
+	headCentre /= #others
+	local x = list[1].axis
+	if (headCentre - handle.Position):Dot(x) < 0 then x = -x end
+	local head = axes(others[1])
+	table.sort(head, function(a, b) return a.size < b.size end)
+	local y = head[1].axis
+	local side = (headCentre - handle.Position)
+	side -= x * side:Dot(x) + y * side:Dot(y)
+	if side.Magnitude < 1e-3 then return nil end
+	local z = side.Unit
+	if x:Cross(y):Dot(z) < 0 then y = -y end -- Keep the frame right-handed with Z toward the head.
+	return CFrame.fromMatrix(handle.Position + x * gripFromCentre, x, y, z)
+end
+
+-- Builds the Tool from ServerStorage.PopcornTemplates.Tools.<template>, or nil if it is missing
+-- or does not have the expected meshes (the caller then uses the procedural model).
+local function fromTemplate(toolId: string, look: ToolPresentation.Presentation): Tool?
+	local folder = ServerStorage:FindFirstChild("PopcornTemplates")
+	local tools = folder and folder:FindFirstChild("Tools")
+	local source = tools and tools:FindFirstChild(look.model.template)
+	if not source then return nil end
+	local copy = source:Clone()
+	local handle: BasePart? = nil
+	local others: { BasePart } = {}
+	for _, part in copy:GetDescendants() do
+		if part:IsA("LuaSourceContainer") then
+			part:Destroy()
+		elseif part:IsA("BasePart") then
+			if part.Name == look.model.handle then handle = part else table.insert(others, part) end
+		end
+	end
+	local frame = if handle then toolFrame(handle, others, look.model.gripFromCentre) else nil
+	if not handle or not frame then
+		warn("[PopcornTycoon] Tool template " .. look.model.template .. " is missing its meshes; using the part-built model")
+		copy:Destroy()
+		return nil
+	end
+	local tool = Instance.new("Tool")
+	tool.Name = toolId
+	tool:SetAttribute("ToolId", toolId)
+	tool:SetAttribute("ModelSource", "Blender")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	for _, part in { handle :: BasePart, table.unpack(others) } do
+		part.Anchored, part.CanCollide, part.CanTouch, part.CanQuery, part.Massless = false, false, false, false, true
+		part.CastShadow = true
+		-- Colours are vertex colours; a white part shows them as painted.
+		part.Color = Color3.new(1, 1, 1)
+		local material = look.model.materials[part.Name]
+		if material then part.Material = material end
+		part.Parent = tool
+		if part ~= handle then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = handle, part, part
+		end
+	end
+	handle.Name = "Handle"
+	copy:Destroy()
+	-- Named points in the tool frame become attachments on the handle.
+	local local_ = handle.CFrame:ToObjectSpace(frame)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, local_:PointToWorldSpace(point), handle
+	end
+	tool.Grip = local_ * look.model.grip
+	return tool
+end
+
+-- The swing ribbon between two named points; ToolController enables it during a swing.
+local function addTrail(tool: Tool, look: ToolPresentation.Presentation)
+	local spec = look.model.trail
+	local handle = tool:FindFirstChild("Handle")
+	if not spec or not handle or handle:FindFirstChild("SwingTrail") then return end
+	local a0, a1 = handle:FindFirstChild(spec.from), handle:FindFirstChild(spec.to)
+	if not (a0 and a0:IsA("Attachment") and a1 and a1:IsA("Attachment")) then return end
+	local trail = Instance.new("Trail")
+	trail.Name, trail.Attachment0, trail.Attachment1 = "SwingTrail", a0, a1
+	trail.Lifetime, trail.MinLength, trail.Enabled = spec.lifetime, 0.05, false
+	trail.Color = ColorSequence.new(spec.colors[1], spec.colors[#spec.colors])
+	trail.Transparency = NumberSequence.new(0.3, 1)
+	trail.LightEmission, trail.FaceCamera = 0.35, true
+	trail.Parent = handle
+end
+
+-- Whether a tool ID can be built: it has a procedural builder, or a presentation entry whose
+-- Blender template is in the place.
+function ToolModels.has(toolId: string): boolean
+	if procedural[toolId] then return true end
+	local look = ToolPresentation.get(toolId)
+	local folder = ServerStorage:FindFirstChild("PopcornTemplates")
+	local tools = folder and folder:FindFirstChild("Tools")
+	return look ~= nil and tools ~= nil and tools:FindFirstChild(look.model.template) ~= nil
+end
+
+function ToolModels.build(toolId: string): Tool
+	local look = ToolPresentation.get(toolId)
+	local tool = if look then fromTemplate(toolId, look) else nil
+	if not tool then
+		local builder = assert(procedural[toolId], "No model for tool " .. toolId)
+		tool = builder()
+		tool:SetAttribute("ModelSource", "Procedural")
+	end
+	local built = tool :: Tool
+	if look then addTrail(built, look) end
+	built:SetAttribute("Rarity", if look then look.rarity else nil)
+	return built
 end
 
 return ToolModels

@@ -39,6 +39,9 @@ local farmUpgrades: { [string]: Types.FarmUpgradeDefinition } = {
 local tools: { [string]: Types.ToolDefinition } = {
 	Sickle = {
 		displayName = "Sickle", description = "Sweep up to 3 ripe stalks per swing",
+		-- Collection identity (docs/design/TOOL_COLLECTION.md). behavior names the harvesting
+		-- family HarvestService uses; ArcSweep is ToolRules.pickTargets.
+		rarity = "Common", behavior = "ArcSweep",
 		-- 60 was the first hypothesis, but one 6x6 pass fills the 50-corn bag ($100), so
 		-- 200 keeps the target of about two full harvest-and-sell passes.
 		price = 200, currency = "Cash",
@@ -194,6 +197,17 @@ function Config.validate()
 		assert(whole(tool.yieldMultiplier) and tool.yieldMultiplier >= 1, "Invalid tool " .. id)
 	end
 	assert(Config.Tools.Sickle.cooldownSeconds >= (Config.Tools.Sickle.swingSeconds or 0), "Sickle swings must not overlap")
+	-- Every tool has a presentation entry, and a swing clip lasts exactly as long as its swing.
+	local ToolPresentation = require(script.Parent.ToolPresentation)
+	local toolIds = {}
+	for id in Config.Tools do table.insert(toolIds, id) end
+	ToolPresentation.validate(toolIds)
+	for id, tool in Config.Tools do
+		local look = assert(ToolPresentation.get(id))
+		assert(look.rarity == tool.rarity, "Rarity differs between Config and ToolPresentation: " .. id)
+		local clip = look.clips.Swing
+		assert(not clip or not tool.swingSeconds or math.abs(clip.seconds - tool.swingSeconds) < 1e-6, "Swing clip length must equal swingSeconds: " .. id)
+	end
 	local map, farm = Config.Map, Config.Farm
 	assert(whole(map.slots) and map.slots >= 2, "Invalid farm slot count")
 	assert(map.hubApothem + 20 <= map.entranceRadius, "Bridges need room between hub and farms")

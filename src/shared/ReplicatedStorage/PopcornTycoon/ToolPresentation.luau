@@ -1,0 +1,119 @@
+--!strict
+-- How each harvesting tool looks, moves and sounds. Gameplay numbers (reach, targets, cooldown,
+-- price) stay in Config.Tools; nothing in this module can change a harvest or a reward.
+-- The server reads `model` to build the Tool; the client reads `clips`, `sounds` and `vfx`.
+-- See docs/design/TOOL_COLLECTION.md for the conventions every tool follows.
+local ToolPresentation = {}
+
+-- Joint name -> { x, y, z } rotation in degrees, layered on top of whatever the Animator plays.
+-- Names are R15 joints (ToolAnimator maps the arm/neck ones onto R6 rigs too).
+export type Pose = { [string]: { number } }
+-- t is the fraction of the clip (0..1). ease shapes the move INTO this key.
+export type Key = { t: number, pose: Pose, ease: ("Sine" | "Back" | "Quad" | "Linear")? }
+-- markers: name -> fraction of the clip, for syncing sounds and effects (e.g. Hit).
+export type Clip = { seconds: number, keys: { Key }, loop: boolean?, markers: { [string]: number }? }
+-- id is the uploaded original sound (nil until uploaded); fallback keeps the old sound working.
+export type Sound = { id: string?, fallback: string?, volume: number, pitch: { number } }
+export type Model = {
+	-- Model in ServerStorage.PopcornTemplates.Tools; without it the procedural builder is used.
+	template: string,
+	handle: string, -- the mesh that becomes the Tool's Handle (the one the hand grips)
+	-- Distance from the handle mesh's bounding-box centre to the grip point, toward the head.
+	gripFromCentre: number,
+	materials: { [string]: Enum.Material },
+	-- Tool frame used by `grip` and `points`: X along the handle toward the head, Y out of the
+	-- blade's flat face, Z the side the head curls toward. Origin = the grip point.
+	grip: CFrame,
+	points: { [string]: Vector3 },
+	trail: { from: string, to: string, lifetime: number, colors: { Color3 } }?,
+}
+export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3 }
+export type Presentation = {
+	rarity: string,
+	model: Model,
+	clips: { [string]: Clip },
+	sounds: { [string]: Sound },
+	vfx: Vfx,
+}
+
+-- Uploaded original art (assets/tools/_shared/textures).
+ToolPresentation.Textures = { LeafFleck = "rbxassetid://107437834728710" }
+
+local tools: { [string]: Presentation } = {
+	Sickle = {
+		rarity = "Common",
+		model = {
+			template = "Sickle", handle = "SickleHandle", gripFromCentre = 0.175,
+			materials = { SickleHandle = Enum.Material.Wood, SickleBlade = Enum.Material.Metal },
+			-- Right hand, handle pointing forward, blade flat and curling to the left.
+			grip = CFrame.new(0, 0, 0.35) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(math.rad(90), 0, 0),
+			points = { BladeTip = Vector3.new(0.12, 0, 1.45), BladeBack = Vector3.new(2.3, 0, 1.0) },
+			trail = { from = "BladeTip", to = "BladeBack", lifetime = 0.2,
+				colors = { Color3.fromRGB(255, 252, 240), Color3.fromRGB(210, 230, 255) } },
+		},
+		clips = {
+			-- Draw from the hip: arm comes up from the side with a little wrist flourish.
+			Equip = { seconds = 0.32, keys = {
+				{ t = 0, pose = { RightShoulder = { -75, 0, 0 }, RightWrist = { 0, 0, 40 } } },
+				{ t = 0.7, pose = { RightShoulder = { 8, 0, 0 }, RightWrist = { 0, 0, -12 } }, ease = "Back" },
+				{ t = 1, pose = {} },
+			}, markers = { Shing = 0.55 } },
+			-- Slow breathing sway while held; tiny, so it never fights walking.
+			Idle = { seconds = 2.4, loop = true, keys = {
+				{ t = 0, pose = { RightShoulder = { 0, 0, 0 }, RightWrist = { 0, 0, 0 } } },
+				{ t = 0.5, pose = { RightShoulder = { 3, -2, 0 }, RightWrist = { 0, 0, 4 } } },
+				{ t = 1, pose = { RightShoulder = { 0, 0, 0 }, RightWrist = { 0, 0, 0 } } },
+			} },
+			-- Fast sideways harvesting swing: cock out to the right, whip across, settle.
+			-- seconds must match Config.Tools.Sickle.swingSeconds (the Hit marker times the snips).
+			Swing = { seconds = 0.32, keys = {
+				{ t = 0, pose = {} },
+				{ t = 0.22, pose = { Waist = { 0, -22, 0 }, RightShoulder = { 18, -55, 0 }, RightElbow = { 0, 0, 0 },
+					RightWrist = { 0, -25, 0 }, LeftShoulder = { 0, 15, 0 } }, ease = "Quad" },
+				{ t = 0.5, pose = { Waist = { 0, 30, 0 }, RightShoulder = { 4, 95, 0 }, RightWrist = { 0, 22, 0 },
+					LeftShoulder = { 0, -22, 0 } }, ease = "Quad" },
+				{ t = 0.68, pose = { Waist = { 0, 36, 0 }, RightShoulder = { -4, 112, 0 }, RightWrist = { 0, 30, 0 },
+					LeftShoulder = { 0, -26, 0 } } },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Hit = 0.42 } },
+		},
+		sounds = {
+			-- Original synthesised sounds in assets/tools/Common/Sickle/audio (upload pending).
+			Equip = { id = nil, fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = nil, fallback = "rbxasset://sounds/swordslash.wav", volume = 0.35, pitch = { 1.05, 1.25 } },
+			-- Fallback: Pro Sound Effects "Scissors Various Cuts Squeaky Snips 17", Creator Store.
+			Harvest = { id = nil, fallback = "rbxassetid://9118831072", volume = 0.5, pitch = { 0.92, 1.12 } },
+		},
+		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1) },
+	},
+}
+
+function ToolPresentation.get(toolId: string): Presentation?
+	return tools[toolId]
+end
+
+-- The sound to play: the uploaded original if there is one, else the old fallback (or nil).
+function ToolPresentation.soundId(sound: Sound): string?
+	return sound.id or sound.fallback
+end
+
+-- Startup check: every clip has ordered keys spanning 0..1 and every trail names real points.
+function ToolPresentation.validate(toolIds: { string })
+	for _, toolId in toolIds do
+		local look = tools[toolId]
+		assert(look, "ToolPresentation missing for " .. toolId)
+		for name, clip in look.clips do
+			assert(clip.seconds > 0 and #clip.keys >= 2, toolId .. "." .. name .. " needs a duration and two keys")
+			assert(clip.keys[1].t == 0 and clip.keys[#clip.keys].t == 1, toolId .. "." .. name .. " keys must span 0..1")
+			for i = 2, #clip.keys do
+				assert(clip.keys[i].t > clip.keys[i - 1].t, toolId .. "." .. name .. " keys out of order")
+			end
+		end
+		local trail = look.model.trail
+		if trail then
+			assert(look.model.points[trail.from] and look.model.points[trail.to], toolId .. " trail names a missing point")
+		end
+	end
+end
+
+return ToolPresentation

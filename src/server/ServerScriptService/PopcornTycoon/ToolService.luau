@@ -10,7 +10,6 @@ local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local Harvest = require(script.Parent.HarvestService)
 local ToolModels = require(script.Parent.ToolModels)
-local builders: { [string]: () -> Tool } = { Sickle = ToolModels.sickle }
 local feedback: RemoteEvent? = nil
 local spawnConnections: { [number]: RBXScriptConnection } = {}
 local ToolService = {}
@@ -41,9 +40,8 @@ end
 -- Gives the player a live Tool for an owned tool ID unless they already hold one.
 local function give(player: Player, toolId: string)
 	local backpack = player:FindFirstChildOfClass("Backpack")
-	local build = builders[toolId]
-	if not backpack or not build or owned(player, toolId) then return end
-	local tool = build()
+	if not backpack or not ToolModels.has(toolId) or owned(player, toolId) then return end
+	local tool = ToolModels.build(toolId)
 	-- Equip state comes from where the engine puts the Tool, read on the server.
 	tool.Equipped:Connect(function() setEquipped(player, toolId) end)
 	tool.Unequipped:Connect(function()
@@ -81,7 +79,7 @@ end
 function ToolService.purchase(player: Player, toolId: unknown): Types.ActionResult
 	if typeof(toolId) ~= "string" then return result(false, "Unknown tool") end
 	local tool = Config.Tools[toolId]
-	if not tool or not builders[toolId] then return result(false, "Unknown tool") end
+	if not tool or not ToolModels.has(toolId) then return result(false, "Unknown tool") end
 	local profile = State.get(player.UserId)
 	if not profile or not Farms.has(player.UserId) then return result(false, "Profile unavailable") end
 	if profile.ownedTools[toolId] then return result(false, "Already owned") end
@@ -120,7 +118,7 @@ end
 
 -- Whether a tool ID is defined in Config.Tools and has a model builder (so it can be held).
 function ToolService.implemented(toolId: unknown): boolean
-	return typeof(toolId) == "string" and Config.Tools[toolId] ~= nil and builders[toolId] ~= nil
+	return typeof(toolId) == "string" and Config.Tools[toolId] ~= nil and ToolModels.has(toolId)
 end
 
 -- Studio-only Developer Panel (AdminService): ownership without a charge, through the same

@@ -1,0 +1,821 @@
+{
+ "version": 1,
+ "updated": "2026-11-05",
+ "conventions": "docs/design/TOOL_COLLECTION.md",
+ "sharedAssets": {
+  "Leaf_Fleck": {
+   "file": "assets/tools/_shared/textures/Leaf_Fleck.png",
+   "assetId": "rbxassetid://107437834728710",
+   "script": "assets/tools/_shared/make_leaf.py"
+  }
+ },
+ "tools": [
+  {
+   "toolId": "BareHands",
+   "displayName": "Bare Hands",
+   "rarity": "Common",
+   "behaviors": [
+    "SingleTarget"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "existing (Manual)",
+   "tests": "none",
+   "status": "existing, not restyled",
+   "note": "Exists as the hand-picking tool 'Manual' (Config.Manual, ProximityPrompts). Not in the catalog body; stats to confirm."
+  },
+  {
+   "toolId": "CornClippers",
+   "displayName": "Corn Clippers",
+   "rarity": "Common",
+   "behaviors": [
+    "SingleTarget"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "Sickle",
+   "displayName": "Sickle",
+   "rarity": "Common",
+   "behaviors": [
+    "ArcSweep"
+   ],
+   "conversion": "RawCorn",
+   "stage": 1,
+   "blenderSource": "assets/tools/Common/Sickle/source/Sickle.blend",
+   "exportedMesh": "assets/tools/Common/Sickle/exports/Sickle.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.Sickle",
+    "imported": false,
+    "note": "Awaiting manual 3D Importer import; the part-built Sickle is used until then."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.Sickle.clips)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    },
+    "publishedAnimationIds": null
+   },
+   "audio": [
+    {
+     "name": "Sickle_Equip",
+     "file": "assets/tools/Common/Sickle/audio/Sickle_Equip.wav",
+     "source": "original, synthesised (scripts/synth_sickle_audio.py)",
+     "assetId": null,
+     "fallback": null
+    },
+    {
+     "name": "Sickle_Swish",
+     "file": "assets/tools/Common/Sickle/audio/Sickle_Swish.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxasset://sounds/swordslash.wav"
+    },
+    {
+     "name": "Stalk_Snap",
+     "file": "assets/tools/Common/Sickle/audio/Stalk_Snap.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://9118831072"
+    }
+   ],
+   "vfx": {
+    "trail": "SwingTrail between BladeTip and BladeBack",
+    "harvest": "pooled leaf burst, 4 per stalk (ToolEffects.leafBurst)",
+    "texture": {
+     "file": "assets/tools/_shared/textures/Leaf_Fleck.png",
+     "assetId": "rbxassetid://107437834728710"
+    }
+   },
+   "integration": "gameplay unchanged (ArcSweep); template-aware model, pose animation, VFX and SFX hooks wired",
+   "tests": "Tools 34/34, ToolVisuals 16/16, ToolTemplateFrame 7/7 (stand-in) on 2026-11-05",
+   "status": "in progress: needs FBX import, audio upload and an in-game look check",
+   "buildScript": "assets/tools/Common/Sickle/scripts/build_sickle.py",
+   "meshes": {
+    "SickleHandle": {
+     "tris": 240,
+     "material": "Wood"
+    },
+    "SickleBlade": {
+     "tris": 544,
+     "material": "Metal"
+    }
+   },
+   "preview": "assets/tools/Common/Sickle/previews/Sickle_preview.png"
+  },
+  {
+   "toolId": "Pitchfork",
+   "displayName": "Pitchfork",
+   "rarity": "Common",
+   "behaviors": [
+    "LineHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "HarvestHook",
+   "displayName": "Harvest Hook",
+   "rarity": "Common",
+   "behaviors": [
+    "PullHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "TwinSickles",
+   "displayName": "Twin Sickles",
+   "rarity": "Uncommon",
+   "behaviors": [
+    "ArcSweep"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "LongScythe",
+   "displayName": "Long Scythe",
+   "rarity": "Uncommon",
+   "behaviors": [
+    "ArcSweep"
+   ],
+   "conversion": "RawCorn",
+   "stage": 1,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "HedgeTrimmer",
+   "displayName": "Hedge Trimmer",
+   "rarity": "Uncommon",
+   "behaviors": [
+    "LineHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "SpringLoadedPicker",
+   "displayName": "Spring-Loaded Picker",
+   "rarity": "Uncommon",
+   "behaviors": [
+    "DashHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "CornLasso",
+   "displayName": "Corn Lasso",
+   "rarity": "Uncommon",
+   "behaviors": [
+    "ProjectileHarvest",
+    "PullHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "WeedWhacker",
+   "displayName": "Weed Whacker",
+   "rarity": "Rare",
+   "behaviors": [
+    "ContinuousHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": 1,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "BoomerangSickle",
+   "displayName": "Boomerang Sickle",
+   "rarity": "Rare",
+   "behaviors": [
+    "ProjectileHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "KernelVacuum",
+   "displayName": "Kernel Vacuum",
+   "rarity": "Rare",
+   "behaviors": [
+    "PullHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "PogoPlunger",
+   "displayName": "Pogo Plunger",
+   "rarity": "Rare",
+   "behaviors": [
+    "AreaOfEffect",
+    "DashHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "RailRake",
+   "displayName": "Rail Rake",
+   "rarity": "Rare",
+   "behaviors": [
+    "LineHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "CornNetLauncher",
+   "displayName": "Corn Net Launcher",
+   "rarity": "Rare",
+   "behaviors": [
+    "ProjectileHarvest",
+    "AreaOfEffect"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "TornadoTrimmer",
+   "displayName": "Tornado Trimmer",
+   "rarity": "Epic",
+   "behaviors": [
+    "AreaOfEffect"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "ThunderRake",
+   "displayName": "Thunder Rake",
+   "rarity": "Epic",
+   "behaviors": [
+    "ChainHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": 1,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "RocketPlow",
+   "displayName": "Rocket Plow",
+   "rarity": "Epic",
+   "behaviors": [
+    "DashHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "GrappleReaper",
+   "displayName": "Grapple Reaper",
+   "rarity": "Epic",
+   "behaviors": [
+    "DashHarvest",
+    "ProjectileHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "EchoScythe",
+   "displayName": "Echo Scythe",
+   "rarity": "Epic",
+   "behaviors": [
+    "ArcSweep"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "FrostbiteSickle",
+   "displayName": "Frostbite Sickle",
+   "rarity": "Epic",
+   "behaviors": [
+    "ArcSweep"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "Flamethrower",
+   "displayName": "Flamethrower",
+   "rarity": "Legendary",
+   "behaviors": [
+    "ContinuousHarvest",
+    "InstantConversion"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": 1,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "PrismLaserHarvester",
+   "displayName": "Prism Laser Harvester",
+   "rarity": "Legendary",
+   "behaviors": [
+    "LineHarvest",
+    "ChainHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "GravityGauntlet",
+   "displayName": "Gravity Gauntlet",
+   "rarity": "Legendary",
+   "behaviors": [
+    "PullHarvest",
+    "AreaOfEffect"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "EarthquakeMallet",
+   "displayName": "Earthquake Mallet",
+   "rarity": "Legendary",
+   "behaviors": [
+    "MultiPulseHarvest",
+    "AreaOfEffect"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "SolarScythe",
+   "displayName": "Solar Scythe",
+   "rarity": "Legendary",
+   "behaviors": [
+    "ArcSweep",
+    "ChargedAttack"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "DragonsBreath",
+   "displayName": "Dragon's Breath",
+   "rarity": "Mythic",
+   "behaviors": [
+    "ContinuousHarvest",
+    "InstantConversion",
+    "ChargedAttack"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "SupernovaPopper",
+   "displayName": "Supernova Popper",
+   "rarity": "Mythic",
+   "behaviors": [
+    "ChargedAttack",
+    "AreaOfEffect",
+    "InstantConversion"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "ChronoReaper",
+   "displayName": "Chrono Reaper",
+   "rarity": "Mythic",
+   "behaviors": [
+    "ArcSweep",
+    "ChargedAttack"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "BlackHoleVacuum",
+   "displayName": "Black Hole Vacuum",
+   "rarity": "Mythic",
+   "behaviors": [
+    "PullHarvest",
+    "AreaOfEffect"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "NebulaScythe",
+   "displayName": "Nebula Scythe",
+   "rarity": "Mythic",
+   "behaviors": [
+    "ArcSweep",
+    "MultiPulseHarvest"
+   ],
+   "conversion": "RawCorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "PopcornSingularity",
+   "displayName": "Popcorn Singularity",
+   "rarity": "Secret",
+   "behaviors": [
+    "PullHarvest",
+    "AreaOfEffect",
+    "InstantConversion"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "CornKingsScepter",
+   "displayName": "Corn King's Scepter",
+   "rarity": "Secret",
+   "behaviors": [
+    "AreaOfEffect",
+    "ChargedAttack",
+    "InstantConversion"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "RealityRemote",
+   "displayName": "Reality Remote",
+   "rarity": "Secret",
+   "behaviors": [
+    "AreaOfEffect",
+    "MultiPulseHarvest",
+    "InstantConversion"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  },
+  {
+   "toolId": "DiscoCornpocalypse",
+   "displayName": "Disco Cornpocalypse",
+   "rarity": "Secret",
+   "behaviors": [
+    "MultiPulseHarvest",
+    "InstantConversion"
+   ],
+   "conversion": "InstantPopcorn",
+   "stage": null,
+   "blenderSource": null,
+   "exportedMesh": null,
+   "textures": [],
+   "robloxTemplate": null,
+   "animations": null,
+   "audio": [],
+   "vfx": null,
+   "integration": "not started",
+   "tests": "none",
+   "status": "concept"
+  }
+ ]
+}

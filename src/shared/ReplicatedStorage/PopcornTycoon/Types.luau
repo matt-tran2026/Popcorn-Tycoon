@@ -37,8 +37,12 @@ export type FarmUpgradeDefinition = {
 export type HarvestResult = { ok: boolean, reason: string, amount: number, tool: string?, targets: { Vector3 }? }
 -- Every price names the balance it is paid from (see Config.Economy).
 export type Currency = "Cash" | "Popcorn"
+export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
+-- Harvesting families (docs/design/TOOL_COLLECTION.md); only ArcSweep is implemented so far.
+export type ToolBehavior = "ArcSweep"
 export type ToolDefinition = {
-	displayName: string, description: string, price: number, currency: Currency, reach: number, arcDegrees: number,
+	displayName: string, description: string, rarity: ToolRarity, behavior: ToolBehavior,
+	price: number, currency: Currency, reach: number, arcDegrees: number,
 	maxTargets: number, cooldownSeconds: number, yieldMultiplier: number,
 	swingSeconds: number?, snipStaggerSeconds: number?, kernelFlySeconds: number?,
 }
