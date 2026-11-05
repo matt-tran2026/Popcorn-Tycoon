@@ -117,6 +117,16 @@
      "source": "original, synthesised: the swoosh with a metal shing about 7 dB under it (swish_shing in scripts/synth_sickle_audio.py)",
      "assetId": "rbxassetid://111045205785758",
      "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": false,
+     "fallback": "rbxasset://sounds/swordslash.wav",
+     "note": "Creator found it too sharp; replaced by Sickle_SwishShingSoft"
+    },
+    {
+     "name": "Sickle_SwishShingSoft",
+     "file": "assets/tools/Common/Sickle/audio/Sickle_SwishShingSoft.wav",
+     "source": "original, synthesised: the swoosh with a softer shing (1.98/3.11/4.37 kHz, 15 ms attack, 5 kHz low-pass) about 9 dB under it (swish_soft_shing)",
+     "assetId": "rbxassetid://113494806859866",
+     "uploaded": "2026-11-05 via Asset Manager import",
      "inUse": true,
      "fallback": "rbxasset://sounds/swordslash.wav"
     },

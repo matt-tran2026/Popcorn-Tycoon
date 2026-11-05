@@ -127,12 +127,39 @@ def swish_shing(whoosh):
     return whoosh + metal
 
 
+def soft_shing(length):
+    """The shing the creator found too sharp, rounded off: lower, warmer partials and no very
+    high one, a gentler 15 ms attack, a duller scrape, and a low-pass over the metal layer."""
+    t = t_axis(length)
+    onset = 0.06
+    local = np.maximum(t - onset, 0)
+    gate = (t >= onset).astype(float)
+    attack = np.clip(local / 0.015, 0, 1)
+    ring = np.zeros_like(t)
+    for freq, amp, decay in [(1980, 1.0, 11), (3110, 0.55, 15), (4370, 0.25, 20)]:
+        glide = 1 + 0.025 * (1 - np.exp(-local * 16))
+        phase = 2 * np.pi * np.cumsum(freq * glide) / RATE
+        ring += amp * np.sin(phase) * np.exp(-local * decay)
+    scrape = band(rng.standard_normal(len(t)), 2200, 5000) * attack * np.exp(-local * 45) * 0.3
+    return lowpass((ring * attack + scrape) * gate, 5000)
+
+
+def swish_soft_shing(whoosh):
+    """Current swing sound (Nov 5 2026): the swoosh with the softer shing about 9 dB under it."""
+    metal = soft_shing(len(whoosh) / RATE)
+    metal *= rms(whoosh) / (rms(metal) + 1e-9) * 10 ** (-9 / 20)
+    return whoosh + metal
+
+
 if __name__ == "__main__":
     made = {}
     for name, make in [("Sickle_Equip", equip), ("Sickle_Swish", swish), ("Stalk_Snap", snap)]:
         made[name] = make()
         path, seconds = save(name, made[name])
         print(f"{name}: {seconds:.2f} s -> {os.path.relpath(path)}")
-    # In use since Nov 5 2026: the swing plays the swoosh with a metal shing mixed in.
+    # First shing mix (too sharp, creator Nov 5 2026); kept so earlier uploads stay reproducible.
     path, seconds = save("Sickle_SwishShing", swish_shing(made["Sickle_Swish"]))
     print(f"Sickle_SwishShing: {seconds:.2f} s -> {os.path.relpath(path)}")
+    # In use: the swoosh with the softer shing.
+    path, seconds = save("Sickle_SwishShingSoft", swish_soft_shing(made["Sickle_Swish"]))
+    print(f"Sickle_SwishShingSoft: {seconds:.2f} s -> {os.path.relpath(path)}")
