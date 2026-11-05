@@ -5,7 +5,8 @@
 -- publish. Presentation only: nothing here affects a harvest.
 --
 -- R15 joints are Motor6Ds on classic rigs and AnimationConstraints on newer avatar rigs; both
--- expose Transform. R6 rigs get the shoulders and neck only.
+-- expose Transform. R6 rigs get the shoulders and neck only. Any other pose name is a Motor6D
+-- inside the held Tool (ToolPresentation model.joints, e.g. the clippers' Jaw and Spring).
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
@@ -33,6 +34,11 @@ local function findJoint(character: Model, name: string): Instance?
 	if not joint and R6[name] then
 		local torso = character:FindFirstChild("Torso")
 		joint = if torso then torso:FindFirstChild(R6[name]) else nil
+	end
+	if not joint and not path and not R6[name] then
+		local tool = character:FindFirstChildOfClass("Tool")
+		joint = if tool then tool:FindFirstChild(name, true) else nil
+		if joint and not joint:IsA("Motor6D") then joint = nil end
 	end
 	if joint and (joint:IsA("Motor6D") or joint:IsA("AnimationConstraint")) then return joint end
 	return nil

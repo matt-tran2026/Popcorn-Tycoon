@@ -84,12 +84,96 @@ function ToolModels.sickle(): Tool
 	return tool
 end
 
-local procedural: { [string]: () -> Tool } = { Sickle = ToolModels.sickle }
+-- Turns the tool's parts into one assembly: meshes named in look.model.joints get a Motor6D
+-- from the Handle (named joint.motor) about the tool frame's Y axis through joint.pivot; the
+-- rest are welded to the Handle, or to the part look.model.welds names. `frame` is the tool
+-- frame in world space (grip point at its origin).
+local function rig(handle: BasePart, parts: { BasePart }, frame: CFrame, look: ToolPresentation.Presentation)
+	local byName: { [string]: BasePart } = {}
+	for _, part in parts do byName[part.Name] = part end
+	local joints, welds = look.model.joints or {}, look.model.welds or {}
+	for _, part in parts do
+		local joint = joints[part.Name]
+		if part == handle then
+			continue
+		elseif joint then
+			local pivot = frame * CFrame.new(joint.pivot)
+			local motor = Instance.new("Motor6D")
+			motor.Name, motor.Part0, motor.Part1 = joint.motor, handle, part
+			motor.C0, motor.C1 = handle.CFrame:ToObjectSpace(pivot), part.CFrame:ToObjectSpace(pivot)
+			motor.Parent = handle
+		else
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1 = byName[welds[part.Name] or ""] or handle, part
+			weld.Parent = part
+		end
+	end
+end
+
+-- Part-built bypass clippers, used until the Blender template is imported. Built straight in
+-- the tool frame (X along the handle toward the blades, Y the thin axis, Z toward the upper
+-- handle; grip point at the origin) with the same mesh names, joints and points as the
+-- Blender model, so the jaw animation works the same.
+function ToolModels.cornClippers(): Tool
+	local look = assert(ToolPresentation.get("CornClippers"))
+	local tool = Instance.new("Tool")
+	tool.Name = "CornClippers"
+	tool:SetAttribute("ToolId", "CornClippers")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Snip 1 ripe stalk per click"
+	local yellow, bolster, steel = Color3.fromRGB(255, 199, 28), Color3.fromRGB(246, 178, 22), Color3.fromRGB(196, 203, 212)
+	local plastic, metal = Enum.Material.SmoothPlastic, Enum.Material.Metal
+	local joints = look.model.joints or {}
+	local pivot = if joints.ClippersJaw then joints.ClippersJaw.pivot else Vector3.new(0.95, 0, 0.165)
+	-- A bar from a to b in the tool frame, `thick` along the thin axis (Y).
+	local function bar(name: string, a: Vector3, b: Vector3, width: number, thick: number, color: Color3, material: Enum.Material, round: boolean?): Part
+		local along = b - a
+		local cf = CFrame.fromMatrix((a + b) / 2, along.Unit, Vector3.yAxis)
+		local p = piece(tool, name, Vector3.new(along.Magnitude, thick, width), cf, color, material)
+		if round then
+			p.Shape = Enum.PartType.Cylinder
+			p.Size = Vector3.new(along.Magnitude, width, width)
+		end
+		return p
+	end
+	-- Built butt-to-bolster so the handle's own X axis points toward the blades.
+	local handle = bar("Handle", Vector3.new(-0.66, 0, 0), Vector3.new(0.72, 0, 0), 0.26, 0.26, yellow, plastic, true)
+	bar("ClippersBolster", Vector3.new(0.78, 0, 0), Vector3.new(0.58, 0, 0), 0.31, 0.27, bolster, plastic)
+	bar("ClippersBlade", pivot - Vector3.new(0.25, -0.05, 0.2), Vector3.new(2.0, 0.05, 0.16), 0.32, 0.06, steel, metal)
+	bar("ClippersBladeTip", Vector3.new(1.95, 0.05, 0.17), Vector3.new(2.1, 0.05, 0.123), 0.1, 0.05, steel, metal)
+	bar("ClippersEdge", Vector3.new(1.0, 0.05, -0.1), Vector3.new(2.0, 0.05, 0.07), 0.05, 0.065, Color3.fromRGB(246, 248, 251), metal)
+	local bolt = piece(tool, "ClippersBolt", Vector3.new(0.24, 0.19, 0.19), CFrame.new(pivot) * CFrame.Angles(0, 0, math.pi / 2), Color3.fromRGB(176, 184, 194), metal)
+	bolt.Shape = Enum.PartType.Cylinder
+	local jaw = bar("ClippersJaw", pivot + Vector3.new(0.05, -0.05, -0.05), Vector3.new(1.73, -0.05, -0.5), 0.23, 0.08, steel, metal)
+	bar("ClippersJawTang", pivot + Vector3.new(0, -0.05, -0.1), pivot + Vector3.new(-0.02, -0.05, 0.33), 0.2, 0.08, steel, metal)
+	local grip = bar("ClippersJawGrip", Vector3.new(0.93, 0, 0.465), Vector3.new(-0.23, 0, 1.115), 0.25, 0.25, yellow, plastic, true)
+	bar("ClippersJawBolster", Vector3.new(0.95, 0, 0.44), Vector3.new(0.76, 0, 0.53), 0.3, 0.26, bolster, plastic)
+	local spring = bar("ClippersSpring", Vector3.new(0.53, 0, 0.125), Vector3.new(0.61, 0, 0.48), 0.17, 0.17, Color3.fromRGB(150, 157, 167), metal, true)
+	-- Extra pieces ride on the part they belong to (the jaw half or the fixed half).
+	local rideOn: { [string]: BasePart } = { ClippersJawTang = jaw, ClippersJawBolster = grip }
+	local main = { [handle] = true, [jaw] = true, [grip] = true, [spring] = true }
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and not main[child] then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = rideOn[child.Name] or handle, child, child
+		end
+	end
+	rig(handle, { handle, jaw, grip, spring }, CFrame.identity, look)
+	-- The tool frame is the world frame here; express points and grip in the handle's frame.
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, handle.CFrame:PointToObjectSpace(point), handle
+	end
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
+local procedural: { [string]: () -> Tool } = { Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers }
 
 -- The tool frame (see ToolPresentation.Model) recovered from the imported meshes, so it does
 -- not matter how the importer oriented or centred them: X runs along the handle mesh's long
 -- axis toward the other meshes, Y is the head's thinnest axis, Z the side the head sits on.
-local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre: number): CFrame?
+local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre: number, headName: string?): CFrame?
 	if #others == 0 then return nil end
 	local function axes(part: BasePart): { { axis: Vector3, size: number } }
 		local cf, size = part.CFrame, part.Size
@@ -102,7 +186,9 @@ local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre:
 	headCentre /= #others
 	local x = list[1].axis
 	if (headCentre - handle.Position):Dot(x) < 0 then x = -x end
-	local head = axes(others[1])
+	local headPart = others[1]
+	for _, part in others do if part.Name == headName then headPart = part end end
+	local head = axes(headPart)
 	table.sort(head, function(a, b) return a.size < b.size end)
 	local y = head[1].axis
 	local side = (headCentre - handle.Position)
@@ -130,7 +216,7 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 			if part.Name == look.model.handle then handle = part else table.insert(others, part) end
 		end
 	end
-	local frame = if handle then toolFrame(handle, others, look.model.gripFromCentre) else nil
+	local frame = if handle then toolFrame(handle, others, look.model.gripFromCentre, look.model.head) else nil
 	if not handle or not frame then
 		warn("[PopcornTycoon] Tool template " .. look.model.template .. " is missing its meshes; using the part-built model")
 		copy:Destroy()
@@ -141,7 +227,8 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 	tool:SetAttribute("ToolId", toolId)
 	tool:SetAttribute("ModelSource", "Blender")
 	tool.CanBeDropped, tool.RequiresHandle = false, true
-	for _, part in { handle :: BasePart, table.unpack(others) } do
+	local parts = { handle :: BasePart, table.unpack(others) }
+	for _, part in parts do
 		part.Anchored, part.CanCollide, part.CanTouch, part.CanQuery, part.Massless = false, false, false, false, true
 		part.CastShadow = true
 		-- Colours are vertex colours; a white part shows them as painted.
@@ -149,11 +236,9 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 		local material = look.model.materials[part.Name]
 		if material then part.Material = material end
 		part.Parent = tool
-		if part ~= handle then
-			local weld = Instance.new("WeldConstraint")
-			weld.Part0, weld.Part1, weld.Parent = handle, part, part
-		end
 	end
+	-- Welds, or Motor6Ds for moving parts (before the handle is renamed to "Handle").
+	rig(handle :: BasePart, parts, frame :: CFrame, look)
 	handle.Name = "Handle"
 	copy:Destroy()
 	-- Named points in the tool frame become attachments on the handle.

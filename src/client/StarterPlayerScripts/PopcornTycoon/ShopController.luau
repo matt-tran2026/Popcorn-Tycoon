@@ -105,7 +105,16 @@ function Controller.start(gui: ScreenGui, request: RemoteEvent): (visible: boole
 	hands.button.Activated:Connect(function() request:FireServer("Equip", "Manual") end)
 	local toolButtons: { [string]: Chunky } = {}
 	local order = 2
-	for toolId, tool in Config.Tools do
+	-- Cheapest first, so the catalog reads as a progression (Clippers, then Sickle, ...).
+	local toolIds: { string } = {}
+	for toolId in Config.Tools do table.insert(toolIds, toolId) end
+	table.sort(toolIds, function(a, b)
+		local pa, pb = Config.Tools[a].price, Config.Tools[b].price
+		if pa ~= pb then return pa < pb end
+		return a < b
+	end)
+	for _, toolId in toolIds do
+		local tool = Config.Tools[toolId]
 		local details = "Reach " .. tostring(tool.reach) .. " studs · " .. tostring(tool.cooldownSeconds) .. " s per swing"
 			.. (if tool.yieldMultiplier > 1 then " · ×" .. tostring(tool.yieldMultiplier) .. " yield" else "")
 		local action = card(toolsPage, order, tool.displayName, tool.description, details)

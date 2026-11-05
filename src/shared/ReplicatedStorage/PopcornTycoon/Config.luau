@@ -49,6 +49,17 @@ local tools: { [string]: Types.ToolDefinition } = {
 		-- Presentation timing, shared so the swing, snips and kernels line up.
 		swingSeconds = 0.32, snipStaggerSeconds = 0.07, kernelFlySeconds = 0.45,
 	},
+	-- Catalog #2 (creator, Nov 5 2026): 1 stalk per snip, 0.12 s, 8 studs, 1x. Faster than
+	-- hands (0.25 s) but shorter reach (hands 10); one stalk per action. SingleTarget picks
+	-- the nearest ripe stalk inside a narrow cone, so aim matters. Price is a first guess
+	-- under the Sickle's $200, as the first tool most players buy.
+	CornClippers = {
+		displayName = "Corn Clippers", description = "Snip 1 ripe stalk per click, super fast",
+		rarity = "Common", behavior = "SingleTarget",
+		price = 100, currency = "Cash",
+		reach = 8, arcDegrees = 90, maxTargets = 1, cooldownSeconds = 0.12, yieldMultiplier = 1,
+		swingSeconds = 0.12, snipStaggerSeconds = 0,
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
@@ -195,8 +206,10 @@ function Config.validate()
 		assert(whole(tool.price) and tool.reach > 0 and tool.arcDegrees > 0 and tool.arcDegrees <= 360, "Invalid tool " .. id)
 		assert(whole(tool.maxTargets) and tool.maxTargets >= 1 and tool.cooldownSeconds > 0, "Invalid tool " .. id)
 		assert(whole(tool.yieldMultiplier) and tool.yieldMultiplier >= 1, "Invalid tool " .. id)
+		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget", "Unimplemented tool behavior " .. id)
+		assert(tool.behavior ~= "SingleTarget" or tool.maxTargets == 1, "SingleTarget tools cut one stalk: " .. id)
+		assert(tool.cooldownSeconds >= (tool.swingSeconds or 0), "Swings must not overlap: " .. id)
 	end
-	assert(Config.Tools.Sickle.cooldownSeconds >= (Config.Tools.Sickle.swingSeconds or 0), "Sickle swings must not overlap")
 	-- Every tool has a presentation entry, and a swing clip lasts exactly as long as its swing.
 	local ToolPresentation = require(script.Parent.ToolPresentation)
 	local toolIds = {}
@@ -205,8 +218,11 @@ function Config.validate()
 	for id, tool in Config.Tools do
 		local look = assert(ToolPresentation.get(id))
 		assert(look.rarity == tool.rarity, "Rarity differs between Config and ToolPresentation: " .. id)
-		local clip = look.clips.Swing
-		assert(not clip or not tool.swingSeconds or math.abs(clip.seconds - tool.swingSeconds) < 1e-6, "Swing clip length must equal swingSeconds: " .. id)
+		-- Swing and its alternate (played on every other action) both last exactly one swing.
+		for _, name in { "Swing", "SwingAlt" } do
+			local clip = look.clips[name]
+			assert(not clip or not tool.swingSeconds or math.abs(clip.seconds - tool.swingSeconds) < 1e-6, name .. " clip length must equal swingSeconds: " .. id)
+		end
 	end
 	local map, farm = Config.Map, Config.Farm
 	assert(whole(map.slots) and map.slots >= 2, "Invalid farm slot count")

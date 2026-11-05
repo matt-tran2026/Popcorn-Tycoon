@@ -10,7 +10,8 @@ local FarmUpgrades = require(Shared.FarmUpgrades)
 local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local lastAttempt: { [number]: number } = {}
-local lastSwing: { [number]: number } = {}
+-- When each player's next swing is due (os.clock). See HarvestService.swing.
+local swingDue: { [number]: number } = {}
 local HarvestService = {}
 
 local function result(ok: boolean, reason: string, amount: number?): Types.HarvestResult
@@ -84,11 +85,15 @@ end
 function HarvestService.swing(player: Player, toolId: string): Types.HarvestResult
 	local tool = Config.Tools[toolId]
 	if not tool then return result(false, "Unknown tool") end
+	if tool.behavior ~= "ArcSweep" and tool.behavior ~= "SingleTarget" then return result(false, "Unknown tool") end
+	-- Cadence: each accepted swing moves the due time one cooldown on from the later of now and
+	-- the previous due time, and a swing may arrive up to half a cooldown early. Network jitter
+	-- between two honest swings (it matters at the clippers' 0.12 s) is absorbed, yet over any
+	-- stretch no more than one swing per cooldown (plus one) is ever accepted.
 	local clock = os.clock()
-	local previous = lastSwing[player.UserId]
-	-- A small allowance absorbs network jitter between two honest swings.
-	if previous and clock - previous < tool.cooldownSeconds * 0.9 then return result(false, "Too fast") end
-	lastSwing[player.UserId] = clock
+	local due = swingDue[player.UserId]
+	if due and clock < due - tool.cooldownSeconds * 0.5 then return result(false, "Too fast") end
+	swingDue[player.UserId] = math.max(clock, due or clock) + tool.cooldownSeconds
 	local profile = State.get(player.UserId)
 	if not profile then return result(false, "Profile unavailable") end
 	if not profile.ownedTools[toolId] or profile.equippedTool ~= toolId then return result(false, tool.displayName .. " not equipped") end
@@ -113,6 +118,8 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 			fieldOf[id] = field
 		end
 	end
+	-- ArcSweep and SingleTarget share the targeting rule; SingleTarget tools have maxTargets 1
+	-- and a narrow arc (Config.validate), so they cut the one nearest ripe stalk in front.
 	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool)
 	if #picked == 0 then return result(false, "Swing closer to ripe corn") end
 	if State.carried(profile) >= State.bagCapacity(profile) then
@@ -139,7 +146,7 @@ end
 
 function HarvestService.release(userId: number)
 	lastAttempt[userId] = nil
-	lastSwing[userId] = nil
+	swingDue[userId] = nil
 end
 
 return HarvestService

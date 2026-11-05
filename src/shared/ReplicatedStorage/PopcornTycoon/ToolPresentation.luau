@@ -26,8 +26,18 @@ export type Model = {
 	grip: CFrame,
 	points: { [string]: Vector3 },
 	trail: { from: string, to: string, lifetime: number, colors: { Color3 } }?,
+	-- The mesh whose thinnest axis is the tool frame's Y (default: any non-handle mesh). Needed
+	-- when the head has parts that are not flat (springs, bolts).
+	head: string?,
+	-- Moving parts: mesh name -> a Motor6D (named `motor`) from the Handle that turns the mesh
+	-- about the tool frame's Y axis through `pivot` (tool frame). Pose clips drive it by that
+	-- name, e.g. Jaw = { 0, -24, 0 } (ToolAnimator). Other meshes are welded.
+	joints: { [string]: { motor: string, pivot: Vector3 } }?,
+	-- Mesh name -> the mesh it is welded to instead of the Handle (parts that ride on a joint).
+	welds: { [string]: string }?,
 }
-export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3 }
+-- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
+export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean? }
 export type Presentation = {
 	rarity: string,
 	model: Model,
@@ -100,6 +110,65 @@ local tools: { [string]: Presentation } = {
 		},
 		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1) },
 	},
+	-- Bypass pruners (assets/tools/Common/CornClippers). Numbers come from the build script:
+	-- handle mesh centre to grip 0.038 toward the butt, pivot bolt at (0.95, 0, 0.165).
+	CornClippers = {
+		rarity = "Common",
+		model = {
+			template = "CornClippers", handle = "ClippersHandle", gripFromCentre = -0.038, head = "ClippersBlade",
+			materials = {
+				ClippersHandle = Enum.Material.SmoothPlastic, ClippersJawGrip = Enum.Material.SmoothPlastic,
+				ClippersBlade = Enum.Material.Metal, ClippersJaw = Enum.Material.Metal, ClippersSpring = Enum.Material.Metal,
+			},
+			-- The jaw half (hook and upper handle) turns about the bolt; the spring follows at half
+			-- the angle so it stays between the handles.
+			joints = {
+				ClippersJaw = { motor = "Jaw", pivot = Vector3.new(0.95, 0, 0.165) },
+				ClippersSpring = { motor = "Spring", pivot = Vector3.new(0.95, 0, 0.165) },
+			},
+			welds = { ClippersJawGrip = "ClippersJaw" },
+			-- Right hand on the lower handle, blades pointing forward and a little up, upper
+			-- handle on top: the side view shows the jaws opening and closing.
+			grip = ToolPresentation.hold(Vector3.new(0, 0.12, -1), Vector3.new(-1, 0, 0)),
+			points = { BladeTip = Vector3.new(2.1, 0, 0.123), SnipPoint = Vector3.new(1.37, 0, 0.005) },
+		},
+		clips = {
+			-- Draw from the hip with a test click of the jaws (Shing marker = the click sound).
+			Equip = { seconds = 0.3, keys = {
+				{ t = 0, pose = { RightShoulder = { -70, 0, 0 }, RightWrist = { 0, 0, 30 } } },
+				{ t = 0.55, pose = { RightShoulder = { 6, 0, 0 }, RightWrist = { 0, 0, -8 }, Jaw = { 0, -22, 0 }, Spring = { 0, -11, 0 } }, ease = "Back" },
+				{ t = 0.8, pose = { RightShoulder = { 2, 0, 0 } } },
+				{ t = 1, pose = {} },
+			}, markers = { Shing = 0.5 } },
+			Idle = { seconds = 2.4, loop = true, keys = {
+				{ t = 0, pose = { RightShoulder = { 0, 0, 0 }, RightWrist = { 0, 0, 0 } } },
+				{ t = 0.5, pose = { RightShoulder = { 3, 2, 0 }, RightWrist = { 2, 0, 3 } } },
+				{ t = 1, pose = { RightShoulder = { 0, 0, 0 }, RightWrist = { 0, 0, 0 } } },
+			} },
+			-- Rapid Snip: a wrist flick forward with the jaws snapping shut and springing open.
+			-- 0.12 s = Config.Tools.CornClippers.swingSeconds. Snips alternate between Swing
+			-- (flick up) and SwingAlt (flick down) so fast repeats never look identical.
+			Swing = { seconds = 0.12, keys = {
+				{ t = 0, pose = {} },
+				{ t = 0.45, pose = { RightShoulder = { 10, 4, 0 }, RightWrist = { -16, 0, 0 }, Jaw = { 0, -24, 0 }, Spring = { 0, -12, 0 } }, ease = "Quad" },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Hit = 0.45 } },
+			SwingAlt = { seconds = 0.12, keys = {
+				{ t = 0, pose = {} },
+				{ t = 0.45, pose = { RightShoulder = { 6, -5, 0 }, RightWrist = { 14, 0, 0 }, Jaw = { 0, -24, 0 }, Spring = { 0, -12, 0 } }, ease = "Quad" },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Hit = 0.45 } },
+		},
+		sounds = {
+			-- Original synthesised clicks (assets/tools/Common/CornClippers/audio), not uploaded
+			-- yet: id stays nil until the creator uploads them. Swing falls back to the Creator
+			-- Store scissors snip the Sickle already uses for its harvest.
+			Equip = { id = nil, fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = nil, fallback = "rbxassetid://9118831072", volume = 0.32, pitch = { 0.92, 1.1 } },
+			Harvest = { id = "rbxassetid://125411384210572", fallback = "rbxassetid://9118831072", volume = 0.45, pitch = { 0.95, 1.15 } },
+		},
+		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true },
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -122,6 +191,13 @@ function ToolPresentation.validate(toolIds: { string })
 			for i = 2, #clip.keys do
 				assert(clip.keys[i].t > clip.keys[i - 1].t, toolId .. "." .. name .. " keys out of order")
 			end
+		end
+		local model = look.model
+		for part, joint in model.joints or {} do
+			assert(part ~= model.handle and joint.motor ~= "", toolId .. " joint " .. part .. " must be a non-handle mesh with a motor name")
+		end
+		for part, to in model.welds or {} do
+			assert(part ~= model.handle and part ~= to, toolId .. " weld " .. part .. " is invalid")
 		end
 		local trail = look.model.trail
 		if trail then

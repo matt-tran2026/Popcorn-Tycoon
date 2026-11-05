@@ -63,6 +63,39 @@ local function leaves(): (Attachment, ParticleEmitter)
 	return anchor, emitter
 end
 
+local flashEmitter: ParticleEmitter? = nil
+local flashAnchor: Attachment? = nil
+local function flashes(): (Attachment, ParticleEmitter)
+	if flashAnchor and flashAnchor.Parent and flashEmitter then return flashAnchor, flashEmitter end
+	local anchor = Instance.new("Attachment")
+	anchor.Name = "PopcornToolFlash"
+	local emitter = Instance.new("ParticleEmitter")
+	-- Built-in Roblox sparkle texture (ships with the client; nothing to upload).
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Enabled = false
+	emitter.Lifetime = NumberRange.new(0.12, 0.16)
+	emitter.Speed = NumberRange.new(0)
+	emitter.Rotation = NumberRange.new(0, 90)
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(0.35, 1.3), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	emitter.LightEmission, emitter.LightInfluence = 1, 0
+	emitter.Color = ColorSequence.new(Color3.new(1, 1, 1))
+	emitter.Parent = anchor
+	anchor.Parent = workspace.Terrain
+	flashAnchor, flashEmitter = anchor, emitter
+	return anchor, emitter
+end
+
+-- A tiny white sparkle where a blade snipped a stalk (one pooled emitter, like the leaves).
+function ToolEffects.snipFlash(at: Vector3)
+	local camera = workspace.CurrentCamera
+	if camera and (camera.CFrame.Position - at).Magnitude > NEAR then return end
+	if ToolEffects.particleScale <= 0 then return end
+	local anchor, emitter = flashes()
+	anchor.WorldPosition = at
+	emitter:Emit(1)
+end
+
 -- A small burst of leaf flecks where a stalk was cut.
 function ToolEffects.leafBurst(at: Vector3, count: number, color: Color3?)
 	local camera = workspace.CurrentCamera

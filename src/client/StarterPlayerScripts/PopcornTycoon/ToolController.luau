@@ -59,12 +59,19 @@ local function startAnimator(tool: Tool, look: ToolPresentation.Presentation?)
 	end
 end
 
+-- Tools with a SwingAlt clip alternate it with Swing, so rapid repeats never look identical.
+local useAlt = false
+
 -- The harvesting swing: pose clip, trail on for its duration, swish at the start.
 local function swing(tool: Tool, look: ToolPresentation.Presentation?)
 	local handle = tool:FindFirstChild("Handle")
 	local found = if handle then handle:FindFirstChild("SwingTrail") else nil
 	local trail = if found and found:IsA("Trail") then found else nil
 	local clip = if look then look.clips.Swing else nil
+	if look and look.clips.SwingAlt then
+		useAlt = not useAlt
+		if useAlt then clip = look.clips.SwingAlt end
+	end
 	if trail then
 		trail.Enabled = true
 		task.delay(if clip then clip.seconds * 0.8 else 0.3, function() trail.Enabled = false end)
@@ -162,6 +169,7 @@ function Controller.start(feedback: RemoteEvent)
 					local at = position + Vector3.new(0, 2.5, 0)
 					Effects.sound(look.sounds.Harvest, at)
 					Effects.leafBurst(at, look.vfx.leavesPerStalk, look.vfx.leafColor)
+					if look.vfx.snipFlash then Effects.snipFlash(at) end
 				end)
 			end
 		end

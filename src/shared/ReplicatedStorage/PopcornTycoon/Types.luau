@@ -38,8 +38,9 @@ export type HarvestResult = { ok: boolean, reason: string, amount: number, tool:
 -- Every price names the balance it is paid from (see Config.Economy).
 export type Currency = "Cash" | "Popcorn"
 export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
--- Harvesting families (docs/design/TOOL_COLLECTION.md); only ArcSweep is implemented so far.
-export type ToolBehavior = "ArcSweep"
+-- Harvesting families (docs/design/TOOL_COLLECTION.md). Implemented: ArcSweep (up to
+-- maxTargets in a wide arc) and SingleTarget (the one nearest ripe stalk in a narrow cone).
+export type ToolBehavior = "ArcSweep" | "SingleTarget"
 export type ToolDefinition = {
 	displayName: string, description: string, rarity: ToolRarity, behavior: ToolBehavior,
 	price: number, currency: Currency, reach: number, arcDegrees: number,

@@ -39,17 +39,104 @@
     "SingleTarget"
    ],
    "conversion": "RawCorn",
-   "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "stage": 1,
+   "blenderSource": "assets/tools/Common/CornClippers/source/CornClippers.blend",
+   "exportedMesh": "assets/tools/Common/CornClippers/exports/CornClippers.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.CornClippers",
+    "imported": false,
+    "importedAt": null,
+    "meshIds": null,
+    "note": "Not imported yet (creator step: 3D Importer, Upload on, scale 0.01, save place). Until then ToolModels.cornClippers builds a part-built stand-in with the same joints."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.CornClippers.clips) + Motor6D Jaw/Spring in the tool",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing",
+     "SwingAlt"
+    ],
+    "markers": {
+     "Swing": [
+      "Hit"
+     ],
+     "SwingAlt": [
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    },
+    "publishedAnimationIds": null
+   },
+   "audio": [
+    {
+     "name": "CornClippers_Snip",
+     "file": "assets/tools/Common/CornClippers/audio/CornClippers_Snip.wav",
+     "source": "original, synthesised (scripts/synth_corn_clippers_audio.py)",
+     "assetId": null,
+     "fallback": "rbxassetid://9118831072",
+     "uploaded": null
+    },
+    {
+     "name": "CornClippers_Equip",
+     "file": "assets/tools/Common/CornClippers/audio/CornClippers_Equip.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": null,
+     "uploaded": null
+    },
+    {
+     "name": "Stalk_Snap",
+     "file": "assets/tools/Common/Sickle/audio/Stalk_Snap.wav",
+     "source": "shared with the Sickle",
+     "assetId": "rbxassetid://125411384210572",
+     "fallback": "rbxassetid://9118831072",
+     "uploaded": "2026-11-05",
+     "inUse": true
+    }
+   ],
+   "vfx": {
+    "harvest": "pooled leaf burst, 4 per stalk + pooled snip flash (ToolEffects.snipFlash, built-in sparkles_main.dds)",
+    "texture": {
+     "file": "assets/tools/_shared/textures/Leaf_Fleck.png",
+     "assetId": "rbxassetid://107437834728710"
+    }
+   },
+   "integration": "SingleTarget gameplay in game (Config.Tools.CornClippers, $100); part-built stand-in until the FBX is imported",
+   "tests": "CornClippers 20/20, CornClippersVisuals 11/11, Sickle regression 7/7 (2026-11-05)",
+   "status": "in game with stand-in model, animation, VFX; waiting on FBX import and audio upload",
+   "buildScript": "assets/tools/Common/CornClippers/scripts/build_corn_clippers.py",
+   "meshes": {
+    "ClippersHandle": {
+     "tris": 222,
+     "material": "SmoothPlastic"
+    },
+    "ClippersBlade": {
+     "tris": 342,
+     "material": "Metal"
+    },
+    "ClippersJaw": {
+     "tris": 230,
+     "material": "Metal",
+     "joint": "Jaw"
+    },
+    "ClippersJawGrip": {
+     "tris": 222,
+     "material": "SmoothPlastic",
+     "weldTo": "ClippersJaw"
+    },
+    "ClippersSpring": {
+     "tris": 324,
+     "material": "Metal",
+     "joint": "Spring"
+    }
+   },
+   "preview": "assets/tools/Common/CornClippers/previews/CornClippers_preview.png"
   },
   {
    "toolId": "Sickle",
