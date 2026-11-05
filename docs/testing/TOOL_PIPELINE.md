@@ -56,3 +56,10 @@ The creator's catalog card: 1 stalk per action, 0.12 s cooldown, 8 studs, 1× yi
 Console: no errors. A side screenshot in Play showed the part-built clippers held in the right hand with the blades forward, the upper handle on top and the jaws opening in a vertical plane.
 
 **Not verified:** the Blender meshes in game (pending import), the template-path grip with real imported meshes, how the WAVs sound, touch devices, a second player watching (pose clips and the jaw are local only), R6 avatars.
+
+
+### Corn Clippers imported and sounds uploaded (later on November 5)
+
+At the creator's request Claude did both steps with desktop control. The 3D Importer (Upload on) read `exports/CornClippers.fbx` at 100× as usual; it was scaled by 0.01 and stored at `ServerStorage.PopcornTemplates.Tools.CornClippers`, and the place was saved (local file only). Mesh ids: ClippersBlade 70995643210458, ClippersHandle 138930443184754, ClippersJaw 113229468893855, ClippersJawGrip 116558818417336, ClippersSpring 72603965057107. The two WAVs were uploaded through the Asset Manager (Audio Files filter, rights confirmation, 0 Robux): CornClippers_Snip 72252775021618, CornClippers_Equip 118510995750490, both confirmed with `GetProductInfo` (Audio, tranman2026) and loading in a Play client at 0.16 and 0.42 s. `ToolPresentation.CornClippers.sounds` uses them.
+
+A Play runner against the real template passed 11/11: `ModelSource = Blender`, SmoothPlastic handle and Metal blade, Jaw/Spring motors with the pivot exactly on the bolt (error 0), upper handle welded to the jaw, the blade 1.4 studs ahead of the grip, closing raises the hook (z −0.026 → 0.120) and lowers the upper handle (0.759 → 0.462), BladeTip at x 2.1, and a snip cut 1 stalk. A side screenshot showed the Blender clippers in the right hand, blades forward, upper handle on top. Still pending: the creator's look and listen.

@@ -160,11 +160,10 @@ local tools: { [string]: Presentation } = {
 			}, markers = { Hit = 0.45 } },
 		},
 		sounds = {
-			-- Original synthesised clicks (assets/tools/Common/CornClippers/audio), not uploaded
-			-- yet: id stays nil until the creator uploads them. Swing falls back to the Creator
-			-- Store scissors snip the Sickle already uses for its harvest.
-			Equip = { id = nil, fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
-			Swing = { id = nil, fallback = "rbxassetid://9118831072", volume = 0.32, pitch = { 0.92, 1.1 } },
+			-- Original synthesised clicks (assets/tools/Common/CornClippers/audio), uploaded Nov 5
+			-- 2026 through the Asset Manager. Swing keeps the Creator Store scissors snip as fallback.
+			Equip = { id = "rbxassetid://118510995750490", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = "rbxassetid://72252775021618", fallback = "rbxassetid://9118831072", volume = 0.32, pitch = { 0.92, 1.1 } },
 			Harvest = { id = "rbxassetid://125411384210572", fallback = "rbxassetid://9118831072", volume = 0.45, pitch = { 0.95, 1.15 } },
 		},
 		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true },

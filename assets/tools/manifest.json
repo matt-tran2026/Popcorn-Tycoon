@@ -47,10 +47,17 @@
    ],
    "robloxTemplate": {
     "path": "ServerStorage.PopcornTemplates.Tools.CornClippers",
-    "imported": false,
-    "importedAt": null,
-    "meshIds": null,
-    "note": "Not imported yet (creator step: 3D Importer, Upload on, scale 0.01, save place). Until then ToolModels.cornClippers builds a part-built stand-in with the same joints."
+    "imported": true,
+    "importedAt": "2026-11-05",
+    "meshIds": {
+     "ClippersBlade": "rbxassetid://70995643210458",
+     "ClippersHandle": "rbxassetid://138930443184754",
+     "ClippersJaw": "rbxassetid://113229468893855",
+     "ClippersJawGrip": "rbxassetid://116558818417336",
+     "ClippersSpring": "rbxassetid://72603965057107"
+    },
+    "modelAssetId": "rbxassetid://115142840789102",
+    "note": "3D Importer read the FBX at 100x; scaled by 0.01 in Studio. Saved in the place file only."
    },
    "animations": {
     "system": "ToolAnimator pose clips (ToolPresentation.CornClippers.clips) + Motor6D Jaw/Spring in the tool",
@@ -78,17 +85,19 @@
      "name": "CornClippers_Snip",
      "file": "assets/tools/Common/CornClippers/audio/CornClippers_Snip.wav",
      "source": "original, synthesised (scripts/synth_corn_clippers_audio.py)",
-     "assetId": null,
+     "assetId": "rbxassetid://72252775021618",
      "fallback": "rbxassetid://9118831072",
-     "uploaded": null
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": true
     },
     {
      "name": "CornClippers_Equip",
      "file": "assets/tools/Common/CornClippers/audio/CornClippers_Equip.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://118510995750490",
      "fallback": null,
-     "uploaded": null
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": true
     },
     {
      "name": "Stalk_Snap",
@@ -107,9 +116,9 @@
      "assetId": "rbxassetid://107437834728710"
     }
    },
-   "integration": "SingleTarget gameplay in game (Config.Tools.CornClippers, $100); part-built stand-in until the FBX is imported",
-   "tests": "CornClippers 20/20, CornClippersVisuals 11/11, Sickle regression 7/7 (2026-11-05)",
-   "status": "in game with stand-in model, animation, VFX; waiting on FBX import and audio upload",
+   "integration": "Blender model in game (ModelSource=Blender); SingleTarget gameplay; $100",
+   "tests": "CornClippers 20/20, CornClippersVisuals 11/11, Sickle regression 7/7 (2026-11-05); Blender template Play check 11/11, uploaded sounds load (0.16 / 0.42 s)",
+   "status": "in game with Blender model, animation, VFX and original sounds; waiting on the creator's look and listen",
    "buildScript": "assets/tools/Common/CornClippers/scripts/build_corn_clippers.py",
    "meshes": {
     "ClippersHandle": {

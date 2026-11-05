@@ -1,6 +1,6 @@
 # Harvesting tool collection: design and production conventions
 
-Status: Stage 1 started November 5, 2026. The Sickle's Blender model is imported and in game, with pose animations, pooled VFX and original sounds wired in and tested. Its sounds were uploaded the same day. The Corn Clippers (Common #2) followed the same day: Blender model exported (not yet imported), SingleTarget gameplay, jaw animation, snip flash and original sounds (not yet uploaded); it plays with a part-built stand-in until the import. The other 34 tools are at concept stage. Every tool's status is in `assets/tools/manifest.json`.
+Status: Stage 1 started November 5, 2026. The Sickle's Blender model is imported and in game, with pose animations, pooled VFX and original sounds wired in and tested. Its sounds were uploaded the same day. The Corn Clippers (Common #2) followed the same day: Blender model imported, SingleTarget gameplay, jaw animation, snip flash and original uploaded sounds, all in game. The other 34 tools are at concept stage. Every tool's status is in `assets/tools/manifest.json`.
 
 Source of truth for each tool's stats and abilities: the creator's 36-tool catalog (pasted November 5, 2026). Concept sheet with art direction, rarity ladder and a card per tool: the Design canvas "Popcorn Tycoon — Harvesting Tool Collection" (https://claude.ai/artifact/YFz4MyWvRqYLHeLy7Q2Tkg). The tree stumps in the reference renders are staging only (creator, Nov 5): only the tool itself is modelled.
 
