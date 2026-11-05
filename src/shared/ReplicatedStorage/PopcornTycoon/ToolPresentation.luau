@@ -93,9 +93,8 @@ local tools: { [string]: Presentation } = {
 			-- Original synthesised sounds (assets/tools/Common/Sickle/audio), uploaded Nov 5 2026
 			-- through the Asset Manager. Fallbacks are the sounds the Sickle used before.
 			Equip = { id = "rbxassetid://116936988986525", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
-			-- Air swoosh with a soft metal shing mixed in (creator request). Earlier takes: plain
-			-- swoosh rbxassetid://136321679774475; first shing (too sharp) 111045205785758.
-			Swing = { id = "rbxassetid://113494806859866", fallback = "rbxasset://sounds/swordslash.wav", volume = 0.35, pitch = { 0.95, 1.08 } },
+			-- The plain air swoosh (the creator tried metal "shing" layers and chose this).
+			Swing = { id = "rbxassetid://136321679774475", fallback = "rbxasset://sounds/swordslash.wav", volume = 0.35, pitch = { 0.95, 1.08 } },
 			-- Fallback: Pro Sound Effects "Scissors Various Cuts Squeaky Snips 17", Creator Store.
 			Harvest = { id = "rbxassetid://125411384210572", fallback = "rbxassetid://9118831072", volume = 0.5, pitch = { 0.92, 1.12 } },
 		},
