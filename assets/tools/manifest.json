@@ -97,22 +97,25 @@
      "name": "Sickle_Equip",
      "file": "assets/tools/Common/Sickle/audio/Sickle_Equip.wav",
      "source": "original, synthesised (scripts/synth_sickle_audio.py)",
-     "assetId": null,
-     "fallback": null
+     "assetId": "rbxassetid://116936988986525",
+     "fallback": null,
+     "uploaded": "2026-11-05 via Asset Manager import"
     },
     {
      "name": "Sickle_Swish",
      "file": "assets/tools/Common/Sickle/audio/Sickle_Swish.wav",
      "source": "original, synthesised",
-     "assetId": null,
-     "fallback": "rbxasset://sounds/swordslash.wav"
+     "assetId": "rbxassetid://136321679774475",
+     "fallback": "rbxasset://sounds/swordslash.wav",
+     "uploaded": "2026-11-05 via Asset Manager import"
     },
     {
      "name": "Stalk_Snap",
      "file": "assets/tools/Common/Sickle/audio/Stalk_Snap.wav",
      "source": "original, synthesised",
-     "assetId": null,
-     "fallback": "rbxassetid://9118831072"
+     "assetId": "rbxassetid://125411384210572",
+     "fallback": "rbxassetid://9118831072",
+     "uploaded": "2026-11-05 via Asset Manager import"
     }
    ],
    "vfx": {
@@ -124,8 +127,8 @@
     }
    },
    "integration": "Blender model in game (ModelSource=Blender); hold grip set by ToolPresentation.hold; ArcSweep gameplay unchanged",
-   "tests": "Tools 34/34, ToolVisuals 16/16, ToolTemplateFrame 7/7; real-model Play check: Blender model built, flat forward hold, 2 F-key swings harvested (2026-11-05)",
-   "status": "in game; waiting on audio upload and creator's look check",
+   "tests": "Tools 34/34, ToolVisuals 16/16, ToolTemplateFrame 7/7; real-model Play check: Blender model built, flat forward hold, 2 F-key swings harvested (2026-11-05); uploaded sounds load in a Play client (0.55 / 0.36 / 0.42 s)",
+   "status": "in game with model, animation, VFX and original sounds; waiting on the creator's look and listen",
    "buildScript": "assets/tools/Common/Sickle/scripts/build_sickle.py",
    "meshes": {
     "SickleHandle": {

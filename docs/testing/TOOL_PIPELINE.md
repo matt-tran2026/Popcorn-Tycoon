@@ -15,10 +15,14 @@ Console: no errors. On first use Studio logged `Asset content representation is 
 ## Not verified yet
 
 - The real Blender Sickle in game: imported later the same day (section below); the creator's own look is still pending.
-- The original sounds in game: the WAVs exist and were checked by level and spectrum (Equip peak −3 dBFS, RMS −22 dB, centroid 5.6 kHz; Swish RMS −18 dB, 1.7 kHz; Snap RMS −25 dB, 3.6 kHz), but they are not uploaded and nobody has listened to them yet. Until upload, the swing and harvest keep the old sounds and the equip is silent.
+- The original sounds: uploaded and loading in game (section below); nobody has listened to them yet.
 - How the swing looks on screen: the game camera overrode the scripted test camera, so the swing was verified by measured hand positions, not by eye.
 - Touch devices, R6 avatars, a second player watching (the pose layering is local only, as was the old swing), Multiplayer runner.
 
 ## Real Blender model in game (later on November 5)
 
 At the creator's request Claude imported `exports/Sickle.fbx` with the 3D Importer (desktop control allowed this time; Upload on). It arrived at 100× scale and turned 180°, was scaled by 0.01, and is stored at `ServerStorage.PopcornTemplates.Tools.Sickle` (meshes: SickleBlade 107593357248946, SickleHandle 122836565528948). The place was saved (Ctrl+S, local file only, not published). In Play the granted Sickle reported `ModelSource = Blender`, with a Wood handle, a Metal blade (both white so the vertex colours show), the trail and the weld. The first look showed the inherited Grip standing the blade upright over the head, facing forward and hiding the face. The new hold (`ToolPresentation.hold`) was measured in character space: blade centre 2.9 studs in front, blade face up (normal y 0.97), tip curling back on the left. A screenshot from the side confirmed it. Two real F-key swings harvested corn with no errors. Still pending: the creator's own look, the audio upload, and the leaf texture, which Studio still reported as "being generated" about 25 minutes after upload.
+
+## Sickle sounds uploaded (later on November 5)
+
+At the creator's request Claude uploaded the three WAVs through the Asset Manager (Import with the Audio Files filter, then the rights confirmation, 0 Robux fee): Sickle_Equip 116936988986525, Sickle_Swish 136321679774475, Stalk_Snap 125411384210572. The ids were read off the screen, then confirmed with `MarketplaceService:GetProductInfo` (names match; asset type 3 Audio; creator tranman2026). In a Play client all three loaded with lengths of 0.55, 0.36 and 0.42 s, exactly matching the WAVs, and the console showed no errors. `ToolPresentation.Sickle.sounds` now uses them, with the old sounds kept as fallbacks. Nobody has listened to them yet.

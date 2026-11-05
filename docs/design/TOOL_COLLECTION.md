@@ -1,6 +1,6 @@
 # Harvesting tool collection: design and production conventions
 
-Status: Stage 1 started November 5, 2026. The Sickle's Blender model is imported and in game, with pose animations, pooled VFX and original sounds wired in and tested. The sounds still need uploading. The other 35 tools are at concept stage. Every tool's status is in `assets/tools/manifest.json`.
+Status: Stage 1 started November 5, 2026. The Sickle's Blender model is imported and in game, with pose animations, pooled VFX and original sounds wired in and tested. Its sounds were uploaded the same day. The other 35 tools are at concept stage. Every tool's status is in `assets/tools/manifest.json`.
 
 Source of truth for each tool's stats and abilities: the creator's 36-tool catalog (pasted November 5, 2026). Concept sheet with art direction, rarity ladder and a card per tool: the Design canvas "Popcorn Tycoon — Harvesting Tool Collection" (https://claude.ai/artifact/YFz4MyWvRqYLHeLy7Q2Tkg). The tree stumps in the reference renders are staging only (creator, Nov 5): only the tool itself is modelled.
 
@@ -40,7 +40,7 @@ The hold is `ToolPresentation.hold(forward, face)` in the hand's grip frame (−
 
 Original sounds only, synthesised with Python (numpy and scipy) by each tool's `scripts/synth_*.py` with a fixed seed: 44.1 kHz mono 16-bit WAV peaking at −3 dBFS. The game varies pitch within each sound's `pitch` range. Volumes follow the canvas mix: equip around 0.3, actions around 0.35, harvest hits around 0.5. Harvest sounds are 3D at the stalk; equip and swing play for the holder. Sounds with no uploaded id use `fallback` (the old swing and snip) or stay silent.
 
-Uploading audio: the Studio MCP can only upload images, so audio is uploaded by the creator. Steps: Studio → Window → Asset Manager → Bulk Import (or Toolbox → Creations → Audio), choose the WAVs in `assets/tools/<Rarity>/<Tool>/audio/`, wait for moderation, copy each asset id, then set `id = "rbxassetid://…"` in `ToolPresentation.<id>.sounds` and in the manifest. Never invent ids.
+Uploading audio: the Studio MCP can only upload images, so audio goes through Studio's Asset Manager, either by the creator or by Claude with desktop control (done this way for the Sickle on Nov 5). Steps: Asset Manager → Import, set the file-type filter to Audio Files, choose the WAVs in `assets/tools/<Rarity>/<Tool>/audio/`, confirm the rights/0-Robux dialog, copy each asset id (check it with `MarketplaceService:GetProductInfo`), then set `id = "rbxassetid://…"` in `ToolPresentation.<id>.sounds` and in the manifest. Never invent ids.
 
 ## VFX
 

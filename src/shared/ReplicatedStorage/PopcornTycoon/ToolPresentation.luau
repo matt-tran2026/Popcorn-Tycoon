@@ -90,11 +90,12 @@ local tools: { [string]: Presentation } = {
 			}, markers = { Hit = 0.42 } },
 		},
 		sounds = {
-			-- Original synthesised sounds in assets/tools/Common/Sickle/audio (upload pending).
-			Equip = { id = nil, fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
-			Swing = { id = nil, fallback = "rbxasset://sounds/swordslash.wav", volume = 0.35, pitch = { 1.05, 1.25 } },
+			-- Original synthesised sounds (assets/tools/Common/Sickle/audio), uploaded Nov 5 2026
+			-- through the Asset Manager. Fallbacks are the sounds the Sickle used before.
+			Equip = { id = "rbxassetid://116936988986525", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = "rbxassetid://136321679774475", fallback = "rbxasset://sounds/swordslash.wav", volume = 0.35, pitch = { 0.95, 1.08 } },
 			-- Fallback: Pro Sound Effects "Scissors Various Cuts Squeaky Snips 17", Creator Store.
-			Harvest = { id = nil, fallback = "rbxassetid://9118831072", volume = 0.5, pitch = { 0.92, 1.12 } },
+			Harvest = { id = "rbxassetid://125411384210572", fallback = "rbxassetid://9118831072", volume = 0.5, pitch = { 0.92, 1.12 } },
 		},
 		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1) },
 	},
