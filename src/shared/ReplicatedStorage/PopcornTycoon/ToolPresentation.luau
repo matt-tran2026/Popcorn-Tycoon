@@ -36,6 +36,16 @@ export type Presentation = {
 	vfx: Vfx,
 }
 
+-- Tool.Grip from how the tool should sit in the right hand. The hand's grip frame matches the
+-- character in the default hold (-Z forward, +Y up, +X right). `forward` is where the handle
+-- points (tool-frame X) and `face` the side the head's flat face looks toward (tool-frame Y);
+-- the head then curls toward X cross Y.
+function ToolPresentation.hold(forward: Vector3, face: Vector3): CFrame
+	local x = forward.Unit
+	local y = (face - x * x:Dot(face)).Unit
+	return CFrame.fromMatrix(Vector3.zero, x, y):Inverse()
+end
+
 -- Uploaded original art (assets/tools/_shared/textures).
 ToolPresentation.Textures = { LeafFleck = "rbxassetid://107437834728710" }
 
@@ -45,8 +55,10 @@ local tools: { [string]: Presentation } = {
 		model = {
 			template = "Sickle", handle = "SickleHandle", gripFromCentre = 0.175,
 			materials = { SickleHandle = Enum.Material.Wood, SickleBlade = Enum.Material.Metal },
-			-- Right hand, handle pointing forward, blade flat and curling to the left.
-			grip = CFrame.new(0, 0, 0.35) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(math.rad(90), 0, 0),
+			-- Right hand, handle pointing forward and a little up, blade lying flat and hooking
+			-- to the left across the front, ready for the sideways sweep. (The old Grip, kept by
+			-- the part-built fallback, stood the blade upright over the head.)
+			grip = ToolPresentation.hold(Vector3.new(0, 0.3, -1), Vector3.new(0, -1, 0)),
 			points = { BladeTip = Vector3.new(0.12, 0, 1.45), BladeBack = Vector3.new(2.3, 0, 1.0) },
 			trail = { from = "BladeTip", to = "BladeBack", lifetime = 0.2,
 				colors = { Color3.fromRGB(255, 252, 240), Color3.fromRGB(210, 230, 255) } },

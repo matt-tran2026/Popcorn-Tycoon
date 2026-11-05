@@ -67,8 +67,13 @@
    ],
    "robloxTemplate": {
     "path": "ServerStorage.PopcornTemplates.Tools.Sickle",
-    "imported": false,
-    "note": "Awaiting manual 3D Importer import; the part-built Sickle is used until then."
+    "imported": true,
+    "importedAt": "2026-11-05",
+    "meshIds": {
+     "SickleBlade": "rbxassetid://107593357248946",
+     "SickleHandle": "rbxassetid://122836565528948"
+    },
+    "note": "3D Importer read the FBX at 100x; scaled by 0.01 in Studio. Saved in the place file only."
    },
    "animations": {
     "system": "ToolAnimator pose clips (ToolPresentation.Sickle.clips)",
@@ -118,9 +123,9 @@
      "assetId": "rbxassetid://107437834728710"
     }
    },
-   "integration": "gameplay unchanged (ArcSweep); template-aware model, pose animation, VFX and SFX hooks wired",
-   "tests": "Tools 34/34, ToolVisuals 16/16, ToolTemplateFrame 7/7 (stand-in) on 2026-11-05",
-   "status": "in progress: needs FBX import, audio upload and an in-game look check",
+   "integration": "Blender model in game (ModelSource=Blender); hold grip set by ToolPresentation.hold; ArcSweep gameplay unchanged",
+   "tests": "Tools 34/34, ToolVisuals 16/16, ToolTemplateFrame 7/7; real-model Play check: Blender model built, flat forward hold, 2 F-key swings harvested (2026-11-05)",
+   "status": "in game; waiting on audio upload and creator's look check",
    "buildScript": "assets/tools/Common/Sickle/scripts/build_sickle.py",
    "meshes": {
     "SickleHandle": {
