@@ -14,7 +14,7 @@ Console: no errors. On first use Studio logged `Asset content representation is 
 
 ## Not verified yet
 
-- The real Blender Sickle in game: the FBX was not imported because desktop control of Studio was declined. Grip, scale, materials and clipping need a look once it is imported (the frame maths is covered by the stand-in test).
+- The real Blender Sickle in game: imported later the same day (section below); the creator's own look is still pending.
 - The original sounds in game: the WAVs exist and were checked by level and spectrum (Equip peak −3 dBFS, RMS −22 dB, centroid 5.6 kHz; Swish RMS −18 dB, 1.7 kHz; Snap RMS −25 dB, 3.6 kHz), but they are not uploaded and nobody has listened to them yet. Until upload, the swing and harvest keep the old sounds and the equip is silent.
 - How the swing looks on screen: the game camera overrode the scripted test camera, so the swing was verified by measured hand positions, not by eye.
 - Touch devices, R6 avatars, a second player watching (the pose layering is local only, as was the old swing), Multiplayer runner.
