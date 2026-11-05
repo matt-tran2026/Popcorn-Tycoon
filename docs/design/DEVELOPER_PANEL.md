@@ -32,7 +32,7 @@ AdminConfig.Members = {
 } :: { [number]: string }
 ```
 
-A UserId is the number in the profile URL `roblox.com/users/<UserId>/profile`, or run this in Studio's command bar: `print(game:GetService("StudioService"):GetUserId())`. Use UserIds, never names. `4648453584` is the account that was signed in to Studio when the panel was built; the creator still needs to confirm it is theirs. A future rank goes into `AdminConfig.Ranks` with a lower power, and a command can then name it in `minRank`.
+A UserId is the number in the profile URL `roblox.com/users/<UserId>/profile`, or run this in Studio's command bar: `print(game:GetService("StudioService"):GetUserId())`. Use UserIds, never names. `4648453584` (tranman2026) is the creator's account, confirmed by the creator on November 4, 2026. A future rank goes into `AdminConfig.Ranks` with a lower power, and a command can then name it in `minRank`.
 
 ## Opening and using it
 

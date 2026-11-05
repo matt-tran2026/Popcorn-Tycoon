@@ -13,7 +13,7 @@ AdminConfig.Ranks = { Owner = 100 } :: { [string]: number }
 -- `[<UserId>] = "Owner",` here (find a UserId in the profile URL roblox.com/users/<UserId>/profile,
 -- or in Studio's command bar: print(game:GetService("StudioService"):GetUserId())).
 AdminConfig.Members = {
-	-- The account signed in to Studio on Nov 4 2026 (StudioService:GetUserId); the creator is asked to confirm it.
+	-- The creator's account (tranman2026), confirmed by the creator on Nov 4 2026.
 	[4648453584] = "Owner",
 } :: { [number]: string }
 
