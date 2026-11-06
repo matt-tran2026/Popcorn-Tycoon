@@ -154,8 +154,17 @@ function Controller.start(feedback: RemoteEvent)
 		Highlight.setToolTargets(ToolRules.pickTargets(root.Position, root.CFrame.LookVector, myStalks(), Config.Tools[heldId]))
 	end)
 
+	-- Where pulled ears land: the holder's chest, followed while they fly.
+	local function pullTarget(): Vector3?
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if root and root:IsA("BasePart") then return root.Position + Vector3.new(0, 0.8, 0) end
+		return nil
+	end
+
 	-- Server-confirmed cuts: a snap and a leaf burst per stalk, staggered after the blade passes.
-	-- Only stalks the server actually harvested get them; a refused swing shows nothing.
+	-- Only stalks the server actually harvested get them; a refused swing shows nothing. Pull
+	-- tools (Harvest Hook) also throw a streak to each stalk and fly its ear back to the player.
 	feedback.OnClientEvent:Connect(function(response)
 		if not response.ok or typeof(response.tool) ~= "string" or typeof(response.targets) ~= "table" then return end
 		local definition = Config.Tools[response.tool]
@@ -170,6 +179,16 @@ function Controller.start(feedback: RemoteEvent)
 					Effects.sound(look.sounds.Harvest, at)
 					Effects.leafBurst(at, look.vfx.leavesPerStalk, look.vfx.leafColor)
 					if look.vfx.snipFlash then Effects.snipFlash(at) end
+					local pull = look.vfx.pull
+					if pull then
+						-- From the front of the curl, the part of the hook that leads the throw.
+						local tip = held and held:FindFirstChild("HookCrown", true)
+						if tip and tip:IsA("Attachment") then Effects.hookLine(tip, at, pull.lineSeconds) end
+						Effects.pullEar(at, pullTarget, pull, if i % 2 == 1 then 1 else -1, function(landedAt)
+							Effects.sound(look.sounds.Pull)
+							Effects.snipFlash(landedAt)
+						end)
+					end
 				end)
 			end
 		end

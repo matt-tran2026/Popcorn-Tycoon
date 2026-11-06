@@ -92,3 +92,18 @@ At the creator's request Claude did both steps with desktop control. The 3D Impo
 
 `tests/Pitchfork.server.luau` against the real template: **25/25 pass** (`ModelSource = Blender`; new check: the grip sits on the shaft axis 0.498 behind its centre; the symmetric-head tool frame and holder path work with imported meshes). On the client all three sounds load (0.36, 0.46, 0.30 s), the thrust moves the head from 5.4 to 7.1 studs ahead, and a thrust harvested 3. Pending: the creator's look and listen.
 
+
+## Harvest Hook (Common #4, November 5)
+
+The creator's catalog card: 2 stalks per attack, 0.45 s cooldown, 14 studs, forward hook and pull, 1× yield, raw corn; special ability "Hook Pull" (harvested corn follows a visible curved path back to the player). Reference render: a dark forged question-mark hook with a leather-wrapped handle. Design canvas: https://claude.ai/artifact/MCLH3jKAm2UB15vh6H1Sk6.
+
+Setup: Studio `Popcorn Tycoon.rbxl`, Play Solo. Script Sync carried the shared modules (`Config`, `ToolPresentation`, `ToolRules`, `Types`) but not the server/client ones, so `ToolModels`, `HarvestService`, `ToolController` and `ToolEffects` were pushed with MCP `multi_edit` (the same replacements). All eight were then checked against the repo by byte length and byte sum (identical). Studio was found in a Play session at the start and was stopped first.
+
+| Runner | Result | Notes |
+| --- | --- | --- |
+| `tests/HarvestHook.server.luau` (new) | **24/24 pass** (second run; the first run's one failure was the test's own wrong expectation for the part-built shank's centre) | Config; cone rule (2 nearest, 13.5-stud stalks reached, the Sickle reaches none of them, nothing outside 30°, behind or past 14); part-built model (`ModelSource = Procedural`): invisible holder grip, `Reach` motor on HookHandle, HookBlade and HookPommel welded to it, trail and points, curl crown at (2.49, 0, 1.57) in the tool frame; Shop buy and equip; from 10 studs in front of column 3 a swing harvested 2 with 1_3 first; immediate repeat refused; 0.18 s early accepted (jitter allowance), then refused; nothing from 14.5 studs. |
+| Client check (MCP `execute_luau` on the Client, `tool:Activate()`) | pass | The real activation reached the server: RawCorn 0 → 2. The Reach motor slid from −0.56 to +1.60 studs. Two hook-line beams were made. Both ears appeared at ~10 studs, rose to about 3 studs above the root part and came in to 1.4 studs, gone by 0.74 s after the click (launch about 0.3 s after the click, network and the Hit lead included). |
+
+Console: no errors or warnings.
+
+Not verified: how it looks by eye (no screenshot of the 3D view in Play), the Blender model in game (FBX not imported yet), the original sounds (not uploaded; fallbacks play, the ear-landing `Pull` sound is silent until upload), touch, R6, a second player watching, and a regression run of the older tool runners (the shared changes were additive: a new behaviour name and a new `vfx.pull` branch).

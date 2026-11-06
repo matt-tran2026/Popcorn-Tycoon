@@ -73,6 +73,19 @@ local tools: { [string]: Types.ToolDefinition } = {
 		-- The stab reaches the corn at the Thrust clip's Hit marker; snips then run down the row.
 		swingSeconds = 0.42, snipStaggerSeconds = 0.06,
 	},
+	-- Catalog #4 (creator, Nov 5 2026): 2 stalks, 0.45 s, 14 studs, 1x, forward hook and pull.
+	-- PullHarvest takes the 2 nearest ripe stalks in a long, fairly narrow forward cone (the
+	-- arc rule), so it reaches rows the other Common tools can't without walking up to them.
+	-- Hook Pull is presentation: the client flies each confirmed ear back to the player.
+	-- Price is a first guess between the Pitchfork ($150) and the Sickle ($200).
+	HarvestHook = {
+		displayName = "Harvest Hook", description = "Hook 2 ripe stalks from far away and pull them in",
+		rarity = "Common", behavior = "PullHarvest",
+		price = 175, currency = "Cash",
+		reach = 14, arcDegrees = 60, maxTargets = 2, cooldownSeconds = 0.45, yieldMultiplier = 1,
+		-- The hook bites at the Swing clip's Hit marker; the ears then fly back one after the other.
+		swingSeconds = 0.42, snipStaggerSeconds = 0.06,
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
@@ -227,7 +240,8 @@ function Config.validate()
 		end
 		assert(whole(tool.maxTargets) and tool.maxTargets >= 1 and tool.cooldownSeconds > 0, "Invalid tool " .. id)
 		assert(whole(tool.yieldMultiplier) and tool.yieldMultiplier >= 1, "Invalid tool " .. id)
-		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget" or tool.behavior == "LineHarvest", "Unimplemented tool behavior " .. id)
+		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget" or tool.behavior == "LineHarvest"
+			or tool.behavior == "PullHarvest", "Unimplemented tool behavior " .. id)
 		assert(tool.behavior ~= "SingleTarget" or tool.maxTargets == 1, "SingleTarget tools cut one stalk: " .. id)
 		assert(tool.cooldownSeconds >= (tool.swingSeconds or 0), "Swings must not overlap: " .. id)
 	end

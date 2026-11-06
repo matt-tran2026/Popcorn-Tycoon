@@ -41,8 +41,15 @@ export type Model = {
 	-- the hand on a thrust). Named points then ride on the handle mesh.
 	holder: boolean?,
 }
+-- Hook Pull (PullHarvest tools): each confirmed ear flies a curved path back to the holder.
+-- flySeconds: the flight; rise/sideways: how far the curve bows up and out (studs); line: a
+-- thin streak from the hook to each stalk at the Hit marker, shown for lineSeconds.
+export type PullVfx = {
+	flySeconds: number, rise: number, sideways: number, lineSeconds: number,
+	earColor: Color3, huskColor: Color3, trailColors: { Color3 },
+}
 -- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
-export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean? }
+export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean?, pull: PullVfx? }
 export type Presentation = {
 	rarity: string,
 	model: Model,
@@ -235,6 +242,76 @@ local tools: { [string]: Presentation } = {
 		},
 		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 5, leafColor = Color3.new(1, 1, 1), snipFlash = true },
 	},
+	-- Forged question-mark hook with a spiral leather grip (assets/tools/Common/HarvestHook, from
+	-- the creator's reference render). Numbers come from build_harvest_hook.py: wrap from -0.92
+	-- to 0.74 along X (centre 0.09 behind the grip), hook tip at (0.92, 0, 0.84), crown of the
+	-- curl at (2.49, 0, 1.57). Design canvas: "Harvest Hook".
+	HarvestHook = {
+		rarity = "Common",
+		model = {
+			template = "HarvestHook", handle = "HookHandle", gripFromCentre = 0.09, head = "HookBlade",
+			materials = { HookHandle = Enum.Material.Leather, HookBlade = Enum.Material.Metal, HookPommel = Enum.Material.Metal },
+			-- The hand holds an invisible grip; the grip hangs off it on the Reach motor so the
+			-- hook can lunge out of the hand on the throw and snap back on the pull.
+			holder = true,
+			joints = { HookHandle = { motor = "Reach", pivot = Vector3.zero } },
+			welds = { HookBlade = "HookHandle", HookPommel = "HookHandle" },
+			-- Right hand, handle forward and a little up, the curl hanging to the left and a bit
+			-- down so the camera behind the player sees the question-mark shape.
+			grip = ToolPresentation.hold(Vector3.new(0, 0.25, -1), Vector3.new(0.5, -0.87, 0)),
+			points = {
+				HookTip = Vector3.new(0.916, 0, 0.839), HookCrown = Vector3.new(2.486, 0, 1.574),
+				CurlCentre = Vector3.new(1.78, 0, 0.877),
+			},
+			-- A short pale arc behind the curl while the hook is thrown.
+			trail = { from = "HookTip", to = "HookCrown", lifetime = 0.16,
+				colors = { Color3.fromRGB(255, 250, 232), Color3.fromRGB(255, 226, 140) } },
+		},
+		clips = {
+			-- Drawn up from the hip, the hook sliding into the hand with a wrist flourish.
+			Equip = { seconds = 0.34, keys = {
+				{ t = 0, pose = { RightShoulder = { -75, 0, 0 }, RightWrist = { 0, 0, 35 }, Reach = { 0, 0, 0, -0.5, 0, 0 } } },
+				{ t = 0.65, pose = { RightShoulder = { 8, 0, 0 }, RightWrist = { 0, 0, -10 }, Reach = { 0, 0, 0, 0.15, 0, 0 } }, ease = "Back" },
+				{ t = 1, pose = {} },
+			}, markers = { Shing = 0.6 } },
+			-- Slow sway; the hook rocks a little on the wrist.
+			Idle = { seconds = 2.5, loop = true, keys = {
+				{ t = 0, pose = { RightShoulder = { 0, 0, 0 }, RightWrist = { 0, 0, 0 } } },
+				{ t = 0.5, pose = { RightShoulder = { 3, 1, 0 }, RightWrist = { 3, 0, 3 } } },
+				{ t = 1, pose = { RightShoulder = { 0, 0, 0 }, RightWrist = { 0, 0, 0 } } },
+			} },
+			-- Hook Pull, 0.42 s = Config.Tools.HarvestHook.swingSeconds. Reach: the arm lifts and
+			-- the hook cocks back (0.08 s). Hook: a fast forward throw, the hook lunging 1.6 studs
+			-- out of the hand (Hit at 0.19 s). Pull: a hard yank back past the start, then settle.
+			Swing = { seconds = 0.42, keys = {
+				{ t = 0, pose = {} },
+				{ t = 0.19, pose = { RightShoulder = { 38, 0, 0 }, RightWrist = { -30, 0, 0 }, Waist = { 0, -6, 0 },
+					LeftShoulder = { 0, 6, 0 }, Reach = { 0, 0, 0, -0.4, 0, 0 } }, ease = "Quad" },
+				{ t = 0.45, pose = { RightShoulder = { -12, 0, 0 }, RightWrist = { 25, 0, 0 }, Waist = { 0, 6, 0 },
+					LeftShoulder = { 0, -6, 0 }, Neck = { 0, -3, 0 }, Reach = { 0, 0, 0, 1.6, 0, 0 } }, ease = "Quad" },
+				{ t = 0.64, pose = { RightShoulder = { 30, 0, 0 }, RightWrist = { -20, 0, 0 }, Waist = { 0, -4, 0 },
+					LeftShoulder = { 0, 4, 0 }, Reach = { 0, 0, 0, -0.6, 0, 0 } }, ease = "Quad" },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Hit = 0.45 } },
+		},
+		sounds = {
+			-- Original synthesised sounds wait in assets/tools/Common/HarvestHook/audio for upload
+			-- (ids stay nil until then). Fallbacks: the Pitchfork's equip, the Sickle's air swoosh
+			-- and the shared stalk snap. Pull plays when an ear reaches the player.
+			Equip = { id = nil, fallback = "rbxassetid://80005805168325", volume = 0.3, pitch = { 0.95, 1.05 } },
+			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.35, pitch = { 0.9, 1.0 } },
+			Harvest = { id = nil, fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.92, 1.1 } },
+			Pull = { id = nil, fallback = nil, volume = 0.32, pitch = { 0.95, 1.12 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true,
+			pull = {
+				flySeconds = 0.36, rise = 3.2, sideways = 1.8, lineSeconds = 0.12,
+				earColor = Color3.fromRGB(255, 204, 44), huskColor = Color3.fromRGB(200, 214, 122),
+				trailColors = { Color3.fromRGB(255, 244, 186), Color3.fromRGB(255, 196, 40) },
+			},
+		},
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -269,6 +346,11 @@ function ToolPresentation.validate(toolIds: { string })
 		local trail = look.model.trail
 		if trail then
 			assert(look.model.points[trail.from] and look.model.points[trail.to], toolId .. " trail names a missing point")
+		end
+		local pull = look.vfx.pull
+		if pull then
+			assert(pull.flySeconds > 0 and pull.flySeconds <= 1 and pull.lineSeconds >= 0 and #pull.trailColors >= 1,
+				toolId .. " pull effect needs a flight under a second and trail colours")
 		end
 	end
 end

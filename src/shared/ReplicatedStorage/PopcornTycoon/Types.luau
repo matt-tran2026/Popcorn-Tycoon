@@ -40,8 +40,9 @@ export type Currency = "Cash" | "Popcorn"
 export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
 -- Harvesting families (docs/design/TOOL_COLLECTION.md). Implemented: ArcSweep (up to
 -- maxTargets in a wide arc), SingleTarget (the one nearest ripe stalk in a narrow cone) and
--- LineHarvest (up to maxTargets in a straight lane ahead, laneWidth studs wide).
-export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest"
+-- LineHarvest (up to maxTargets in a straight lane ahead, laneWidth studs wide) and
+-- PullHarvest (the nearest maxTargets in a long forward cone; the client pulls the ears back).
+export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest" | "PullHarvest"
 export type ToolDefinition = {
 	displayName: string, description: string, rarity: ToolRarity, behavior: ToolBehavior,
 	-- arcDegrees: the sweep of ArcSweep/SingleTarget tools. laneWidth: the full width of a

@@ -342,17 +342,106 @@
     "PullHarvest"
    ],
    "conversion": "RawCorn",
-   "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "stage": 1,
+   "blenderSource": "assets/tools/Common/HarvestHook/source/HarvestHook.blend",
+   "exportedMesh": "assets/tools/Common/HarvestHook/exports/HarvestHook.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.HarvestHook",
+    "imported": false,
+    "importedAt": null,
+    "meshIds": null,
+    "note": "Waiting for the creator's 3D Importer run (read at 100x: scale by 0.01). Until then ToolModels.harvestHook builds a part-built stand-in with the same mesh names, Reach joint and points."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.HarvestHook.clips) + Motor6D Reach (holder grip -> leather grip; the hook lunges 1.6 studs out on the throw and snaps 0.6 back on the pull)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    },
+    "publishedAnimationIds": null
+   },
+   "audio": [
+    {
+     "name": "HarvestHook_Equip",
+     "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Equip.wav",
+     "source": "original, synthesised (scripts/synth_harvest_hook_audio.py)",
+     "assetId": null,
+     "fallback": "rbxassetid://80005805168325",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "HarvestHook_Swing",
+     "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Swing.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://136321679774475",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "HarvestHook_Harvest",
+     "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Harvest.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://125411384210572",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "HarvestHook_Pull",
+     "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Pull.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": null,
+     "uploaded": null,
+     "inUse": false
+    }
+   ],
+   "vfx": {
+    "harvest": "pooled leaf burst, 4 per stalk + pooled snip flash; SwingTrail between HookTip and HookCrown",
+    "hookPull": "ToolEffects.pullEar: up to 6 pooled part-built corn ears (Pebble cob, husks, gold Trail) fly a quadratic curve (rise 3.2, sideways 1.8, alternating sides) from each confirmed stalk to the player in 0.36 s, one Heartbeat loop with BulkMoveTo; sparkle + Pull sound on landing",
+    "hookLine": "ToolEffects.hookLine: up to 3 pooled Beams from HookCrown to each stalk for 0.12 s at the Hit marker",
+    "texture": {
+     "file": "assets/tools/_shared/textures/Leaf_Fleck.png",
+     "assetId": "rbxassetid://107437834728710"
+    }
+   },
+   "integration": "PullHarvest gameplay (60 degree cone, 14 studs, 2 targets, 0.45 s); $175 first guess; part-built model until the FBX import",
+   "tests": "HarvestHook 24/24 in Play (2026-11-05, part-built model); real client swing harvested 2, Reach slid -0.56..1.60, 2 hook lines, both ears flew ~10 studs and landed at ~0.7 s; no console errors",
+   "status": "in game with part-built stand-in, Hook Pull animation and VFX; FBX import and sound upload waiting on the creator",
+   "buildScript": "assets/tools/Common/HarvestHook/scripts/build_harvest_hook.py",
+   "meshes": {
+    "HookHandle": {
+     "tris": 624,
+     "material": "Leather",
+     "joint": "Reach"
+    },
+    "HookBlade": {
+     "tris": 652,
+     "material": "Metal",
+     "weldTo": "HookHandle"
+    },
+    "HookPommel": {
+     "tris": 144,
+     "material": "Metal",
+     "weldTo": "HookHandle"
+    }
+   },
+   "preview": "assets/tools/Common/HarvestHook/previews/HarvestHook_preview.png",
+   "design": "https://claude.ai/artifact/MCLH3jKAm2UB15vh6H1Sk6"
   },
   {
    "toolId": "TwinSickles",

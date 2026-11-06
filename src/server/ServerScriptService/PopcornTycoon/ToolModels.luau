@@ -222,8 +222,64 @@ function ToolModels.pitchfork(): Tool
 	return tool
 end
 
+-- Part-built harvest hook, used until the Blender template is imported. Built straight in the
+-- tool frame (X along the grip toward the hook, Y the hook's thin axis, Z the side it curls to;
+-- grip point at the origin) with the Blender model's mesh names, holder grip, Reach joint and
+-- points. The curl follows build_harvest_hook.py: a tightening circle through 262 degrees.
+function ToolModels.harvestHook(): Tool
+	local look = assert(ToolPresentation.get("HarvestHook"))
+	local tool = Instance.new("Tool")
+	tool.Name = "HarvestHook"
+	tool:SetAttribute("ToolId", "HarvestHook")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Hook 2 ripe stalks from far away and pull them in"
+	local leather, iron, ironDark = Color3.fromRGB(107, 64, 38), Color3.fromRGB(72, 76, 82), Color3.fromRGB(58, 62, 68)
+	local metal = Enum.Material.Metal
+	local function bar(name: string, a: Vector3, b: Vector3, width: number, thick: number): Part
+		local along = b - a
+		return piece(tool, name, Vector3.new(along.Magnitude + 0.04, thick, width), CFrame.fromMatrix((a + b) / 2, along.Unit, Vector3.yAxis), ironDark, metal)
+	end
+	local holder = holderPart(CFrame.identity)
+	holder.Parent = tool
+	local grip = cylinder(tool, "HookHandle", 1.66, 0.34, -0.09, leather, Enum.Material.Leather)
+	for i, x in { -0.7, -0.45, -0.2, 0.05, 0.3, 0.55 } do
+		cylinder(tool, "HookWrap_" .. i, 0.07, 0.38, x, Color3.fromRGB(78, 46, 27), Enum.Material.Leather)
+	end
+	local pommel = cylinder(tool, "HookPommel", 0.24, 0.41, -1.02, iron, metal)
+	cylinder(tool, "HookFerrule", 0.38, 0.4, 0.89, iron, metal)
+	local curlStart, radius = Vector3.new(1.78, 0, -0.08), 1.04
+	local blade = bar("HookBlade", Vector3.new(0.98, 0, 0), curlStart, 0.29, 0.24)
+	local centre = curlStart + Vector3.new(0, 0, radius)
+	local segments = 10
+	local previous = curlStart
+	for i = 1, segments do
+		local u = i / segments
+		local theta = math.rad(262 * u)
+		local r = radius * (1 - 0.2 * u)
+		local point = centre + Vector3.new(r * math.sin(theta), 0, -r * math.cos(theta))
+		local width = 0.25 * (1 - u ^ 2.4) + 0.05
+		bar("HookCurl_" .. i, previous, point, width, 0.2 * (1 - u ^ 2) + 0.05)
+		previous = point
+	end
+	-- Everything but the grip and the hook bar rides on the grip, which slides on Reach.
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= holder and child ~= grip and child ~= blade and child ~= pommel then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = grip, child, child
+		end
+	end
+	rig(holder, { holder :: BasePart, grip, blade, pommel }, CFrame.identity, look)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, grip.CFrame:PointToObjectSpace(point), grip
+	end
+	tool.Grip = look.model.grip
+	return tool
+end
+
 local procedural: { [string]: () -> Tool } = {
 	Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers, Pitchfork = ToolModels.pitchfork,
+	HarvestHook = ToolModels.harvestHook,
 }
 
 -- The tool frame (see ToolPresentation.Model) recovered from the imported meshes, so it does

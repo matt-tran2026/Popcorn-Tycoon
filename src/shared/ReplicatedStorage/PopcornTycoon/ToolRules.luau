@@ -23,7 +23,8 @@ local function nearest(hits: { Hit }, maxTargets: number): { string }
 	return picked
 end
 
--- ArcSweep / SingleTarget: inside reach and within arcDegrees / 2 of the facing direction.
+-- ArcSweep / SingleTarget / PullHarvest: inside reach and within arcDegrees / 2 of the facing
+-- direction. (PullHarvest is the Harvest Hook's long narrow cone; the pull itself is visual.)
 local function inArc(flatFacing: Vector3, candidates: { Types.TargetCandidate }, origin: Vector3, tool: Types.ToolDefinition): { Hit }
 	local halfArc = math.rad((tool.arcDegrees or 0) / 2)
 	local hits: { Hit } = {}
