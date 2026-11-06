@@ -165,6 +165,8 @@ local ok, err = pcall(function()
 	local before = profile.rawCorn.Normal
 	local r5 = Harvest.swing(player, "HarvestHook")
 	check("nothing past 14 studs", not r5.ok and profile.rawCorn.Normal == before, r5.reason)
+	-- Only alternating tools (Twin Sickles) carry hand/combo/streak in their replies.
+	check("non-alternating tools report no hand", r1.hand == nil and r5.hand == nil)
 
 	-- Leave the player ready for a visual check: holding the hook 10 studs before column 3.
 	standBefore(10)

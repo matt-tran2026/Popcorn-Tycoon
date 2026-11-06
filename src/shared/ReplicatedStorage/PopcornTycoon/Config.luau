@@ -86,6 +86,22 @@ local tools: { [string]: Types.ToolDefinition } = {
 		-- The hook bites at the Swing clip's Hit marker; the ears then fly back one after the other.
 		swingSeconds = 0.42, snipStaggerSeconds = 0.06,
 	},
+	-- Catalog: Twin Sickles (Uncommon; creator, Nov 6 2026): 4 stalks, 0.55 s, 10 studs, 1x,
+	-- raw corn, alternating left/right arcs. Each hand's 110 degree arc is centred 30 degrees
+	-- toward that hand (right: from 85 degrees right of facing to 25 left), so the corn on the
+	-- side you favour comes off on alternate swings. Combo Sweep: the 3rd successful swing in a row
+	-- (each within 1.6 s of the last hit) spins through 360 degrees at the same reach. A miss
+	-- or a pause ends the streak: that is the positioning weakness. Price is a first guess,
+	-- 2.5x the Sickle ($200), as the first Uncommon.
+	TwinSickles = {
+		displayName = "Twin Sickles", description = "Slash 4 stalks, left then right; every 3rd hit in a row spins a full circle",
+		rarity = "Uncommon", behavior = "ArcSweep",
+		price = 500, currency = "Cash",
+		reach = 10, arcDegrees = 110, sideDegrees = 30, maxTargets = 4, cooldownSeconds = 0.55, yieldMultiplier = 1,
+		combo = { every = 3, arcDegrees = 360, windowSeconds = 1.6 },
+		-- Each hand's slash; the Combo clip (the spin) has its own length within the cooldown.
+		swingSeconds = 0.3, snipStaggerSeconds = 0.04,
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
@@ -244,6 +260,19 @@ function Config.validate()
 			or tool.behavior == "PullHarvest", "Unimplemented tool behavior " .. id)
 		assert(tool.behavior ~= "SingleTarget" or tool.maxTargets == 1, "SingleTarget tools cut one stalk: " .. id)
 		assert(tool.cooldownSeconds >= (tool.swingSeconds or 0), "Swings must not overlap: " .. id)
+		-- Alternating tools: the side turn keeps each hand's arc in front, and a combo is a
+		-- wider arc that can only be reached by swinging again before the window closes.
+		if tool.sideDegrees ~= nil or tool.combo ~= nil then
+			assert(tool.behavior == "ArcSweep", "Only ArcSweep tools alternate hands: " .. id)
+			local side = tool.sideDegrees or 0
+			assert(side >= 0 and side <= 90, "sideDegrees must be 0-90: " .. id)
+		end
+		local combo = tool.combo
+		if combo then
+			assert(whole(combo.every) and combo.every >= 2, "A combo needs at least 2 swings: " .. id)
+			assert(combo.arcDegrees > (tool.arcDegrees or 0) and combo.arcDegrees <= 360, "A combo arc must be wider: " .. id)
+			assert(combo.windowSeconds > tool.cooldownSeconds, "The combo window must outlast a cooldown: " .. id)
+		end
 	end
 	-- Every tool has a presentation entry, and a swing clip lasts exactly as long as its swing.
 	local ToolPresentation = require(script.Parent.ToolPresentation)
@@ -257,6 +286,14 @@ function Config.validate()
 		for _, name in { "Swing", "SwingAlt" } do
 			local clip = look.clips[name]
 			assert(not clip or not tool.swingSeconds or math.abs(clip.seconds - tool.swingSeconds) < 1e-6, name .. " clip length must equal swingSeconds: " .. id)
+		end
+		-- An alternating tool swings each hand (Swing right, SwingAlt left); a combo spins.
+		if tool.sideDegrees ~= nil or tool.combo ~= nil then
+			assert(look.clips.Swing and look.clips.SwingAlt and look.model.offhand, "Alternating tools need both hands' clips and an offhand: " .. id)
+		end
+		if tool.combo then
+			local spin = look.clips.Combo
+			assert(spin and spin.seconds <= tool.cooldownSeconds, "Combo clip missing or longer than the cooldown: " .. id)
 		end
 	end
 	local map, farm = Config.Map, Config.Farm

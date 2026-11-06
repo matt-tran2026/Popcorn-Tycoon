@@ -21,6 +21,8 @@ local R15: { [string]: { string } } = {
 	RightShoulder = { "RightUpperArm", "RightShoulder" }, RightElbow = { "RightLowerArm", "RightElbow" },
 	RightWrist = { "RightHand", "RightWrist" }, LeftShoulder = { "LeftUpperArm", "LeftShoulder" },
 	LeftElbow = { "LeftLowerArm", "LeftElbow" }, LeftWrist = { "LeftHand", "LeftWrist" },
+	-- The whole body about the root (Y is up): the Twin Sickles' Combo spin. Not on R6.
+	Root = { "LowerTorso", "Root" },
 }
 local R6: { [string]: string } = { RightShoulder = "Right Shoulder", LeftShoulder = "Left Shoulder", Neck = "Neck" }
 local EASE: { [string]: Enum.EasingStyle } = {

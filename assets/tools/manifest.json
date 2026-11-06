@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updated": "2026-11-05",
+ "updated": "2026-11-06",
  "conventions": "docs/design/TOOL_COLLECTION.md",
  "sharedAssets": {
   "Leaf_Fleck": {
@@ -456,16 +456,112 @@
    ],
    "conversion": "RawCorn",
    "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "blenderSource": "assets/tools/Uncommon/TwinSickles/source/TwinSickles.blend",
+   "exportedMesh": "assets/tools/Uncommon/TwinSickles/exports/TwinSickles.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.TwinSickles",
+    "imported": false,
+    "importedAt": null,
+    "meshIds": null,
+    "note": "Waiting for the creator's 3D Importer upload (scale 0.01 after import). ONE sickle is imported; the server clones it into the left hand. Until then ToolModels.twinSickles (part-built) is used."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.TwinSickles.clips); the left arm is held up by a guard pose mirrored from the measured R15 tool hold; Combo spins the R15 Root joint 360 degrees",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing",
+     "SwingAlt",
+     "Combo"
+    ],
+    "markers": {
+     "Swing": [
+      "Hit"
+     ],
+     "SwingAlt": [
+      "Hit"
+     ],
+     "Combo": [
+      "Spin",
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    },
+    "publishedAnimationIds": null
+   },
+   "audio": [
+    {
+     "name": "TwinSickles_Equip",
+     "file": "assets/tools/Uncommon/TwinSickles/audio/TwinSickles_Equip.wav",
+     "source": "original, synthesised (scripts/synth_twin_sickles_audio.py)",
+     "assetId": null,
+     "fallback": "rbxassetid://116936988986525",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "TwinSickles_Swing",
+     "file": "assets/tools/Uncommon/TwinSickles/audio/TwinSickles_Swing.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://136321679774475",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "TwinSickles_Combo",
+     "file": "assets/tools/Uncommon/TwinSickles/audio/TwinSickles_Combo.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://136321679774475 (pitched down)",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "Stalk_Snap",
+     "file": "assets/tools/Common/Sickle/audio/Stalk_Snap.wav",
+     "source": "shared with the Sickle",
+     "assetId": "rbxassetid://125411384210572",
+     "fallback": "rbxassetid://9118831072",
+     "uploaded": "2026-11-05",
+     "inUse": true
+    }
+   ],
+   "vfx": {
+    "trails": "SwingTrail between BladeFront and BladeCrown on each blade: right blue-white, left (Offhand copy) green-white; only the swinging hand's trail is on, both on the Combo",
+    "comboSweep": "ToolEffects.comboSweep: two pooled Trail ribbons (blue, green) half a turn apart whirl once round the player at radius 3.4, width 1.5, in 0.3 s at the Combo clip's Spin marker; one Heartbeat connection",
+    "harvest": "pooled leaf burst, 4 per stalk + pooled snip flash, 0.04 s apart",
+    "texture": {
+     "file": "assets/tools/_shared/textures/Leaf_Fleck.png",
+     "assetId": "rbxassetid://107437834728710"
+    }
+   },
+   "integration": "Part-built model in game (ModelSource=Procedural) until the FBX import; alternating ArcSweep: 110 degree arcs turned 30 degrees toward the swinging hand, 4 targets, 10 studs, 0.55 s; Combo Sweep every 3rd successful swing in a row within 1.6 s (360 degree arc); left-hand copy welded to LeftHand by the server; $500 first guess",
+   "tests": "TwinSickles 30/30 in Play (2026-11-06, part-built model); client Activate: right slash, left slash, Combo spin with both trails and the sweep ribbons; console clean",
+   "status": "in game with part-built stand-in, animations, VFX and fallback sounds; Blender FBX and original WAVs waiting for the creator's upload",
+   "buildScript": "assets/tools/Uncommon/TwinSickles/scripts/build_twin_sickles.py",
+   "meshes": {
+    "TwinHandle": {
+     "tris": 624,
+     "material": "Wood"
+    },
+    "TwinBlade": {
+     "tris": 1226,
+     "material": "Metal",
+     "weldTo": "TwinHandle"
+    },
+    "TwinPommel": {
+     "tris": 192,
+     "material": "Metal",
+     "weldTo": "TwinHandle"
+    }
+   },
+   "preview": "assets/tools/Uncommon/TwinSickles/previews/TwinSickles_preview.png"
   },
   {
    "toolId": "LongScythe",

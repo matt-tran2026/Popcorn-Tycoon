@@ -62,30 +62,89 @@ end
 -- Tools with a SwingAlt clip alternate it with Swing, so rapid repeats never look identical.
 local useAlt = false
 
--- The harvesting swing: pose clip, trail on for its duration, swish at the start.
-local function swing(tool: Tool, look: ToolPresentation.Presentation?)
-	-- On the Handle, or on the moving shaft for tools with a holder grip (Pitchfork).
-	local found = tool:FindFirstChild("SwingTrail", true)
-	local trail = if found and found:IsA("Trail") then found else nil
+-- Alternating tools (Twin Sickles): a prediction of the server's hand/streak state
+-- (HarvestService), so the right clip plays at once and the glow shows the next arc. It follows
+-- the same rule (ToolRules.nextSwing) and is corrected by every server reply.
+local prediction: { toolId: string, state: Types.ComboState }? = nil
+local function predicted(toolId: string): Types.ComboState
+	local current = prediction
+	if current and current.toolId == toolId then return current.state end
+	local fresh = { toolId = toolId, state = ToolRules.newCombo() }
+	prediction = fresh
+	return fresh.state
+end
+
+local function trailOf(holder: Instance?): Trail?
+	local found = if holder then holder:FindFirstChild("SwingTrail", true) else nil
+	return if found and found:IsA("Trail") then found else nil
+end
+
+local function rootFrame(): CFrame?
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	return if root and root:IsA("BasePart") then root.CFrame else nil
+end
+
+-- The harvesting swing: pose clip, trail on for its duration, swish at the start. Alternating
+-- tools play the hand whose turn it is (Swing right, SwingAlt left) or the Combo spin.
+local function swing(tool: Tool, look: ToolPresentation.Presentation?, toolId: string, definition: Types.ToolDefinition)
+	-- Trails sit on the Handle, or on the moving shaft for tools with a holder grip (Pitchfork);
+	-- the Twin Sickles' left blade is the Offhand model in the character.
+	local trails: { Trail } = {}
 	local clip = if look then look.clips.Swing else nil
-	if look and look.clips.SwingAlt then
-		useAlt = not useAlt
-		if useAlt then clip = look.clips.SwingAlt end
+	local sound = if look then look.sounds.Swing else nil
+	local spin = false
+	if look and ToolRules.alternates(definition) then
+		local state = predicted(toolId)
+		local shape = ToolRules.nextSwing(definition, state, os.clock())
+		-- Only the hand is advanced here; the streak comes from the server's reply.
+		state.hand = if shape.hand == "Right" then "Left" else "Right"
+		if shape.combo then state.streak = 0 end
+		local character = tool.Parent
+		local offhand = if character then character:FindFirstChild("Offhand") else nil
+		local right, left = trailOf(tool), trailOf(offhand)
+		if shape.combo and look.clips.Combo then
+			clip, spin = look.clips.Combo, true
+			sound = look.sounds.Combo or sound
+			if right then table.insert(trails, right) end
+			if left then table.insert(trails, left) end
+		elseif shape.hand == "Left" then
+			clip = look.clips.SwingAlt or clip
+			if left then table.insert(trails, left) end
+		elseif right then
+			table.insert(trails, right)
+		end
+	else
+		local trail = trailOf(tool)
+		if trail then table.insert(trails, trail) end
+		if look and look.clips.SwingAlt then
+			useAlt = not useAlt
+			if useAlt then clip = look.clips.SwingAlt end
+		end
 	end
-	if trail then
+	for _, trail in trails do
 		trail.Enabled = true
 		task.delay(if clip then clip.seconds * 0.8 else 0.3, function() trail.Enabled = false end)
 	end
-	if look then Effects.sound(look.sounds.Swing) end
-	if animator and clip then animator:play(clip) end
+	Effects.sound(sound)
+	if animator and clip then
+		local combo = if look and spin then look.vfx.combo else nil
+		if combo then
+			animator:play(clip, function(marker)
+				if marker == "Spin" then Effects.comboSweep(rootFrame, combo) end
+			end)
+		else
+			animator:play(clip)
+		end
+	end
 end
 
--- When the blade reaches the corn: the swing's Hit marker as a fraction of swingSeconds.
-local function hitLead(toolId: string, definition: Types.ToolDefinition): number
+-- When the blade reaches the corn: the played clip's Hit marker (the Combo spin for a combo).
+local function hitLead(toolId: string, definition: Types.ToolDefinition, combo: boolean): number
 	local look = ToolPresentation.get(toolId)
-	local clip = if look then look.clips.Swing else nil
+	local clip = if look then (if combo and look.clips.Combo then look.clips.Combo else look.clips.Swing) else nil
 	local at = if clip and clip.markers and clip.markers.Hit then clip.markers.Hit else 0.35
-	return (definition.swingSeconds or 0.3) * at
+	return (if clip then clip.seconds else definition.swingSeconds or 0.3) * at
 end
 
 function Controller.start(feedback: RemoteEvent)
@@ -123,7 +182,7 @@ function Controller.start(feedback: RemoteEvent)
 			-- Same cadence as the server, so a refused swing never animates.
 			if os.clock() - lastSwing < definition.cooldownSeconds then return end
 			lastSwing = os.clock()
-			swing(tool, look)
+			swing(tool, look, toolId, definition)
 		end)
 	end
 	local function watch(container: Instance)
@@ -150,8 +209,11 @@ function Controller.start(feedback: RemoteEvent)
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not root then Highlight.setToolTargets({}) return end
-		-- Same targeting rule as the server, so the glow shows exactly what the swing will cut.
-		Highlight.setToolTargets(ToolRules.pickTargets(root.Position, root.CFrame.LookVector, myStalks(), Config.Tools[heldId]))
+		-- Same targeting rule as the server, so the glow shows exactly what the swing will cut
+		-- (for alternating tools: the next hand's arc, or the full combo circle when it is ready).
+		local definition = Config.Tools[heldId]
+		local shape = if ToolRules.alternates(definition) then ToolRules.nextSwing(definition, predicted(heldId), os.clock()) else nil
+		Highlight.setToolTargets(ToolRules.pickTargets(root.Position, root.CFrame.LookVector, myStalks(), definition, shape))
 	end)
 
 	-- Where pulled ears land: the holder's chest, followed while they fly.
@@ -166,12 +228,24 @@ function Controller.start(feedback: RemoteEvent)
 	-- Only stalks the server actually harvested get them; a refused swing shows nothing. Pull
 	-- tools (Harvest Hook) also throw a streak to each stalk and fly its ear back to the player.
 	feedback.OnClientEvent:Connect(function(response)
+		-- Alternating tools: take the server's word for whose hand is next and the streak. (Refused
+		-- swings carry no tool id; they belong to the tool in hand.)
+		if typeof(response.hand) == "string" and typeof(response.streak) == "number" then
+			local toolId = if typeof(response.tool) == "string" then response.tool else heldId
+			if toolId and Config.Tools[toolId] and ToolRules.alternates(Config.Tools[toolId]) then
+				local state = predicted(toolId)
+				state.hand = if response.hand == "Right" then "Left" else "Right"
+				state.streak = response.streak
+				-- The server counted the hit about half a round trip before this arrived.
+				if response.ok then state.lastHit = os.clock() - 0.1 end
+			end
+		end
 		if not response.ok or typeof(response.tool) ~= "string" or typeof(response.targets) ~= "table" then return end
 		local definition = Config.Tools[response.tool]
 		local look = ToolPresentation.get(response.tool)
 		if not definition or not look then return end
 		local stagger = definition.snipStaggerSeconds or 0.07
-		local lead = hitLead(response.tool, definition)
+		local lead = hitLead(response.tool, definition, response.combo == true)
 		for i, position in response.targets do
 			if typeof(position) == "Vector3" then
 				task.delay(lead + (i - 1) * stagger, function()

@@ -273,6 +273,74 @@ function ToolEffects.hookLine(from: Attachment, to: Vector3, seconds: number)
 	end)
 end
 
+-- Combo Sweep (Twin Sickles): two glowing ribbons whirl once round the player during the spin,
+-- half a turn apart, like the two swirls in the reference render. Each is a Trail between two
+-- attachments on a pooled invisible part (radius -/+ width/2 out from the centre); one
+-- Heartbeat connection turns both and disconnects when the turn ends. A new combo restarts it.
+type Spinner = { part: BasePart, inner: Attachment, outer: Attachment, trail: Trail }
+local spinners: { Spinner } = {}
+local spinner: RBXScriptConnection? = nil
+
+local function newSpinner(): Spinner
+	local part = Instance.new("Part")
+	part.Name = "PopcornComboSweep"
+	part.Size, part.Transparency = Vector3.new(0.2, 0.2, 0.2), 1
+	part.Anchored, part.CanCollide, part.CanQuery, part.CanTouch, part.CastShadow = true, false, false, false, false
+	part.CFrame = PARKED
+	part.Parent = folder()
+	local inner, outer = Instance.new("Attachment"), Instance.new("Attachment")
+	inner.Parent, outer.Parent = part, part
+	local trail = Instance.new("Trail")
+	trail.Attachment0, trail.Attachment1 = inner, outer
+	trail.Lifetime, trail.MinLength, trail.Enabled = 0.24, 0.05, false
+	trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	trail.LightEmission, trail.FaceCamera = 0.8, false
+	trail.Parent = part
+	return { part = part, inner = inner, outer = outer, trail = trail }
+end
+
+-- `centre` gives the player's root frame each frame (nil once they are gone).
+function ToolEffects.comboSweep(centre: () -> CFrame?, spec: ToolPresentation.ComboVfx)
+	if ToolEffects.particleScale <= 0 then return end
+	local start = centre()
+	if not start then return end
+	local camera = workspace.CurrentCamera
+	if camera and (camera.CFrame.Position - start.Position).Magnitude > FAR then return end
+	for i = 1, 2 do
+		if not spinners[i] or not spinners[i].part.Parent then spinners[i] = newSpinner() end
+	end
+	local look = start.LookVector
+	local yaw0 = math.atan2(-look.X, -look.Z)
+	local started = os.clock()
+	local last = start
+	local function place(turn: number)
+		local at = centre() or last
+		last = at
+		for i, s in spinners do
+			-- Increasing yaw turns counter-clockwise seen from above, the way the body spins.
+			s.part.CFrame = CFrame.new(at.Position + Vector3.new(0, spec.height, 0)) * CFrame.Angles(0, yaw0 + turn + (i - 1) * math.pi, 0)
+		end
+	end
+	place(0)
+	for i, s in spinners do
+		s.inner.Position = Vector3.new(spec.radius - spec.width / 2, 0, 0)
+		s.outer.Position = Vector3.new(spec.radius + spec.width / 2, 0, 0)
+		s.trail.Color = ColorSequence.new(spec.colors[math.min(i, #spec.colors)], Color3.new(1, 1, 1))
+		s.trail:Clear()
+		s.trail.Enabled = true
+	end
+	if spinner then spinner:Disconnect() end
+	spinner = RunService.Heartbeat:Connect(function()
+		local t = math.clamp((os.clock() - started) / spec.seconds, 0, 1)
+		place(2 * math.pi * t)
+		if t >= 1 then
+			for _, s in spinners do s.trail.Enabled = false end
+			if spinner then spinner:Disconnect() end
+			spinner = nil
+		end
+	end)
+end
+
 -- A small burst of leaf flecks where a stalk was cut.
 function ToolEffects.leafBurst(at: Vector3, count: number, color: Color3?)
 	local camera = workspace.CurrentCamera

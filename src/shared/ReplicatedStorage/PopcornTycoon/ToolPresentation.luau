@@ -40,6 +40,10 @@ export type Model = {
 	-- mesh, so `joints` may move the handle mesh itself (the Pitchfork's shaft slides through
 	-- the hand on a thrust). Named points then ride on the handle mesh.
 	holder: boolean?,
+	-- Dual-wield tools (Twin Sickles): the server puts a copy of the model in the left hand while
+	-- the tool is equipped (ToolModels). grip is that copy's hold in the left hand's grip frame,
+	-- normally ToolPresentation.mirrorHold of the right hand's; trailColors tint its SwingTrail.
+	offhand: { grip: CFrame, trailColors: { Color3 } }?,
 }
 -- Hook Pull (PullHarvest tools): each confirmed ear flies a curved path back to the holder.
 -- flySeconds: the flight; rise/sideways: how far the curve bows up and out (studs); line: a
@@ -48,8 +52,13 @@ export type PullVfx = {
 	flySeconds: number, rise: number, sideways: number, lineSeconds: number,
 	earColor: Color3, huskColor: Color3, trailColors: { Color3 },
 }
+-- Combo Sweep (Twin Sickles): two glowing ribbons whirl once round the player during the spin.
+-- radius/width: where the ribbon sits (studs from the player's centre); height above the root.
+export type ComboVfx = { seconds: number, radius: number, width: number, height: number, colors: { Color3 } }
 -- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
-export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean?, pull: PullVfx? }
+export type Vfx = {
+	leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean?, pull: PullVfx?, combo: ComboVfx?,
+}
 export type Presentation = {
 	rarity: string,
 	model: Model,
@@ -66,6 +75,40 @@ function ToolPresentation.hold(forward: Vector3, face: Vector3): CFrame
 	local x = forward.Unit
 	local y = (face - x * x:Dot(face)).Unit
 	return CFrame.fromMatrix(Vector3.zero, x, y):Inverse()
+end
+
+-- The left hand's mirror image of hold(forward, face). Mirroring a hold is not a rotation, but
+-- a head that is symmetric about its flat plane (Twin Sickles; see build_twin_sickles.py) looks
+-- the same flipped over, so flipping its face too turns the mirror into a rotation of the same
+-- mesh: the left copy then curls the other way, as a true mirror image would.
+function ToolPresentation.mirrorHold(forward: Vector3, face: Vector3): CFrame
+	return ToolPresentation.hold(Vector3.new(-forward.X, forward.Y, forward.Z), Vector3.new(face.X, -face.Y, -face.Z))
+end
+
+-- Twin Sickles hold: each hand's handle forward and a little up and out, its crescent tilted
+-- 45 degrees and curling up and inward, so the pair frames the player like the reference render.
+local TWIN_FORWARD, TWIN_FACE = Vector3.new(0.12, 0.3, -1), Vector3.new(-0.7, -0.7, 0)
+-- The left arm has no default tool pose, so Twin Sickles clips hold it up in every key: the
+-- mirror image of the R15 default tool hold measured on the right arm in Play (Nov 6 2026:
+-- RightShoulder (79.2, 0, -6.3), RightElbow (9.8, 0.3, 5.4); a mirror flips Y and Z). `guard`
+-- merges that base into a pose.
+-- Pose angles are applied before the joint's base pose, so on an arm held straight forward
+-- the shoulder's Z turns it sideways (+Z swings either arm toward the character's right) and
+-- the wrist's Z flicks the hand left/right; X lifts it and Y rolls it.
+local TWIN_GUARD: Pose = { LeftShoulder = { 79, 0, 6 }, LeftElbow = { 10, 0, -5 } }
+local function guard(pose: Pose): Pose
+	local merged: Pose = {}
+	for name, value in TWIN_GUARD do merged[name] = value end
+	for name, value in pose do
+		local base = TWIN_GUARD[name]
+		if base then
+			-- Offsets on a guarded joint are added to the guard, not replacing it.
+			merged[name] = { base[1] + value[1], base[2] + value[2], base[3] + value[3] }
+		else
+			merged[name] = value
+		end
+	end
+	return merged
 end
 
 -- Uploaded original art (assets/tools/_shared/textures).
@@ -312,6 +355,94 @@ local tools: { [string]: Presentation } = {
 			},
 		},
 	},
+	-- A matched pair of polished crescents (assets/tools/Uncommon/TwinSickles, from the creator's
+	-- reference render). One sickle is modelled; the server puts a copy in the left hand. Numbers
+	-- come from build_twin_sickles.py: wrap from -0.86 to 0.68 along X (centre 0.09 behind the
+	-- grip), tip at (0.13, 0, 0.557), front of the curve (2.03, 0, 0.919), top (1.008, 0, 1.799).
+	TwinSickles = {
+		rarity = "Uncommon",
+		model = {
+			template = "TwinSickles", handle = "TwinHandle", gripFromCentre = 0.09, head = "TwinBlade",
+			materials = { TwinHandle = Enum.Material.Wood, TwinBlade = Enum.Material.Metal, TwinPommel = Enum.Material.Metal },
+			grip = ToolPresentation.hold(TWIN_FORWARD, TWIN_FACE),
+			-- Right trail cool blue, left trail green, like the two swirls in the reference.
+			offhand = {
+				grip = ToolPresentation.mirrorHold(TWIN_FORWARD, TWIN_FACE),
+				trailColors = { Color3.fromRGB(240, 255, 236), Color3.fromRGB(120, 235, 140) },
+			},
+			points = {
+				BladeTip = Vector3.new(0.13, 0, 0.557), BladeFront = Vector3.new(2.03, 0, 0.919),
+				BladeCrown = Vector3.new(1.008, 0, 1.799),
+			},
+			-- The leading quarter of the crescent leaves the slash streak.
+			trail = { from = "BladeFront", to = "BladeCrown", lifetime = 0.18,
+				colors = { Color3.fromRGB(240, 250, 255), Color3.fromRGB(120, 190, 255) } },
+		},
+		clips = {
+			-- Both blades drawn up from the hips together with a wrist flourish.
+			Equip = { seconds = 0.34, keys = {
+				{ t = 0, pose = guard({ RightShoulder = { -75, 0, 0 }, RightWrist = { 0, 0, 35 }, LeftShoulder = { -75, 0, 0 }, LeftWrist = { 0, 0, -35 } }) },
+				{ t = 0.6, pose = guard({ RightShoulder = { 8, 0, 0 }, RightWrist = { 0, 0, -12 }, LeftShoulder = { 8, 0, 0 }, LeftWrist = { 0, 0, 12 } }), ease = "Back" },
+				{ t = 1, pose = guard({}) },
+			}, markers = { Shing = 0.55 } },
+			-- A light, ready bounce: the two blades sway against each other.
+			Idle = { seconds = 2.2, loop = true, keys = {
+				{ t = 0, pose = guard({}) },
+				{ t = 0.5, pose = guard({ RightShoulder = { 3, 0, 3 }, RightWrist = { 0, 0, 4 }, LeftShoulder = { 3, 0, -3 }, LeftWrist = { 0, 0, -4 } }) },
+				{ t = 1, pose = guard({}) },
+			} },
+			-- Right-hand slash (0.3 s = Config.Tools.TwinSickles.swingSeconds): cock out to the
+			-- right with a twist, whip across to the left; the left blade swings out of the way.
+			Swing = { seconds = 0.3, keys = {
+				{ t = 0, pose = guard({}) },
+				{ t = 0.22, pose = guard({ Waist = { 0, -20, 0 }, RightShoulder = { 8, 0, 55 }, RightWrist = { 0, 0, 30 },
+					LeftShoulder = { 0, 0, -12 } }), ease = "Quad" },
+				{ t = 0.5, pose = guard({ Waist = { 0, 26, 0 }, RightShoulder = { -4, 0, -70 }, RightWrist = { 0, 0, -25 },
+					LeftShoulder = { 0, 0, -20 } }), ease = "Quad" },
+				{ t = 0.7, pose = guard({ Waist = { 0, 30, 0 }, RightShoulder = { -6, 0, -82 }, RightWrist = { 0, 0, -30 },
+					LeftShoulder = { 0, 0, -22 } }) },
+				{ t = 1, pose = guard({}), ease = "Sine" },
+			}, markers = { Hit = 0.42 } },
+			-- Left-hand slash: the mirror image (Y and Z flip sign on the other side).
+			SwingAlt = { seconds = 0.3, keys = {
+				{ t = 0, pose = guard({}) },
+				{ t = 0.22, pose = guard({ Waist = { 0, 20, 0 }, LeftShoulder = { 8, 0, -55 }, LeftWrist = { 0, 0, -30 },
+					RightShoulder = { 0, 0, 12 } }), ease = "Quad" },
+				{ t = 0.5, pose = guard({ Waist = { 0, -26, 0 }, LeftShoulder = { -4, 0, 70 }, LeftWrist = { 0, 0, 25 },
+					RightShoulder = { 0, 0, 20 } }), ease = "Quad" },
+				{ t = 0.7, pose = guard({ Waist = { 0, -30, 0 }, LeftShoulder = { -6, 0, 82 }, LeftWrist = { 0, 0, 30 },
+					RightShoulder = { 0, 0, 22 } }) },
+				{ t = 1, pose = guard({}), ease = "Sine" },
+			}, markers = { Hit = 0.42 } },
+			-- Combo Sweep: wind up, then a full spin of the body with both blades flung out wide.
+			-- 0.45 s, inside the 0.55 s cooldown. Root is the R15 root joint (R6 rigs skip the spin).
+			-- Spin marks the ribbon effect, Hit the first snips (mid-spin).
+			Combo = { seconds = 0.45, keys = {
+				{ t = 0, pose = guard({ Root = { 0, 0, 0 } }) },
+				{ t = 0.16, pose = guard({ Root = { 0, -20, 0 }, Waist = { 0, -18, 0 }, RightShoulder = { 0, 0, 35 },
+					LeftShoulder = { 0, 0, -35 } }), ease = "Quad" },
+				{ t = 0.72, pose = guard({ Root = { 0, 360, 0 }, Waist = { 0, 8, 0 }, RightShoulder = { 0, 0, 70 },
+					LeftShoulder = { 0, 0, -70 } }), ease = "Linear" },
+				{ t = 1, pose = guard({ Root = { 0, 360, 0 } }), ease = "Sine" },
+			}, markers = { Spin = 0.16, Hit = 0.45 } },
+		},
+		sounds = {
+			-- Original synthesised sounds (assets/tools/Uncommon/TwinSickles/audio) are waiting for
+			-- upload; until then the fallbacks are the Sickle's equip and air swoosh. Combo plays the
+			-- swoosh slowed down. Harvest is the shared stalk snap.
+			Equip = { id = nil, fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 1.02, 1.1 } },
+			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.32, pitch = { 1.05, 1.18 } },
+			Harvest = { id = "rbxassetid://125411384210572", fallback = "rbxassetid://9118831072", volume = 0.45, pitch = { 0.95, 1.15 } },
+			Combo = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.4, pitch = { 0.72, 0.8 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true,
+			combo = {
+				seconds = 0.3, radius = 3.4, width = 1.5, height = 0.3,
+				colors = { Color3.fromRGB(130, 205, 255), Color3.fromRGB(130, 245, 150) },
+			},
+		},
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -351,6 +482,14 @@ function ToolPresentation.validate(toolIds: { string })
 		if pull then
 			assert(pull.flySeconds > 0 and pull.flySeconds <= 1 and pull.lineSeconds >= 0 and #pull.trailColors >= 1,
 				toolId .. " pull effect needs a flight under a second and trail colours")
+		end
+		local offhand = model.offhand
+		if offhand then
+			assert(not model.holder and #offhand.trailColors >= 1, toolId .. " offhand needs trail colours and a mesh handle (no holder)")
+		end
+		local combo = look.vfx.combo
+		if combo then
+			assert(combo.seconds > 0 and combo.radius > combo.width / 2 and #combo.colors >= 1, toolId .. " combo effect is invalid")
 		end
 	end
 end

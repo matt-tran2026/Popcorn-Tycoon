@@ -34,7 +34,13 @@ export type FarmUpgradeDefinition = {
 	base: number, growth: number, currency: Currency,
 }
 -- tool and targets are set for swung tools so the client can play one snip per stalk.
-export type HarvestResult = { ok: boolean, reason: string, amount: number, tool: string?, targets: { Vector3 }? }
+-- Alternating tools (Twin Sickles) also report the hand that swung, whether it was the combo
+-- swing, and the streak of successful swings counted toward the next combo, so the client's
+-- prediction (ToolController) resyncs after every swing.
+export type HarvestResult = {
+	ok: boolean, reason: string, amount: number, tool: string?, targets: { Vector3 }?,
+	hand: SwingHand?, combo: boolean?, streak: number?,
+}
 -- Every price names the balance it is paid from (see Config.Economy).
 export type Currency = "Cash" | "Popcorn"
 export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
@@ -43,12 +49,24 @@ export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" |
 -- LineHarvest (up to maxTargets in a straight lane ahead, laneWidth studs wide) and
 -- PullHarvest (the nearest maxTargets in a long forward cone; the client pulls the ears back).
 export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest" | "PullHarvest"
+-- Alternating dual-wield swings (Twin Sickles): the hands take turns, and every `every`-th
+-- successful swing in a row (each within windowSeconds of the last hit) is a combo swing with
+-- a wider arc.
+export type SwingHand = "Right" | "Left"
+export type ToolCombo = { every: number, arcDegrees: number, windowSeconds: number }
+-- The shape of one swing of an alternating tool; ToolRules.nextSwing decides it.
+export type SwingShape = { hand: SwingHand, combo: boolean }
+-- Per-player swing state of an alternating tool (server truth; the client keeps a prediction).
+export type ComboState = { hand: SwingHand, streak: number, lastHit: number }
 export type ToolDefinition = {
 	displayName: string, description: string, rarity: ToolRarity, behavior: ToolBehavior,
 	-- arcDegrees: the sweep of ArcSweep/SingleTarget tools. laneWidth: the full width of a
 	-- LineHarvest lane, centred on the facing direction.
 	price: number, currency: Currency, reach: number, arcDegrees: number?, laneWidth: number?,
 	maxTargets: number, cooldownSeconds: number, yieldMultiplier: number,
+	-- Alternating tools: each hand's arc is centred sideDegrees toward that hand's side of the
+	-- facing direction; combo makes every n-th successful swing in a row a wider arc.
+	sideDegrees: number?, combo: ToolCombo?,
 	swingSeconds: number?, snipStaggerSeconds: number?, kernelFlySeconds: number?,
 }
 export type TargetCandidate = { id: string, position: Vector3 }

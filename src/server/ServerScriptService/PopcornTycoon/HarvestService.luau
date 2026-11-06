@@ -12,6 +12,9 @@ local Farms = require(script.Parent.FarmService)
 local lastAttempt: { [number]: number } = {}
 -- When each player's next swing is due (os.clock). See HarvestService.swing.
 local swingDue: { [number]: number } = {}
+-- Alternating tools (Twin Sickles): whose hand is next and the streak toward the combo, per
+-- player, for the tool it was counted with (switching tools starts afresh).
+local combos: { [number]: { toolId: string, state: Types.ComboState } } = {}
 local HarvestService = {}
 
 local function result(ok: boolean, reason: string, amount: number?): Types.HarvestResult
@@ -102,6 +105,27 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	if not profile.ownedTools[toolId] or profile.equippedTool ~= toolId then return result(false, tool.displayName .. " not equipped") end
 	local root = livingRoot(player)
 	if not root then return result(false, "Character unavailable") end
+	-- Alternating tools: this swing's hand and whether it is the combo come from the server's own
+	-- count of this player's swings (ToolRules.nextSwing); every outcome below advances it, and
+	-- the response reports it so the client's prediction stays in step.
+	local shape: Types.SwingShape? = nil
+	local comboState: Types.ComboState? = nil
+	if ToolRules.alternates(tool) then
+		local entry = combos[player.UserId]
+		if not entry or entry.toolId ~= toolId then
+			entry = { toolId = toolId, state = ToolRules.newCombo() }
+			combos[player.UserId] = entry
+		end
+		comboState = entry.state
+		shape = ToolRules.nextSwing(tool, entry.state, clock)
+	end
+	local function outcome(response: Types.HarvestResult): Types.HarvestResult
+		if shape and comboState then
+			ToolRules.afterSwing(tool, comboState, shape, response.ok, clock)
+			response.hand, response.combo, response.streak = shape.hand, shape.combo, comboState.streak
+		end
+		return response
+	end
 	local at = now()
 	-- Only ripe stalks are candidates, so growing corn never soaks up a swing's targets.
 	-- Candidates come from every owned plot; each stalk remembers its plot (Farms.fieldOf).
@@ -125,11 +149,13 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	-- narrow arc (Config.validate), so they cut the one nearest ripe stalk in front. LineHarvest
 	-- (Pitchfork) takes the nearest ripe stalks in a straight lane along the facing direction.
 	-- PullHarvest (Harvest Hook) uses the arc rule with a long reach and a 60 degree cone.
+	-- The Twin Sickles are ArcSweep with each hand's arc turned to its side and a combo arc.
 	-- The shape comes from the server's own root part, never from the client.
-	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool)
-	if #picked == 0 then return result(false, "Swing closer to ripe corn") end
+	-- Alternating tools turn each hand's arc toward its side, and the combo widens it.
+	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool, shape)
+	if #picked == 0 then return outcome(result(false, "Swing closer to ripe corn")) end
 	if State.carried(profile) >= State.bagCapacity(profile) then
-		return result(false, "Bag full · pop it at the microwave")
+		return outcome(result(false, "Bag full · pop it at the microwave"))
 	end
 	-- No yields between picking targets and committing every take.
 	local total, full = 0, false
@@ -143,16 +169,17 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 		end
 		if leftOver then full = true end
 	end
-	if total == 0 then return result(false, "Bag full · pop it at the microwave") end
+	if total == 0 then return outcome(result(false, "Bag full · pop it at the microwave")) end
 	player:SetAttribute("RawCorn", State.carried(profile))
 	local response = result(true, if full then "Bag full" else "Harvested", total)
 	response.tool, response.targets = toolId, targets
-	return response
+	return outcome(response)
 end
 
 function HarvestService.release(userId: number)
 	lastAttempt[userId] = nil
 	swingDue[userId] = nil
+	combos[userId] = nil
 end
 
 return HarvestService

@@ -277,10 +277,124 @@ function ToolModels.harvestHook(): Tool
 	return tool
 end
 
+-- Part-built twin sickle (the right-hand one; the left is a copy, see attachOffhand), used until
+-- the Blender template is imported. Built straight in the tool frame (X along the handle toward
+-- the blade, Y the blade's thin axis, Z the side it curls to; grip point at the origin) with the
+-- Blender model's mesh names and points. The crescent follows build_twin_sickles.py: a squashed
+-- circle (0.98 x 0.9) tangent to the handle line at x 1.05, turning 282 degrees toward +Z.
+function ToolModels.twinSickles(): Tool
+	local look = assert(ToolPresentation.get("TwinSickles"))
+	local tool = Instance.new("Tool")
+	tool.Name = "TwinSickles"
+	tool:SetAttribute("ToolId", "TwinSickles")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Slash left and right; every 3rd hit spins"
+	local wood, silver, steel = Color3.fromRGB(110, 72, 44), Color3.fromRGB(196, 202, 210), Color3.fromRGB(204, 210, 218)
+	local metal = Enum.Material.Metal
+	local handle = cylinder(tool, "TwinHandle", 1.54, 0.33, -0.09, wood, Enum.Material.Wood)
+	for i, x in { -0.6, -0.3, 0, 0.3 } do
+		cylinder(tool, "TwinStrap_" .. i, 0.08, 0.37, x, Color3.fromRGB(70, 42, 25), Enum.Material.Leather)
+	end
+	local pommel = cylinder(tool, "TwinPommel", 0.17, 0.42, -0.93, silver, metal)
+	cylinder(tool, "TwinCollar", 0.3, 0.43, 0.79, silver, metal)
+	-- A blade bar from a to b along the spine; the blade's width runs inward (toward the centre).
+	local function bar(name: string, a: Vector3, b: Vector3, width: number, thick: number, inward: Vector3): Part
+		local along = b - a
+		local mid = (a + b) / 2 + inward * (width / 2)
+		return piece(tool, name, Vector3.new(along.Magnitude + 0.03, thick, width), CFrame.fromMatrix(mid, along.Unit, Vector3.yAxis), steel, metal)
+	end
+	local blade = bar("TwinBlade", Vector3.new(0.8, 0, 0), Vector3.new(1.05, 0, 0), 0.4, 0.13, Vector3.zAxis)
+	local centre, segments = Vector3.new(1.05, 0, 0.9), 12
+	local previous = Vector3.new(1.05, 0, 0)
+	for i = 1, segments do
+		local u = i / segments
+		local angle = math.rad(-90 + 282 * u)
+		local point = centre + Vector3.new(0.98 * math.cos(angle), 0, 0.9 * math.sin(angle))
+		local mid = (previous + point) / 2
+		local inward = ((centre - mid) * Vector3.new(1, 0, 1)).Unit
+		bar("TwinArc_" .. i, previous, point, 0.45 * (1 - u) ^ 0.9 + 0.05, 0.13 * (1 - 0.7 * u) + 0.03, inward)
+		previous = point
+	end
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= handle and child ~= blade and child ~= pommel then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = handle, child, child
+		end
+	end
+	rig(handle, { handle :: BasePart, blade, pommel }, CFrame.identity, look)
+	-- The tool frame is the world frame here; express points and grip in the handle's frame.
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, handle.CFrame:PointToObjectSpace(point), handle
+	end
+	handle.Name = "Handle"
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
 local procedural: { [string]: () -> Tool } = {
 	Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers, Pitchfork = ToolModels.pitchfork,
-	HarvestHook = ToolModels.harvestHook,
+	HarvestHook = ToolModels.harvestHook, TwinSickles = ToolModels.twinSickles,
 }
+
+-- Dual-wield tools (look.model.offhand): while the Tool is equipped, the server puts a copy of
+-- its model in the character, welded to the left hand ("LeftGrip"), so every client sees both
+-- blades. The copy is built once from the finished Tool (same meshes, trail and points; the
+-- trail recoloured) and cloned on each equip; it is removed on unequip, and goes with the
+-- character on death. The left hold is look.model.offhand.grip in the same handle frame as
+-- the right one: Tool.Grip = (handle -> tool frame) * grip.
+local function attachOffhand(tool: Tool, look: ToolPresentation.Presentation)
+	local spec = assert(look.model.offhand)
+	local master = Instance.new("Model")
+	master.Name = "Offhand"
+	master:SetAttribute("ToolId", tool:GetAttribute("ToolId"))
+	local copy = tool:Clone()
+	for _, child in copy:GetChildren() do child.Parent = master end
+	copy:Destroy()
+	local handle = master:FindFirstChild("Handle")
+	if not handle or not handle:IsA("BasePart") then
+		warn("[PopcornTycoon] " .. tool.Name .. " has no Handle to copy into the left hand")
+		master:Destroy()
+		return
+	end
+	handle.Name = "OffhandHandle"
+	master.PrimaryPart = handle
+	local trail = master:FindFirstChild("SwingTrail", true)
+	if trail and trail:IsA("Trail") then
+		trail.Color = ColorSequence.new(spec.trailColors[1], spec.trailColors[#spec.trailColors])
+		trail.Enabled = false
+	end
+	local grip = tool.Grip * look.model.grip:Inverse() * spec.grip
+	local held: Model? = nil
+	local function detach()
+		if held then held:Destroy() end
+		held = nil
+	end
+	tool.Equipped:Connect(function()
+		detach()
+		local character = tool.Parent
+		if not character or not character:IsA("Model") then return end
+		local hand = character:FindFirstChild("LeftHand") or character:FindFirstChild("Left Arm")
+		if not hand or not hand:IsA("BasePart") then return end
+		local attachment = hand:FindFirstChild("LeftGripAttachment")
+		local weld = Instance.new("Weld")
+		weld.Name = "LeftGrip"
+		-- R6 arms without the attachment use the classic grip offset (as RightGrip does).
+		weld.C0 = if attachment and attachment:IsA("Attachment") then attachment.CFrame
+			else CFrame.new(0, -1, 0) * CFrame.Angles(-math.pi / 2, 0, 0)
+		weld.C1 = grip
+		local instance = master:Clone()
+		weld.Part0, weld.Part1 = hand, instance.PrimaryPart
+		weld.Parent = instance.PrimaryPart
+		instance.Parent = character
+		held = instance
+	end)
+	tool.Unequipped:Connect(detach)
+	tool.Destroying:Connect(function()
+		detach()
+		master:Destroy()
+	end)
+end
 
 -- The tool frame (see ToolPresentation.Model) recovered from the imported meshes, so it does
 -- not matter how the importer oriented or centred them: X runs along the handle mesh's long
@@ -425,6 +539,7 @@ function ToolModels.build(toolId: string): Tool
 	local built = tool :: Tool
 	if look then addTrail(built, look) end
 	built:SetAttribute("Rarity", if look then look.rarity else nil)
+	if look and look.model.offhand then attachOffhand(built, look) end
 	return built
 end
 
