@@ -80,7 +80,15 @@ export type Player = {
 }
 
 -- Starts layering on a character. Call stop() when the tool is put away or the character goes.
-function ToolAnimator.attach(character: Model): Player
+-- `held` names joints the clips hold outright instead of layering on the Animator: their pose
+-- replaces whatever walk/run animation would move them, at full weight (the Twin Sickles' left
+-- arm, which no default tool hold keeps still the way it keeps the right one). R15 only: R6
+-- joints have different axes, so they keep layering.
+function ToolAnimator.attach(character: Model, held: { string }?): Player
+	local holds: { [string]: boolean } = {}
+	if held and character:FindFirstChild("UpperTorso") then
+		for _, name in held do holds[name] = true end
+	end
 	local joints: { [string]: any } = {} -- Untyped: Transform lives on two unrelated classes.
 	local lastWritten: { [string]: CFrame } = {}
 	local lastBase: { [string]: CFrame } = {}
@@ -101,13 +109,18 @@ function ToolAnimator.attach(character: Model): Player
 		return if found then found else nil
 	end
 
-	local function apply(pose: Pose, weight: number)
+	local function apply(pose: Pose, blend: number)
 		for name, rotation in pose do
 			local j = joint(name)
 			if j then
+				-- A held joint ignores the Animator (base identity) and is never eased toward it: at
+				-- partial weight it would sag toward the hanging rest pose.
+				local weight = if holds[name] then 1 else blend
 				-- If nothing re-posed this joint since our last write, start from the base we
 				-- used then, so rotations never pile up frame after frame.
-				local base = if lastWritten[name] and j.Transform == lastWritten[name] then lastBase[name] else j.Transform
+				local base = if holds[name] then CFrame.identity
+					elseif lastWritten[name] and j.Transform == lastWritten[name] then lastBase[name]
+					else j.Transform
 				local slide = CFrame.new((rotation[4] or 0) * weight, (rotation[5] or 0) * weight, (rotation[6] or 0) * weight)
 				local value = base * slide * CFrame.Angles(math.rad(rotation[1] * weight), math.rad(rotation[2] * weight), math.rad(rotation[3] * weight))
 				j.Transform = value

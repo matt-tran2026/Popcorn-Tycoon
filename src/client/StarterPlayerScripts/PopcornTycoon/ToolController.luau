@@ -49,7 +49,7 @@ local function startAnimator(tool: Tool, look: ToolPresentation.Presentation?)
 	stopAnimator()
 	local character = tool.Parent
 	if not look or not character or not character:IsA("Model") then return end
-	local anim = ToolAnimator.attach(character)
+	local anim = ToolAnimator.attach(character, look.holdJoints)
 	animator = anim
 	anim:setIdle(look.clips.Idle)
 	if look.clips.Equip then

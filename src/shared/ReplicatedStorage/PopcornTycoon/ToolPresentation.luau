@@ -63,6 +63,9 @@ export type Presentation = {
 	rarity: string,
 	model: Model,
 	clips: { [string]: Clip },
+	-- Joints the clips hold outright instead of layering on the walk/run animation (ToolAnimator):
+	-- the Twin Sickles' left arm, which no default tool hold keeps still.
+	holdJoints: { string }?,
 	sounds: { [string]: Sound },
 	vfx: Vfx,
 }
@@ -95,7 +98,7 @@ local TWIN_FORWARD, TWIN_FACE = Vector3.new(0.12, 0.3, -1), Vector3.new(-0.7, -0
 -- Pose angles are applied before the joint's base pose, so on an arm held straight forward
 -- the shoulder's Z turns it sideways (+Z swings either arm toward the character's right) and
 -- the wrist's Z flicks the hand left/right; X lifts it and Y rolls it.
-local TWIN_GUARD: Pose = { LeftShoulder = { 79, 0, 6 }, LeftElbow = { 10, 0, -5 } }
+local TWIN_GUARD: Pose = { LeftShoulder = { 79, 0, 6 }, LeftElbow = { 10, 0, -5 }, LeftWrist = { 0, 0, 0 } }
 local function guard(pose: Pose): Pose
 	local merged: Pose = {}
 	for name, value in TWIN_GUARD do merged[name] = value end
@@ -361,6 +364,9 @@ local tools: { [string]: Presentation } = {
 	-- grip), tip at (0.13, 0, 0.557), front of the curve (2.03, 0, 0.919), top (1.008, 0, 1.799).
 	TwinSickles = {
 		rarity = "Uncommon",
+		-- The left arm is held by the guard pose alone, so running doesn't swing it (and its
+		-- blade) while the right arm stays in the default tool hold (creator, Nov 6).
+		holdJoints = { "LeftShoulder", "LeftElbow", "LeftWrist" },
 		model = {
 			template = "TwinSickles", handle = "TwinHandle", gripFromCentre = 0.09, head = "TwinBlade",
 			materials = { TwinHandle = Enum.Material.Wood, TwinBlade = Enum.Material.Metal, TwinPommel = Enum.Material.Metal },
