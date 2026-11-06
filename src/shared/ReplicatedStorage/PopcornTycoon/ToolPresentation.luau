@@ -295,13 +295,13 @@ local tools: { [string]: Presentation } = {
 			}, markers = { Hit = 0.45 } },
 		},
 		sounds = {
-			-- Original synthesised sounds wait in assets/tools/Common/HarvestHook/audio for upload
-			-- (ids stay nil until then). Fallbacks: the Pitchfork's equip, the Sickle's air swoosh
+			-- Original synthesised sounds (assets/tools/Common/HarvestHook/audio), uploaded Nov 5 2026
+			-- through the Import Queue. Fallbacks: the Pitchfork's equip, the Sickle's air swoosh
 			-- and the shared stalk snap. Pull plays when an ear reaches the player.
-			Equip = { id = nil, fallback = "rbxassetid://80005805168325", volume = 0.3, pitch = { 0.95, 1.05 } },
-			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.35, pitch = { 0.9, 1.0 } },
-			Harvest = { id = nil, fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.92, 1.1 } },
-			Pull = { id = nil, fallback = nil, volume = 0.32, pitch = { 0.95, 1.12 } },
+			Equip = { id = "rbxassetid://134838537880385", fallback = "rbxassetid://80005805168325", volume = 0.3, pitch = { 0.95, 1.05 } },
+			Swing = { id = "rbxassetid://75439704625894", fallback = "rbxassetid://136321679774475", volume = 0.35, pitch = { 0.9, 1.0 } },
+			Harvest = { id = "rbxassetid://121639839244296", fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.92, 1.1 } },
+			Pull = { id = "rbxassetid://71365913156932", fallback = nil, volume = 0.32, pitch = { 0.95, 1.12 } },
 		},
 		vfx = {
 			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true,

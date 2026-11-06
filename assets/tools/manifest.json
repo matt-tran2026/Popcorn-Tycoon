@@ -350,10 +350,14 @@
    ],
    "robloxTemplate": {
     "path": "ServerStorage.PopcornTemplates.Tools.HarvestHook",
-    "imported": false,
-    "importedAt": null,
-    "meshIds": null,
-    "note": "Waiting for the creator's 3D Importer run (read at 100x: scale by 0.01). Until then ToolModels.harvestHook builds a part-built stand-in with the same mesh names, Reach joint and points."
+    "imported": true,
+    "importedAt": "2026-11-05",
+    "meshIds": {
+     "HookBlade": "rbxassetid://96625362843279",
+     "HookHandle": "rbxassetid://114353379394163",
+     "HookPommel": "rbxassetid://86308923628086"
+    },
+    "note": "3D Importer read the FBX at 100x; scaled by 0.01 in Studio. Saved in the place file only."
    },
    "animations": {
     "system": "ToolAnimator pose clips (ToolPresentation.HarvestHook.clips) + Motor6D Reach (holder grip -> leather grip; the hook lunges 1.6 studs out on the throw and snaps 0.6 back on the pull)",
@@ -377,37 +381,37 @@
      "name": "HarvestHook_Equip",
      "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Equip.wav",
      "source": "original, synthesised (scripts/synth_harvest_hook_audio.py)",
-     "assetId": null,
+     "assetId": "rbxassetid://134838537880385",
      "fallback": "rbxassetid://80005805168325",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Import Queue",
+     "inUse": true
     },
     {
      "name": "HarvestHook_Swing",
      "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Swing.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://75439704625894",
      "fallback": "rbxassetid://136321679774475",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Import Queue",
+     "inUse": true
     },
     {
      "name": "HarvestHook_Harvest",
      "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Harvest.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://121639839244296",
      "fallback": "rbxassetid://125411384210572",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Import Queue",
+     "inUse": true
     },
     {
      "name": "HarvestHook_Pull",
      "file": "assets/tools/Common/HarvestHook/audio/HarvestHook_Pull.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://71365913156932",
      "fallback": null,
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Import Queue",
+     "inUse": true
     }
    ],
    "vfx": {
@@ -419,9 +423,9 @@
      "assetId": "rbxassetid://107437834728710"
     }
    },
-   "integration": "PullHarvest gameplay (60 degree cone, 14 studs, 2 targets, 0.45 s); $175 first guess; part-built model until the FBX import",
-   "tests": "HarvestHook 24/24 in Play (2026-11-05, part-built model); real client swing harvested 2, Reach slid -0.56..1.60, 2 hook lines, both ears flew ~10 studs and landed at ~0.7 s; no console errors",
-   "status": "in game with part-built stand-in, Hook Pull animation and VFX; FBX import and sound upload waiting on the creator",
+   "integration": "Blender model in game (ModelSource=Blender); PullHarvest gameplay (60 degree cone, 14 studs, 2 targets, 0.45 s); $175 first guess",
+   "tests": "HarvestHook 24/24 part-built, then 25/25 with the Blender template (2026-11-05, Play); real client swing harvested 2 with ears flying; uploaded sounds load (0.34 / 0.42 / 0.30 / 0.22 s)",
+   "status": "in game with Blender model, Hook Pull animation, VFX and original sounds; waiting on the creator's look and listen",
    "buildScript": "assets/tools/Common/HarvestHook/scripts/build_harvest_hook.py",
    "meshes": {
     "HookHandle": {
