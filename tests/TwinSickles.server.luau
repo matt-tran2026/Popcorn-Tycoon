@@ -152,21 +152,43 @@ local ok, err = pcall(function()
 	check("equip from the shop", assert(Tools.request(player, "Equip", "TwinSickles")).ok)
 	check("equip tracked on the server", waitFor(function() return profile.equippedTool == "TwinSickles" end, 2))
 	local character = assert(player.Character)
-	check("a left-hand copy appears", waitFor(function() return character:FindFirstChild("Offhand") ~= nil end, 2))
-	local copy = character:FindFirstChild("Offhand")
+	local held = assert(character:FindFirstChildOfClass("Tool"))
+	-- The copy lives inside the Tool: in first person Roblox hides character parts outside Tools.
+	check("a left-hand copy appears inside the Tool", waitFor(function() return held:FindFirstChild("Offhand") ~= nil end, 2)
+		and character:FindFirstChild("Offhand") == nil)
+	local copy = held:FindFirstChild("Offhand")
 	-- lihfolk-ignore: findfirstchild-chain (guarded by `and`)
 	local grip = copy and copy:FindFirstChild("LeftGrip", true) :: Weld?
-	check("welded to the left hand", grip ~= nil and grip:IsA("Weld") and (grip :: Weld).Part0 == character:FindFirstChild("LeftHand"))
+	-- lihfolk-ignore: findfirstchild-chain (optional cast, nil-guarded below)
+	local leftHand = character:FindFirstChild("LeftHand") :: BasePart?
+	check("welded to the left hand", grip ~= nil and grip:IsA("Weld") and (grip :: Weld).Part0 == leftHand)
+	-- Every part of the copy must sit in the left hand as the mirror of the right one (Nov 6: the
+	-- copy's WeldConstraints once left its blade ~110 studs away).
+	-- lihfolk-ignore: findfirstchild-chain (optional cast, nil-guarded below)
+	local rightHand = character:FindFirstChild("RightHand") :: BasePart?
+	local mirrored, worst = copy ~= nil and leftHand ~= nil and rightHand ~= nil, 0
+	if copy and leftHand and rightHand then
+		for _, part in copy:GetChildren() do
+			if part:IsA("BasePart") then
+				local twin = held:FindFirstChild(if part.Name == "OffhandHandle" then "Handle" else part.Name)
+				if not twin or not twin:IsA("BasePart") then mirrored = false continue end
+				local l = leftHand.CFrame:PointToObjectSpace(part.Position)
+				local r = rightHand.CFrame:PointToObjectSpace(twin.Position)
+				worst = math.max(worst, (l - Vector3.new(-r.X, r.Y, r.Z)).Magnitude)
+			end
+		end
+	end
+	check("left copy mirrors the right blade in its hand", mirrored and worst < 0.1, string.format("worst %.3f studs", worst))
 	local copyTrail = copy and copy:FindFirstChild("SwingTrail", true)
 	check("left trail is green", copyTrail ~= nil and copyTrail:IsA("Trail")
 		and (copyTrail :: Trail).Color.Keypoints[1].Value == offhand.trailColors[1])
 	task.wait(Config.Shop.requestCooldownSeconds)
 	Tools.request(player, "Equip", "Manual")
-	check("unequip removes the copy", waitFor(function() return character:FindFirstChild("Offhand") == nil end, 2))
+	check("unequip removes the copy", waitFor(function() return held:FindFirstChild("Offhand") == nil end, 2))
 	task.wait(Config.Shop.requestCooldownSeconds)
 	Tools.request(player, "Equip", "TwinSickles")
-	check("re-equip brings exactly one copy back", waitFor(function() return character:FindFirstChild("Offhand") ~= nil end, 2)
-		and #(function() local n = {} for _, ch in character:GetChildren() do if ch.Name == "Offhand" then table.insert(n, ch) end end return n end)() == 1)
+	check("re-equip brings exactly one copy back", waitFor(function() return held:FindFirstChild("Offhand") ~= nil end, 2)
+		and #(function() local n = {} for _, ch in held:GetChildren() do if ch.Name == "Offhand" then table.insert(n, ch) end end return n end)() == 1)
 
 	-- In the field: stand on column 3 of Plot 1 between rows 2 and 3, facing down the column.
 	local field = profile.fields.Plot1

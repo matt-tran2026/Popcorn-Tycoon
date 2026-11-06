@@ -74,9 +74,14 @@ local function predicted(toolId: string): Types.ComboState
 	return fresh.state
 end
 
-local function trailOf(holder: Instance?): Trail?
-	local found = if holder then holder:FindFirstChild("SwingTrail", true) else nil
-	return if found and found:IsA("Trail") then found else nil
+-- The swing trail under `holder`, skipping anything inside `skip` (the right blade's search must
+-- not find the left copy's trail, which sits inside the same Tool).
+local function trailOf(holder: Instance?, skip: Instance?): Trail?
+	if not holder then return nil end
+	for _, item in holder:GetDescendants() do
+		if item:IsA("Trail") and item.Name == "SwingTrail" and not (skip and item:IsDescendantOf(skip)) then return item end
+	end
+	return nil
 end
 
 local function rootFrame(): CFrame?
@@ -89,7 +94,7 @@ end
 -- tools play the hand whose turn it is (Swing right, SwingAlt left) or the Combo spin.
 local function swing(tool: Tool, look: ToolPresentation.Presentation?, toolId: string, definition: Types.ToolDefinition)
 	-- Trails sit on the Handle, or on the moving shaft for tools with a holder grip (Pitchfork);
-	-- the Twin Sickles' left blade is the Offhand model in the character.
+	-- the Twin Sickles' left blade is the Offhand model inside the Tool.
 	local trails: { Trail } = {}
 	local clip = if look then look.clips.Swing else nil
 	local sound = if look then look.sounds.Swing else nil
@@ -100,9 +105,8 @@ local function swing(tool: Tool, look: ToolPresentation.Presentation?, toolId: s
 		-- Only the hand is advanced here; the streak comes from the server's reply.
 		state.hand = if shape.hand == "Right" then "Left" else "Right"
 		if shape.combo then state.streak = 0 end
-		local character = tool.Parent
-		local offhand = if character then character:FindFirstChild("Offhand") else nil
-		local right, left = trailOf(tool), trailOf(offhand)
+		local offhand = tool:FindFirstChild("Offhand")
+		local right, left = trailOf(tool, offhand), trailOf(offhand)
 		if shape.combo and look.clips.Combo then
 			clip, spin = look.clips.Combo, true
 			sound = look.sounds.Combo or sound

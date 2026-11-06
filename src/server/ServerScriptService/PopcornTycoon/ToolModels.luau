@@ -338,11 +338,13 @@ local procedural: { [string]: () -> Tool } = {
 }
 
 -- Dual-wield tools (look.model.offhand): while the Tool is equipped, the server puts a copy of
--- its model in the character, welded to the left hand ("LeftGrip"), so every client sees both
--- blades. The copy is built once from the finished Tool (same meshes, trail and points; the
--- trail recoloured) and cloned on each equip; it is removed on unequip, and goes with the
--- character on death. The left hold is look.model.offhand.grip in the same handle frame as
--- the right one: Tool.Grip = (handle -> tool frame) * grip.
+-- its model inside the Tool, welded to the left hand ("LeftGrip"), so every client sees both
+-- blades. It sits in the Tool, not loose in the character, because in first person Roblox's
+-- camera hides every character part that is not inside a Tool (creator's report, Nov 6). The
+-- copy is built once from the finished Tool (same meshes, trail and points; the trail
+-- recoloured) and cloned on each equip; it is removed on unequip. The left hold is
+-- look.model.offhand.grip in the same handle frame as the right one:
+-- Tool.Grip = (handle -> tool frame) * grip.
 local function attachOffhand(tool: Tool, look: ToolPresentation.Presentation)
 	local spec = assert(look.model.offhand)
 	local master = Instance.new("Model")
@@ -359,6 +361,25 @@ local function attachOffhand(tool: Tool, look: ToolPresentation.Presentation)
 	end
 	handle.Name = "OffhandHandle"
 	master.PrimaryPart = handle
+	-- A WeldConstraint keeps whatever offset its parts have when it comes alive. In the copy the
+	-- LeftGrip weld snaps the handle to the hand in that same moment, so the blade's constraint
+	-- caught the wrong offset and the blade stayed ~110 studs away (Nov 6). Fixed Welds carry the
+	-- offset measured here, where the copy's parts still sit as built.
+	local constraints: { WeldConstraint } = {}
+	for _, item in master:GetDescendants() do
+		if item:IsA("WeldConstraint") then table.insert(constraints, item) end
+	end
+	for _, constraint in constraints do
+		local a, b = constraint.Part0, constraint.Part1
+		if a and b then
+			local weld = Instance.new("Weld")
+			weld.Name = "OffhandWeld"
+			weld.Part0, weld.Part1 = a, b
+			weld.C0, weld.C1 = a.CFrame:ToObjectSpace(b.CFrame), CFrame.identity
+			weld.Parent = constraint.Parent
+		end
+		constraint:Destroy()
+	end
 	local trail = master:FindFirstChild("SwingTrail", true)
 	if trail and trail:IsA("Trail") then
 		trail.Color = ColorSequence.new(spec.trailColors[1], spec.trailColors[#spec.trailColors])
@@ -386,7 +407,7 @@ local function attachOffhand(tool: Tool, look: ToolPresentation.Presentation)
 		local instance = master:Clone()
 		weld.Part0, weld.Part1 = hand, instance.PrimaryPart
 		weld.Parent = instance.PrimaryPart
-		instance.Parent = character
+		instance.Parent = tool
 		held = instance
 	end)
 	tool.Unequipped:Connect(detach)
