@@ -255,10 +255,14 @@
    ],
    "robloxTemplate": {
     "path": "ServerStorage.PopcornTemplates.Tools.Pitchfork",
-    "imported": false,
-    "importedAt": null,
-    "meshIds": null,
-    "note": "Waiting for the creator's 3D Importer upload (scale by 0.01). Until then ToolModels.pitchfork (part-built, same names, holder grip and Thrust motor) is used."
+    "imported": true,
+    "importedAt": "2026-11-05",
+    "meshIds": {
+     "PitchforkHandle": "rbxassetid://107622738041006",
+     "PitchforkHead": "rbxassetid://101764799103893"
+    },
+    "modelAssetId": "rbxassetid://126504015593495",
+    "note": "3D Importer read the FBX at 100x; scaled by 0.01 in Studio. Saved in the place file only."
    },
    "animations": {
     "system": "ToolAnimator pose clips (ToolPresentation.Pitchfork.clips) + Motor6D Thrust (holder grip -> shaft, slides 1.9 studs on the jab)",
@@ -282,28 +286,28 @@
      "name": "Pitchfork_Equip",
      "file": "assets/tools/Common/Pitchfork/audio/Pitchfork_Equip.wav",
      "source": "original, synthesised (scripts/synth_pitchfork_audio.py)",
-     "assetId": null,
+     "assetId": "rbxassetid://80005805168325",
      "fallback": "rbxassetid://116936988986525",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": true
     },
     {
      "name": "Pitchfork_Thrust",
      "file": "assets/tools/Common/Pitchfork/audio/Pitchfork_Thrust.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://76327908959778",
      "fallback": "rbxassetid://136321679774475",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": true
     },
     {
      "name": "Pitchfork_Stab",
      "file": "assets/tools/Common/Pitchfork/audio/Pitchfork_Stab.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://118142725285059",
      "fallback": "rbxassetid://125411384210572",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-05 via Asset Manager import",
+     "inUse": true
     }
    ],
    "vfx": {
@@ -313,9 +317,9 @@
      "assetId": "rbxassetid://107437834728710"
     }
    },
-   "integration": "LineHarvest gameplay (ToolRules lane 11 x 4 studs, 3 targets, 0.8 s); $150 first guess; part-built model in game until the FBX import",
-   "tests": "Pitchfork 24/24 (2026-11-05, Play); real F-key thrust harvested 3; client thrust sampled (slide 1.9, head 7.3 studs ahead at the jab)",
-   "status": "in game (part-built stand-in); Blender FBX and original sounds made, waiting on the creator's import and audio upload",
+   "integration": "Blender model in game (ModelSource=Blender); LineHarvest gameplay (lane 11 x 4 studs, 3 targets, 0.8 s); $150 first guess",
+   "tests": "Pitchfork 24/24 part-built, then 25/25 with the Blender template (2026-11-05, Play); real thrust harvested 3; uploaded sounds load (0.36 / 0.46 / 0.30 s)",
+   "status": "in game with Blender model, thrust animation, VFX and original sounds; waiting on the creator's look and listen",
    "buildScript": "assets/tools/Common/Pitchfork/scripts/build_pitchfork.py",
    "meshes": {
     "PitchforkHandle": {

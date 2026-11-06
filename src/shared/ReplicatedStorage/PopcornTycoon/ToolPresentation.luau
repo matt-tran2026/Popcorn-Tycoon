@@ -227,12 +227,11 @@ local tools: { [string]: Presentation } = {
 			}, markers = { Hit = 0.48 } },
 		},
 		sounds = {
-			-- Original synthesised sounds are in assets/tools/Common/Pitchfork/audio, waiting for
-			-- the creator's upload (no ids yet). Until then the Sickle's uploaded equip, swoosh
-			-- and stalk snap stand in.
-			Equip = { id = nil, fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.92, 0.98 } },
-			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.36, pitch = { 0.82, 0.9 } },
-			Harvest = { id = nil, fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.9, 1.08 } },
+			-- Original synthesised sounds (assets/tools/Common/Pitchfork/audio), uploaded Nov 5 2026
+			-- through the Asset Manager. Fallbacks are the Sickle's equip, swoosh and stalk snap.
+			Equip = { id = "rbxassetid://80005805168325", fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.95, 1.05 } },
+			Swing = { id = "rbxassetid://76327908959778", fallback = "rbxassetid://136321679774475", volume = 0.36, pitch = { 0.94, 1.06 } },
+			Harvest = { id = "rbxassetid://118142725285059", fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.9, 1.1 } },
 		},
 		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 5, leafColor = Color3.new(1, 1, 1), snipFlash = true },
 	},

@@ -85,3 +85,10 @@ From the creator's reference render and catalog card (3 stalks, 0.8 s, 11 studs,
 Console: no errors. Screen captures in Play rendered only the GUI this session (3D viewport blank), so the look was checked by numbers, not by eye.
 
 **Not verified:** how the fork looks in Play by eye, the Blender meshes in game (pending import; the holder path through `fromTemplate` is untested with real meshes), how the WAVs sound, touch devices, a second player watching (pose clips and the slide are local only), R6 avatars.
+
+### Pitchfork imported and sounds uploaded (later on November 5)
+
+At the creator's request Claude did both steps with desktop control. The 3D Importer (Upload on) read `exports/Pitchfork.fbx` at 100×; it was scaled by 0.01 (6.28 studs long), stored at `ServerStorage.PopcornTemplates.Tools.Pitchfork`, and the place was saved (local file only). Mesh ids: PitchforkHandle `rbxassetid://107622738041006`, PitchforkHead `rbxassetid://101764799103893`; model `rbxassetid://126504015593495`. The three WAVs were uploaded through the Asset Manager (0 Robux): Equip `rbxassetid://80005805168325`, Thrust `rbxassetid://76327908959778`, Stab `rbxassetid://118142725285059`, each checked with `GetProductInfo` and set in `ToolPresentation.Pitchfork.sounds` (pitch ranges back to ±5% now the sounds are the originals).
+
+`tests/Pitchfork.server.luau` against the real template: **25/25 pass** (`ModelSource = Blender`; new check: the grip sits on the shaft axis 0.498 behind its centre; the symmetric-head tool frame and holder path work with imported meshes). On the client all three sounds load (0.36, 0.46, 0.30 s), the thrust moves the head from 5.4 to 7.1 studs ahead, and a thrust harvested 3. Pending: the creator's look and listen.
+

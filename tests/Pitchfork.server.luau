@@ -86,6 +86,10 @@ local ok, err = pcall(function()
 		local headAt = frame:PointToObjectSpace((head :: BasePart).Position)
 		check("head ahead of the hand along tool X", headAt.X > 3 and headAt.X < 4.3 and math.abs(headAt.Z) < 0.3,
 			string.format("%.2f, %.2f, %.2f", headAt.X, headAt.Y, headAt.Z))
+		-- The grip point sits on the shaft axis, 0.498 behind the shaft mesh's centre.
+		local shaftAt = frame:PointToObjectSpace((shaft :: BasePart).Position)
+		check("grip sits on the shaft", math.abs(shaftAt.X - 0.498) < 0.05 and math.abs(shaftAt.Y) < 0.05 and math.abs(shaftAt.Z) < 0.05,
+			string.format("%.3f, %.3f, %.3f", shaftAt.X, shaftAt.Y, shaftAt.Z))
 	end
 	tool:Destroy()
 
