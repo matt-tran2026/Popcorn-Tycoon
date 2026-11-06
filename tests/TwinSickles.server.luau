@@ -132,6 +132,10 @@ local ok, err = pcall(function()
 		if tool:GetAttribute("ModelSource") == "Blender" then
 			check("Blender materials", (handle :: BasePart).Material == Enum.Material.Wood and blade ~= nil
 				and (blade :: BasePart).Material == Enum.Material.Metal)
+			-- The real blade mesh must sit where the build put it: its centre inside the crescent.
+			local bladeAt = frame:PointToObjectSpace((blade :: BasePart).Position)
+			check("blade mesh centre inside the crescent", math.abs(bladeAt.X - 1.05) < 0.1 and math.abs(bladeAt.Z - 0.79) < 0.1 and math.abs(bladeAt.Y) < 0.05,
+				string.format("%.2f, %.2f, %.2f", bladeAt.X, bladeAt.Y, bladeAt.Z))
 		end
 	end
 	tool:Destroy()
@@ -244,8 +248,6 @@ local ok, err = pcall(function()
 		local untilAt = os.clock() + 90
 		while os.clock() < untilAt do
 			ripenWhere(function() return true end)
-			profile.rawCorn.Normal = 0
-			player:SetAttribute("RawCorn", 0)
 			task.wait(0.5)
 		end
 	end)

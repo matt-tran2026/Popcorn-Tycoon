@@ -427,13 +427,13 @@ local tools: { [string]: Presentation } = {
 			}, markers = { Spin = 0.16, Hit = 0.45 } },
 		},
 		sounds = {
-			-- Original synthesised sounds (assets/tools/Uncommon/TwinSickles/audio) are waiting for
-			-- upload; until then the fallbacks are the Sickle's equip and air swoosh. Combo plays the
-			-- swoosh slowed down. Harvest is the shared stalk snap.
-			Equip = { id = nil, fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 1.02, 1.1 } },
-			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.32, pitch = { 1.05, 1.18 } },
+			-- Original synthesised sounds (assets/tools/Uncommon/TwinSickles/audio), uploaded Nov 6 2026
+			-- through the Import Queue. Fallbacks are the Sickle's equip and air swoosh. Harvest is
+			-- the shared stalk snap.
+			Equip = { id = "rbxassetid://87090173268579", fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.96, 1.05 } },
+			Swing = { id = "rbxassetid://85859553374268", fallback = "rbxassetid://136321679774475", volume = 0.32, pitch = { 0.95, 1.08 } },
 			Harvest = { id = "rbxassetid://125411384210572", fallback = "rbxassetid://9118831072", volume = 0.45, pitch = { 0.95, 1.15 } },
-			Combo = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.4, pitch = { 0.72, 0.8 } },
+			Combo = { id = "rbxassetid://92449086112694", fallback = "rbxassetid://136321679774475", volume = 0.4, pitch = { 0.96, 1.04 } },
 		},
 		vfx = {
 			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true,

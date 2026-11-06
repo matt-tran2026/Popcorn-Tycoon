@@ -463,10 +463,14 @@
    ],
    "robloxTemplate": {
     "path": "ServerStorage.PopcornTemplates.Tools.TwinSickles",
-    "imported": false,
-    "importedAt": null,
-    "meshIds": null,
-    "note": "Waiting for the creator's 3D Importer upload (scale 0.01 after import). ONE sickle is imported; the server clones it into the left hand. Until then ToolModels.twinSickles (part-built) is used."
+    "imported": true,
+    "importedAt": "2026-11-06",
+    "meshIds": {
+     "TwinBlade": "rbxassetid://101837314957610",
+     "TwinHandle": "rbxassetid://134015441397724",
+     "TwinPommel": "rbxassetid://71296937180499"
+    },
+    "note": "3D Importer read the FBX at 100x; scaled by 0.01 in Studio (sizes match the build). ONE sickle; the server clones it into the left hand. Saved in the place file only."
    },
    "animations": {
     "system": "ToolAnimator pose clips (ToolPresentation.TwinSickles.clips); the left arm is held up by a guard pose mirrored from the measured R15 tool hold; Combo spins the R15 Root joint 360 degrees",
@@ -499,28 +503,28 @@
      "name": "TwinSickles_Equip",
      "file": "assets/tools/Uncommon/TwinSickles/audio/TwinSickles_Equip.wav",
      "source": "original, synthesised (scripts/synth_twin_sickles_audio.py)",
-     "assetId": null,
+     "assetId": "rbxassetid://87090173268579",
      "fallback": "rbxassetid://116936988986525",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-06 via Import Queue",
+     "inUse": true
     },
     {
      "name": "TwinSickles_Swing",
      "file": "assets/tools/Uncommon/TwinSickles/audio/TwinSickles_Swing.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://85859553374268",
      "fallback": "rbxassetid://136321679774475",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-06 via Import Queue",
+     "inUse": true
     },
     {
      "name": "TwinSickles_Combo",
      "file": "assets/tools/Uncommon/TwinSickles/audio/TwinSickles_Combo.wav",
      "source": "original, synthesised",
-     "assetId": null,
+     "assetId": "rbxassetid://92449086112694",
      "fallback": "rbxassetid://136321679774475 (pitched down)",
-     "uploaded": null,
-     "inUse": false
+     "uploaded": "2026-11-06 via Import Queue",
+     "inUse": true
     },
     {
      "name": "Stalk_Snap",
@@ -541,9 +545,9 @@
      "assetId": "rbxassetid://107437834728710"
     }
    },
-   "integration": "Part-built model in game (ModelSource=Procedural) until the FBX import; alternating ArcSweep: 110 degree arcs turned 30 degrees toward the swinging hand, 4 targets, 10 studs, 0.55 s; Combo Sweep every 3rd successful swing in a row within 1.6 s (360 degree arc); left-hand copy welded to LeftHand by the server; $500 first guess",
-   "tests": "TwinSickles 30/30 in Play (2026-11-06, part-built model); client Activate: right slash, left slash, Combo spin with both trails and the sweep ribbons; console clean",
-   "status": "in game with part-built stand-in, animations, VFX and fallback sounds; Blender FBX and original WAVs waiting for the creator's upload",
+   "integration": "Blender model in game (ModelSource=Blender); alternating ArcSweep: 110 degree arcs turned 30 degrees toward the swinging hand, 4 targets, 10 studs, 0.55 s; Combo Sweep every 3rd successful swing in a row within 1.6 s (360 degree arc); left-hand copy welded to LeftHand by the server; $500 first guess",
+   "tests": "TwinSickles 30/30 part-built, then 32/32 with the Blender template (2026-11-06, Play); 3 real client swings harvested 12 (right, left, combo spin); uploaded sounds load (0.42 / 0.24 / 0.50 s); HarvestHook regression 26/26",
+   "status": "in game with Blender model, both-hand animation, Combo spin, VFX and original sounds; waiting on the creator's look and listen",
    "buildScript": "assets/tools/Uncommon/TwinSickles/scripts/build_twin_sickles.py",
    "meshes": {
     "TwinHandle": {
