@@ -576,16 +576,63 @@
    ],
    "conversion": "RawCorn",
    "stage": 1,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
+   "blenderSource": "assets/tools/Uncommon/LongScythe/source/LongScythe.blend",
+   "exportedMesh": "assets/tools/Uncommon/LongScythe/exports/LongScythe.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.LongScythe",
+    "imported": true,
+    "importedAt": "2026-11-06",
+    "meshIds": {
+     "LongScytheHandle": "rbxassetid://122569498796985",
+     "LongScytheBlade": "rbxassetid://81574963108410",
+     "LongScytheFittings": "rbxassetid://105629205337246"
+    },
+    "note": "3D Importer read the FBX at 100x; scaled by 0.01 in Studio. Saved in the place file only."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.LongScythe.clips), two-handed (holdJoints left arm)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Sweep",
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    }
+   },
    "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "vfx": "SwingTrail BladeTip->BladeRoot (0.3 s); vfx.wind: two ribbons (radius 6 and 11.5) sweep 180 degrees right->left at the Sweep marker (ToolEffects.windSweep); leaf bursts",
+   "integration": "Config.Tools.LongScythe (ArcSweep, 180 degrees, 15 studs, 6 targets, 1.1 s, $750)",
+   "tests": "tests/LongScythe.server.luau 25/25 with the Blender template (2026-11-06)",
+   "status": "in game (Blender model); original sounds pending",
+   "styleReference": "Creator's weapon pack (Downloads/Rivals weapon pack.rbxm), construction style only: flat extruded plates, flat colours, dark outline plate, SmoothPlastic. No pack meshes or names used.",
+   "audioNote": "No original sounds yet; fallbacks: Pitchfork equip, Sickle swoosh pitched down, shared stalk snap.",
+   "meshes": {
+    "LongScytheHandle": {
+     "tris": 192,
+     "material": "SmoothPlastic"
+    },
+    "LongScytheBlade": {
+     "tris": 928,
+     "material": "SmoothPlastic",
+     "weldTo": "LongScytheHandle"
+    },
+    "LongScytheFittings": {
+     "tris": 240,
+     "material": "SmoothPlastic",
+     "weldTo": "LongScytheHandle"
+    }
+   },
+   "preview": "assets/tools/Uncommon/LongScythe/previews/LongScythe_preview.png"
   },
   {
    "toolId": "HedgeTrimmer",
@@ -595,17 +642,86 @@
     "LineHarvest"
    ],
    "conversion": "RawCorn",
-   "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "stage": 1,
+   "blenderSource": "assets/tools/Uncommon/HedgeTrimmer/source/HedgeTrimmer.blend",
+   "exportedMesh": "assets/tools/Uncommon/HedgeTrimmer/exports/HedgeTrimmer.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.HedgeTrimmer",
+    "imported": true,
+    "importedAt": "2026-11-06",
+    "meshIds": {
+     "TrimmerHandle": "rbxassetid://77129393679884",
+     "TrimmerBody": "rbxassetid://98265987004681",
+     "TrimmerBar": "rbxassetid://129043930643305",
+     "TrimmerBladeTop": "rbxassetid://86654213098770",
+     "TrimmerBladeBottom": "rbxassetid://80930801017096"
+    },
+    "note": "Imported by the creator with the 3D Importer (read at 100x); scaled by 0.01 by Claude over MCP and moved to the templates folder. Saved in the place file only."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.HedgeTrimmer.clips), two-handed (holdJoints left arm on the front bow); Swing has a buzz layer (blades BladeA/BladeB slide +-0.07 at 22 Hz, wrist jitter)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    }
+   },
+   "audio": [
+    "assets/tools/Uncommon/HedgeTrimmer/audio/HedgeTrimmer_Swing.wav",
+    "assets/tools/Uncommon/HedgeTrimmer/audio/HedgeTrimmer_Harvest.wav",
+    "assets/tools/Uncommon/HedgeTrimmer/audio/HedgeTrimmer_Equip.wav"
+   ],
+   "vfx": "vfx.trim: trim strip (lane-sized Neon rectangle on the ground, fills outward at the Hit marker, ToolEffects.trimStrip); grass flecks from BladeMid and sparks from BladeRoot while the blades run (ToolEffects.bladeSpray); leaf bursts and snip flashes per stalk. No swing trail.",
+   "integration": "Config.Tools.HedgeTrimmer (LineHarvest, laneWidth 6, 8 studs, 5 targets, 0.75 s, $600)",
+   "tests": "tests/HedgeTrimmer.server.luau 25/25 in Play with the Blender template (2026-11-06)",
+   "status": "in game (Blender model, original sounds)",
+   "styleReference": "Creator's weapon pack (Downloads/Rivals weapon pack.rbxm), construction style only, as the Long Scythe. No pack meshes or names used.",
+   "designPage": "https://claude.ai/artifact/UmAQrcS2dihvTcuWqPzebb",
+   "audioNote": "Original synthesised WAVs uploaded by the creator on 2026-11-06.",
+   "meshes": {
+    "TrimmerHandle": {
+     "tris": 248,
+     "material": "SmoothPlastic"
+    },
+    "TrimmerBody": {
+     "tris": 1064,
+     "material": "SmoothPlastic",
+     "weldTo": "TrimmerHandle"
+    },
+    "TrimmerBar": {
+     "tris": 232,
+     "material": "Metal",
+     "weldTo": "TrimmerHandle"
+    },
+    "TrimmerBladeTop": {
+     "tris": 192,
+     "material": "Metal",
+     "motor": "BladeA"
+    },
+    "TrimmerBladeBottom": {
+     "tris": 192,
+     "material": "Metal",
+     "motor": "BladeB"
+    }
+   },
+   "preview": "assets/tools/Uncommon/HedgeTrimmer/previews/HedgeTrimmer_preview.png",
+   "inGameScreenshot": "assets/tools/Uncommon/HedgeTrimmer/previews/HedgeTrimmer_ingame.jpg",
+   "audioIds": {
+    "Swing": "rbxassetid://137220544623359",
+    "Harvest": "rbxassetid://122745530221694",
+    "Equip": "rbxassetid://129080146516303"
+   }
   },
   {
    "toolId": "SpringLoadedPicker",

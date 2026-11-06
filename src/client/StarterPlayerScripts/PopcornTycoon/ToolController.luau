@@ -16,6 +16,8 @@ local Highlight = require(script.Parent.HarvestHighlight)
 local ToolAnimator = require(script.Parent.ToolAnimator)
 local Effects = require(script.Parent.ToolEffects)
 local player = Players.LocalPlayer
+-- (toolId): one swing, sent only when the swing animation plays (Bootstrap.server, ToolService.swing).
+local swingRequest = Shared:WaitForChild("Remotes"):WaitForChild("ToolSwing") :: RemoteEvent
 local Controller = {}
 
 local function myStalks(): { Types.TargetCandidate }
@@ -133,9 +135,25 @@ local function swing(tool: Tool, look: ToolPresentation.Presentation?, toolId: s
 	Effects.sound(sound)
 	if animator and clip then
 		local combo = if look and spin then look.vfx.combo else nil
+		-- Long Scythe: the wind trail sweeps round the player as the blade leaves the wind-up.
+		local wind = if look and not spin then look.vfx.wind else nil
+		-- Hedge Trimmer: grass and sparks off the blade while it runs; at the Hit marker the
+		-- trim strip fills the lane the server cuts (same laneWidth, reach and LaneBehind).
+		local trim = if look and not spin then look.vfx.trim else nil
+		if trim then Effects.bladeSpray(tool, trim) end
 		if combo then
 			animator:play(clip, function(marker)
 				if marker == "Spin" then Effects.comboSweep(rootFrame, combo) end
+			end)
+		elseif wind then
+			animator:play(clip, function(marker)
+				if marker == "Sweep" then Effects.windSweep(rootFrame, wind) end
+			end)
+		elseif trim then
+			animator:play(clip, function(marker)
+				if marker == "Hit" then
+					Effects.trimStrip(rootFrame, trim, definition.laneWidth or 0, definition.reach, ToolRules.LaneBehind)
+				end
 			end)
 		else
 			animator:play(clip)
@@ -183,10 +201,13 @@ function Controller.start(feedback: RemoteEvent)
 			hideMarkers()
 		end)
 		tool.Activated:Connect(function()
-			-- Same cadence as the server, so a refused swing never animates.
+			-- Clicks during the cooldown do nothing. Only a swing that plays here is sent to the
+			-- server, so corn is only ever cut by a swing the player sees (Nov 6 2026; the server
+			-- used to swing on every replicated click and accepted some the client never showed).
 			if os.clock() - lastSwing < definition.cooldownSeconds then return end
 			lastSwing = os.clock()
 			swing(tool, look, toolId, definition)
+			swingRequest:FireServer(toolId)
 		end)
 	end
 	local function watch(container: Instance)

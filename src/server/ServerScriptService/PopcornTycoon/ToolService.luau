@@ -48,17 +48,27 @@ local function give(player: Player, toolId: string)
 		local profile = State.get(player.UserId)
 		if profile and profile.equippedTool == toolId then setEquipped(player, "Manual") end
 	end)
-	-- Activated replicates from the owning client; the server decides what the swing cut.
-	tool.Activated:Connect(function()
-		local response = Harvest.swing(player, toolId)
-		if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
-		if feedback and response.reason ~= "Too fast" then feedback:FireClient(player, response) end
-	end)
+	-- No harvest on Tool.Activated: it replicates every click, including the ones the client's
+	-- cooldown ignores, so spam-clicking cut corn without a visible swing (Nov 6 2026). Swings
+	-- arrive on the ToolSwing remote instead (ToolService.swing).
 	tool.Parent = backpack
 end
 
 function ToolService.init(harvestFeedback: RemoteEvent)
 	feedback = harvestFeedback
+end
+
+-- One swing request from the ToolSwing remote: the client sends it only when it plays the swing
+-- animation. The tool must be the one in the character's hand; HarvestService.swing then checks
+-- ownership, equip state and cadence and decides what the swing cut.
+function ToolService.swing(player: Player, toolId: unknown)
+	if typeof(toolId) ~= "string" or not Config.Tools[toolId] then return end
+	local character = player.Character
+	local held = character and character:FindFirstChildOfClass("Tool")
+	if not held or held:GetAttribute("ToolId") ~= toolId then return end
+	local response = Harvest.swing(player, toolId)
+	if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
+	if feedback and response.reason ~= "Too fast" then feedback:FireClient(player, response) end
 end
 
 function ToolService.track(player: Player)

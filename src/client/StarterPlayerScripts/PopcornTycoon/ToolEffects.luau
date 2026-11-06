@@ -341,6 +341,198 @@ function ToolEffects.comboSweep(centre: () -> CFrame?, spec: ToolPresentation.Co
 	end)
 end
 
+-- Wind trail (Long Scythe's Great Harvest): pale ribbons, one per radius in spec.radii, sweep
+-- spec.degrees round the player from their right, through the front, to their left in
+-- spec.seconds. Same pooled-part-and-Trail build as the combo spinners, in a pool of its own
+-- (at most 3), and one Heartbeat connection that disconnects when the sweep ends.
+local gusts: { Spinner } = {}
+local gust: RBXScriptConnection? = nil
+
+function ToolEffects.windSweep(centre: () -> CFrame?, spec: ToolPresentation.WindVfx)
+	if ToolEffects.particleScale <= 0 then return end
+	local start = centre()
+	if not start then return end
+	local camera = workspace.CurrentCamera
+	if camera and (camera.CFrame.Position - start.Position).Magnitude > FAR then return end
+	local count = math.min(#spec.radii, 3)
+	for i = 1, count do
+		if not gusts[i] or not gusts[i].part.Parent then
+			gusts[i] = newSpinner()
+			gusts[i].part.Name = "PopcornWindSweep"
+			gusts[i].trail.Lifetime = 0.3
+		end
+	end
+	-- The facing at the start of the sweep; the ribbons keep to it even if the player turns.
+	local look = start.LookVector
+	local yaw0 = math.atan2(-look.X, -look.Z)
+	local sweep = math.rad(spec.degrees)
+	local started = os.clock()
+	local last = start
+	local function place(turn: number)
+		local at = centre() or last
+		last = at
+		for i = 1, count do
+			-- Attachments sit on local +X: the player's right at turn 0. Increasing yaw turns
+			-- counter-clockwise seen from above: right -> front -> left.
+			gusts[i].part.CFrame = CFrame.new(at.Position + Vector3.new(0, spec.height, 0)) * CFrame.Angles(0, yaw0 + turn + (math.pi - sweep) / 2, 0)
+		end
+	end
+	place(0)
+	for i = 1, count do
+		local g, radius = gusts[i], spec.radii[i]
+		g.inner.Position = Vector3.new(radius - spec.width / 2, 0, 0)
+		g.outer.Position = Vector3.new(radius + spec.width / 2, 0, 0)
+		g.trail.Color = ColorSequence.new(spec.colors[math.min(i, #spec.colors)], Color3.new(1, 1, 1))
+		g.trail.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25 + 0.15 * (i - 1)), NumberSequenceKeypoint.new(1, 1) })
+		g.trail:Clear()
+		g.trail.Enabled = true
+	end
+	for i = count + 1, #gusts do gusts[i].trail.Enabled = false end
+	if gust then gust:Disconnect() end
+	gust = RunService.Heartbeat:Connect(function()
+		local t = math.clamp((os.clock() - started) / spec.seconds, 0, 1)
+		-- Ease out: the blade is fastest as it leaves the wind-up.
+		place(sweep * (1 - (1 - t) ^ 2))
+		if t >= 1 then
+			for _, g in gusts do g.trail.Enabled = false end
+			if gust then gust:Disconnect() end
+			gust = nil
+		end
+	end)
+end
+
+-- Trim strip (Hedge Trimmer's Precision Cutting): one pooled flat part on the ground in the
+-- shape of the tool's lane (laneWidth wide, from `behind` studs behind the player to `reach`
+-- ahead). It fills from the back edge outward in spec.seconds, then fades over
+-- spec.fadeSeconds. It stays where it was laid down (a cut mark), even if the player turns.
+-- One Heartbeat connection while it shows; a new trim restarts it.
+local strip: BasePart? = nil
+local stripMover: RBXScriptConnection? = nil
+
+local function groundUnder(root: CFrame): number
+	local params = RaycastParams.new()
+	local ignore: { Instance } = { folder() }
+	local character = game:GetService("Players").LocalPlayer.Character
+	if character then table.insert(ignore, character) end
+	params.FilterDescendantsInstances = ignore
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local hit = workspace:Raycast(root.Position, Vector3.new(0, -12, 0), params)
+	return if hit then hit.Position.Y else root.Position.Y - 3
+end
+
+function ToolEffects.trimStrip(centre: () -> CFrame?, spec: ToolPresentation.TrimVfx, laneWidth: number, reach: number, behind: number)
+	if ToolEffects.particleScale <= 0 then return end
+	local start = centre()
+	if not start then return end
+	local camera = workspace.CurrentCamera
+	if camera and (camera.CFrame.Position - start.Position).Magnitude > FAR then return end
+	local part = strip
+	if not part or not part.Parent then
+		local p = Instance.new("Part")
+		p.Name = "PopcornTrimStrip"
+		p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow = true, false, false, false, false
+		p.Material = Enum.Material.Neon
+		p.Parent = folder()
+		part = p
+		strip = p
+	end
+	local s = part :: BasePart
+	s.Color = spec.color
+	local look = Vector3.new(start.LookVector.X, 0, start.LookVector.Z)
+	if look.Magnitude < 1e-3 then return end
+	look = look.Unit
+	local y = groundUnder(start) + 0.08
+	local back = Vector3.new(start.Position.X, y, start.Position.Z) - look * behind
+	local length = behind + reach
+	local frame = CFrame.lookAt(back, back + look)
+	local started = os.clock()
+	local function place(fill: number, transparency: number)
+		local l = math.max(length * fill, 0.05)
+		s.Size = Vector3.new(laneWidth, 0.1, l)
+		s.CFrame = frame * CFrame.new(0, 0, -l / 2)
+		s.Transparency = transparency
+	end
+	place(0, spec.transparency)
+	if stripMover then stripMover:Disconnect() end
+	stripMover = RunService.Heartbeat:Connect(function()
+		local elapsed = os.clock() - started
+		if elapsed < spec.seconds then
+			local t = elapsed / spec.seconds
+			place(1 - (1 - t) ^ 2, spec.transparency)
+		else
+			local fadeT = math.clamp((elapsed - spec.seconds) / spec.fadeSeconds, 0, 1)
+			place(1, spec.transparency + (1 - spec.transparency) * fadeT)
+			if fadeT >= 1 then
+				s.CFrame = PARKED
+				if stripMover then stripMover:Disconnect() end
+				stripMover = nil
+			end
+		end
+	end)
+end
+
+-- Blade spray (Hedge Trimmer): grass flecks from spec.sprayPoint and small sparks from
+-- spec.sparkPoint on the held tool for spec.spraySeconds. The two emitters are made once per
+-- tool (local only, inside its attachments) and switched on and off; at most a few dozen
+-- particles per trim.
+local function sprayEmitter(attachment: Attachment, name: string, build: (ParticleEmitter) -> ()): ParticleEmitter
+	local existing = attachment:FindFirstChild(name)
+	if existing and existing:IsA("ParticleEmitter") then return existing end
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name, emitter.Enabled = name, false
+	build(emitter)
+	emitter.Parent = attachment
+	return emitter
+end
+
+function ToolEffects.bladeSpray(tool: Tool, spec: ToolPresentation.TrimVfx)
+	if ToolEffects.particleScale <= 0 then return end
+	local spray = tool:FindFirstChild(spec.sprayPoint, true)
+	local spark = tool:FindFirstChild(spec.sparkPoint, true)
+	local camera = workspace.CurrentCamera
+	if not (spray and spray:IsA("Attachment")) then return end
+	if camera and (camera.CFrame.Position - spray.WorldPosition).Magnitude > NEAR then return end
+	local emitters: { ParticleEmitter } = {}
+	table.insert(emitters, sprayEmitter(spray, "TrimSpray", function(e)
+		e.Texture = ToolPresentation.Textures.LeafFleck
+		e.Color = ColorSequence.new(spec.sprayColor)
+		e.Rate = 45 * ToolEffects.particleScale
+		e.Lifetime = NumberRange.new(0.35, 0.6)
+		e.Speed = NumberRange.new(6, 10)
+		e.SpreadAngle = Vector2.new(60, 60)
+		e.Acceleration = Vector3.new(0, -24, 0)
+		e.Drag = 3
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new(-360, 360)
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0.2) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.7, 0), NumberSequenceKeypoint.new(1, 1) })
+		e.EmissionDirection = Enum.NormalId.Top
+		e.LightInfluence = 0.6
+	end))
+	if spark and spark:IsA("Attachment") then
+		table.insert(emitters, sprayEmitter(spark, "TrimSparks", function(e)
+			e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			e.Color = ColorSequence.new(spec.sparkColor)
+			e.Rate = 30 * ToolEffects.particleScale
+			e.Lifetime = NumberRange.new(0.12, 0.25)
+			e.Speed = NumberRange.new(5, 9)
+			e.SpreadAngle = Vector2.new(80, 80)
+			e.Acceleration = Vector3.new(0, -30, 0)
+			e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.18), NumberSequenceKeypoint.new(1, 0) })
+			e.LightEmission, e.LightInfluence = 1, 0
+		end))
+	end
+	for _, e in emitters do e.Enabled = true end
+	local token = os.clock()
+	tool:SetAttribute("SprayToken", token)
+	task.delay(spec.spraySeconds, function()
+		if tool:GetAttribute("SprayToken") ~= token then return end
+		for _, e in emitters do
+			if e.Parent then e.Enabled = false end
+		end
+	end)
+end
+
 -- A small burst of leaf flecks where a stalk was cut.
 function ToolEffects.leafBurst(at: Vector3, count: number, color: Color3?)
 	local camera = workspace.CurrentCamera

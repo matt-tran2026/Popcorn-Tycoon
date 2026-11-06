@@ -72,6 +72,25 @@ function ToolAnimator.sample(clip: Clip, t: number): Pose
 	return pose
 end
 
+-- Adds the clip's buzz (a fast vibration, e.g. the Hedge Trimmer's chattering blades) to a
+-- sampled pose: each buzz joint gets its value times sin(2 pi hz elapsed), fading out over the
+-- last 15% of the buzz span. Joints the keys don't pose are added at their buzz value alone.
+function ToolAnimator.addBuzz(clip: Clip, pose: Pose, t: number, elapsed: number)
+	local buzz = clip.buzz
+	if not buzz or t < buzz.from or t > buzz.to then return end
+	local span = buzz.to - buzz.from
+	local fade = math.clamp((buzz.to - t) / math.max(span * 0.15, 1e-6), 0, 1)
+	local wave = math.sin(2 * math.pi * buzz.hz * elapsed) * fade
+	for name, value in buzz.joints do
+		local current = pose[name] or {}
+		local out: { number } = {}
+		for k = 1, math.max(3, #current, #value) do
+			out[k] = (current[k] or 0) + (value[k] or 0) * wave
+		end
+		pose[name] = out
+	end
+end
+
 export type Player = {
 	play: (self: Player, clip: Clip, markers: ((string) -> ())?) -> (),
 	setIdle: (self: Player, clip: Clip?) -> (),
@@ -143,7 +162,9 @@ function ToolAnimator.attach(character: Model, held: { string }?): Player
 					end
 				end
 			end
-			apply(ToolAnimator.sample(clip, t), 1)
+			local pose = ToolAnimator.sample(clip, t)
+			ToolAnimator.addBuzz(clip, pose, t, now - activeStarted)
+			apply(pose, 1)
 			blendIdle = 0
 			if t >= 1 then
 				active = nil

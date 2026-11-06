@@ -10,18 +10,30 @@
 --                     (VendorArm*) swing about their own pivots, the shoulders
 --   Bulb = n          marquee bulb n in its folder; folders chase their lights
 -- One Heartbeat loop moves every part with BulkMoveTo; nothing here reaches the server.
+-- StreamingEnabled is on, so a model can arrive before its parts (or lose and regain them):
+-- parts are tracked as they come and go, and each part's offset is remembered from the first
+-- time it is seen (its server placement), so a part that streams back in rejoins its model.
 local RunService = game:GetService("RunService")
 local AmbientController = {}
 
+type Arm = { hinge: Vector3, side: number, idle: boolean }
+type Entry = {
+	part: BasePart,
+	offset: CFrame,
+	wing: number?, -- wing side (-1 / 1)
+	arm: Arm?, -- vendor shoulder
+}
 type Mover = {
 	model: Model,
 	kind: string,
-	parts: { BasePart },
-	offsets: { CFrame },
 	base: CFrame,
-	wings: { [number]: number }, -- part index -> wing side (-1 / 1)
-	arms: { [number]: { hinge: Vector3, side: number, idle: boolean } }, -- part index -> shoulder
+	entries: { Entry },
+	connections: { RBXScriptConnection },
 }
+
+-- First-seen placement per model and part, so re-tracking never bakes in a client-moved frame.
+local baseCache: { [Model]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+local entryCache: { [BasePart]: { offset: CFrame, hinge: Vector3 } } = setmetatable({}, { __mode = "k" }) :: any
 
 local VENDOR_WAVE_EVERY, VENDOR_WAVE_SECONDS, CHEER_SECONDS = 8, 1.8, 1.6
 
@@ -39,23 +51,42 @@ local function attr(model: Instance, name: string, default: number): number
 	return if typeof(v) == "number" then v else default
 end
 
-local function newMover(model: Model, kind: string): Mover
-	local pivot = model:GetPivot()
-	local parts, offsets, wings, arms = {}, {}, {}, {}
-	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") then
-			table.insert(parts, d)
-			local offset = pivot:ToObjectSpace(d.CFrame)
-			table.insert(offsets, offset)
-			if kind == "Fly" and (d.Name == "Wing" or d.Name == "WingTip") then
-				wings[#parts] = if offset.Position.X < 0 then -1 else 1
-			elseif kind == "Vendor" and string.sub(d.Name, 1, 9) == "VendorArm" then
-				local hinge = pivot:PointToObjectSpace(d:GetPivot().Position)
-				arms[#parts] = { hinge = hinge, side = if hinge.X < 0 then -1 else 1, idle = d.Name == "VendorArmL" }
-			end
-		end
+local function addPart(m: Mover, d: BasePart)
+	for _, e in m.entries do
+		if e.part == d then return end
 	end
-	return { model = model, kind = kind, parts = parts, offsets = offsets, base = pivot, wings = wings, arms = arms }
+	local cached = entryCache[d]
+	if not cached then
+		cached = { offset = m.base:ToObjectSpace(d.CFrame), hinge = m.base:PointToObjectSpace(d:GetPivot().Position) }
+		entryCache[d] = cached
+	end
+	local entry: Entry = { part = d, offset = cached.offset }
+	if m.kind == "Fly" and (d.Name == "Wing" or d.Name == "WingTip") then
+		entry.wing = if cached.offset.Position.X < 0 then -1 else 1
+	elseif m.kind == "Vendor" and string.sub(d.Name, 1, 9) == "VendorArm" then
+		entry.arm = { hinge = cached.hinge, side = if cached.hinge.X < 0 then -1 else 1, idle = d.Name == "VendorArmL" }
+	end
+	table.insert(m.entries, entry)
+end
+
+local function removePart(m: Mover, d: Instance)
+	for i, e in m.entries do
+		if e.part == d then table.remove(m.entries, i) return end
+	end
+end
+
+local function newMover(model: Model, kind: string): Mover
+	local base = baseCache[model] or model:GetPivot()
+	baseCache[model] = base
+	local m: Mover = { model = model, kind = kind, base = base, entries = {}, connections = {} }
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then addPart(m, d) end
+	end
+	table.insert(m.connections, model.DescendantAdded:Connect(function(d)
+		if d:IsA("BasePart") then addPart(m, d) end
+	end))
+	table.insert(m.connections, model.DescendantRemoving:Connect(function(d) removePart(m, d) end))
+	return m
 end
 
 function AmbientController.start()
@@ -69,8 +100,10 @@ function AmbientController.start()
 		local kind = d:GetAttribute("Ambient")
 		if d:IsA("Model") and typeof(kind) == "string" then
 			tracked[d] = true
-			-- Wait a frame so every child part has replicated before offsets are taken.
-			task.defer(function() table.insert(movers, newMover(d, kind)) end)
+			-- Wait a frame so parts replicated with the model are in place first.
+			task.defer(function()
+				if d.Parent then table.insert(movers, newMover(d, kind)) else tracked[d] = nil end
+			end)
 		elseif d:IsA("BillboardGui") and kind == "Hover" then
 			tracked[d] = true
 			table.insert(hovers, d)
@@ -101,9 +134,13 @@ function AmbientController.start()
 		for i = #movers, 1, -1 do
 			local m = movers[i]
 			if not m.model.Parent then
+				-- Streamed out: forget it so it is picked up again if it streams back in.
+				for _, c in m.connections do c:Disconnect() end
+				tracked[m.model] = nil
 				table.remove(movers, i)
 				continue
 			end
+			if #m.entries == 0 then continue end
 			local model = m.model
 			local pivot: CFrame
 			local armLift, idleLift = 0, 0
@@ -134,14 +171,16 @@ function AmbientController.start()
 				end
 			end
 			local flap = if m.kind == "Fly" then math.sin(t * 9 + attr(model, "OrbitPhase", 0) * 3) * 0.45 else 0
-			for index, p in m.parts do
-				local offset = m.offsets[index]
-				local side = m.wings[index]
+			for _, e in m.entries do
+				local p = e.part
+				if not p.Parent then continue end
+				local offset = e.offset
+				local side = e.wing
 				if side then
 					local hinge = Vector3.new(side * 0.35, 0.3, 0)
 					offset = CFrame.new(hinge) * CFrame.Angles(0, 0, side * flap) * CFrame.new(-hinge) * offset
 				end
-				local arm = m.arms[index]
+				local arm = e.arm
 				if arm then
 					-- Raise the arm outward about the shoulder (a cheer beats the idle wave).
 					local lift = math.max(armLift, if arm.idle then idleLift else 0)

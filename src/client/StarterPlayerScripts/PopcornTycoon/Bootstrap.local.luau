@@ -271,6 +271,7 @@ require(script.Parent.MicrowaveController).start()
 require(script.Parent.PadController).start()
 -- Owner-only Developer Panel (F4): builds nothing unless the server confirms an Owner in Studio.
 require(script.Parent.AdminController).start()
+require(script.Parent.MenuCursor).start()
 -- Orient the initial normal third-person camera toward this player's farm.
 -- Camera controls remain Roblox's default after this one-time placement.
 task.spawn(function()

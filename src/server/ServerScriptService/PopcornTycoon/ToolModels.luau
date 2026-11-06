@@ -332,9 +332,147 @@ function ToolModels.twinSickles(): Tool
 	return tool
 end
 
+-- Part-built long scythe, used until the Blender template is imported. Built straight in the
+-- tool frame (X along the shaft toward the blade, Y the blade's thin axis, Z the side it reaches
+-- to; grip point at the origin) with the Blender model's mesh names and points, in the pack-style
+-- flat colours. The blade follows build_long_scythe.py: a cubic Bezier spine from the shaft top
+-- (4.95) bulging out and curling back toward the butt, the edge on the inside of the curve.
+function ToolModels.longScythe(): Tool
+	local look = assert(ToolPresentation.get("LongScythe"))
+	local tool = Instance.new("Tool")
+	tool.Name = "LongScythe"
+	tool:SetAttribute("ToolId", "LongScythe")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Great Harvest: sweep 6 stalks in a wide half circle"
+	local plastic = Enum.Material.SmoothPlastic
+	local wood, iron, ironDark = Color3.fromRGB(150, 104, 64), Color3.fromRGB(128, 133, 141), Color3.fromRGB(84, 89, 98)
+	local rim, steel, edge = Color3.fromRGB(86, 93, 106), Color3.fromRGB(200, 207, 216), Color3.fromRGB(246, 248, 252)
+	local handle = cylinder(tool, "LongScytheHandle", 6.66, 0.29, 2.03, wood, plastic)
+	cylinder(tool, "LongScytheFittings", 0.28, 0.36, -1.18, iron, plastic)
+	for i, x in { 0.6, 2.7 } do
+		cylinder(tool, "LongScytheNib_" .. i, 0.26, 0.4, x, ironDark, plastic)
+		piece(tool, "LongScytheNibPeg_" .. i, Vector3.new(0.14, 0.14, 0.45), CFrame.new(x, 0, 0.37), iron, plastic)
+	end
+	cylinder(tool, "LongScytheCollar", 0.5, 0.46, 4.87, iron, plastic)
+	-- Spine points of the crescent (tool frame x, z) and the width toward the inside of the curve.
+	local p0, p1, p2, p3 = Vector3.new(4.95, 0, 0), Vector3.new(6.15, 0, 1.5), Vector3.new(5.35, 0, 3.55), Vector3.new(3.3, 0, 3.65)
+	local function at(t: number): Vector3
+		local u = 1 - t
+		return p0 * u ^ 3 + p1 * 3 * u * u * t + p2 * 3 * u * t * t + p3 * t ^ 3
+	end
+	local function plate(name: string, a: Vector3, b: Vector3, width: number, thick: number, color: Color3): Part
+		local along = b - a
+		local inward = along.Unit:Cross(Vector3.yAxis) -- toward the inside of the curve (-X at the root)
+		local mid = (a + b) / 2 + inward * (width / 2)
+		return piece(tool, name, Vector3.new(along.Magnitude + 0.04, thick, width), CFrame.fromMatrix(mid, along.Unit, Vector3.yAxis), color, plastic)
+	end
+	local segments = 10
+	local blade: Part? = nil
+	for i = 1, segments do
+		local t0, t1 = (i - 1) / segments, i / segments
+		local a, b = at(t0), at(t1)
+		local tm = (t0 + t1) / 2
+		local width = 0.98 * math.min(1, 0.55 + tm * 4.5) * (1 - tm) ^ 0.8 + 0.04
+		-- Pack-style layers: a darker outline plate, the silver face, a bright edge band.
+		local back = plate(if i == 1 then "LongScytheBlade" else "LongScytheRim_" .. i, a, b, width + 0.12, 0.2, rim)
+		if i == 1 then blade = back end
+		plate("LongScytheFace_" .. i, a, b, width * 0.75, 0.26, steel)
+		local inward = (b - a).Unit:Cross(Vector3.yAxis)
+		plate("LongScytheEdge_" .. i, a + inward * width * 0.75, b + inward * width * 0.75, width * 0.25, 0.24, edge)
+	end
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= handle and child ~= blade then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = handle, child, child
+		end
+	end
+	rig(handle, { handle :: BasePart, blade :: Part }, CFrame.identity, look)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, handle.CFrame:PointToObjectSpace(point), handle
+	end
+	handle.Name = "Handle"
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
+-- Part-built hedge trimmer, used until the Blender template is imported. Built straight in the
+-- tool frame (X along the bar toward the tip, Y the blades' thin axis, Z from the housing toward
+-- the bar; grip point on the rear loop at the origin) with the Blender model's mesh names,
+-- blade joints and points, in the design page's flat colours. Blender (x, y, z) -> (x, z, -y).
+function ToolModels.hedgeTrimmer(): Tool
+	local look = assert(ToolPresentation.get("HedgeTrimmer"))
+	local tool = Instance.new("Tool")
+	tool.Name = "HedgeTrimmer"
+	tool:SetAttribute("ToolId", "HedgeTrimmer")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Precision Cutting: trim 5 stalks in a narrow strip straight ahead"
+	local plastic, metal = Enum.Material.SmoothPlastic, Enum.Material.Metal
+	local green, greenDark = Color3.fromRGB(79, 174, 50), Color3.fromRGB(47, 122, 34)
+	local orange, vent = Color3.fromRGB(242, 138, 26), Color3.fromRGB(43, 47, 51)
+	local steel, steelLight, steelDark = Color3.fromRGB(169, 176, 184), Color3.fromRGB(227, 232, 237), Color3.fromRGB(107, 115, 124)
+	local function box(name: string, size: Vector3, at: Vector3, color: Color3, material: Enum.Material): Part
+		return piece(tool, name, size, CFrame.new(at), color, material)
+	end
+	-- Rear loop: the grip bar (the Handle), the back post and the bottom bar; the trigger.
+	local handle = box("TrimmerHandle", Vector3.new(1.07, 0.3, 0.3), Vector3.new(0.085, 0, 0), green, plastic)
+	box("TrimmerLoopBack", Vector3.new(0.3, 0.3, 1.16), Vector3.new(-0.6, 0, 0.43), green, plastic)
+	box("TrimmerLoopBottom", Vector3.new(1.22, 0.3, 0.3), Vector3.new(0.01, 0, 0.86), green, plastic)
+	box("TrimmerTrigger", Vector3.new(0.33, 0.18, 0.3), Vector3.new(0.215, 0, 0.23), orange, plastic)
+	-- Housing with its dark outline, orange side panel and vent window.
+	local body = box("TrimmerBody", Vector3.new(1.5, 1.04, 1.46), Vector3.new(1.25, 0, 0.27), green, plastic)
+	box("TrimmerOutline", Vector3.new(1.62, 0.92, 1.58), Vector3.new(1.25, 0, 0.27), greenDark, plastic)
+	box("TrimmerPanel", Vector3.new(0.68, 1.26, 0.5), Vector3.new(1.56, 0, 0.35), orange, plastic)
+	box("TrimmerVent", Vector3.new(0.44, 1.32, 0.3), Vector3.new(1.56, 0, 0.35), vent, plastic)
+	box("TrimmerSwitch", Vector3.new(0.28, 0.36, 0.18), Vector3.new(1.42, 0, -0.49), orange, plastic)
+	-- Front bow over the housing (two legs and the top bar) and the hand guard.
+	for _, side in { 1, -1 } do
+		box("TrimmerBowLeg" .. side, Vector3.new(0.26, 0.26, 1.22), Vector3.new(1.05, 0.66 * side, 0.31), green, plastic)
+	end
+	box("TrimmerBowTop", Vector3.new(0.26, 1.58, 0.26), Vector3.new(1.05, 0, -0.96), green, plastic)
+	box("TrimmerGuard", Vector3.new(0.16, 1.28, 1.6), Vector3.new(2.07, 0, 0.5), green, plastic)
+	-- Bar: gearbox neck and the spine rail.
+	local bar = box("TrimmerBar", Vector3.new(2.32, 0.26, 0.18), Vector3.new(3.26, 0, 0.62), steelDark, metal)
+	box("TrimmerNeck", Vector3.new(0.55, 0.4, 0.46), Vector3.new(2.175, 0, 0.63), steelDark, metal)
+	-- Two toothed blades, half a tooth out of step; the teeth ride on their blade.
+	local function blade(name: string, y: number, phase: number): Part
+		local strip = box(name, Vector3.new(2.45, 0.07, 0.4), Vector3.new(3.375, y, 0.62), steel, metal)
+		local x = 2.23 + phase
+		local i = 0
+		while x + 0.16 <= 4.42 do
+			for _, side in { 1, -1 } do
+				i += 1
+				local tooth = box(name .. "Tooth" .. i, Vector3.new(0.13, 0.06, 0.2), Vector3.new(x + 0.08, y, 0.62 + side * 0.29), steelLight, metal)
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0, weld.Part1, weld.Parent = strip, tooth, tooth
+			end
+			x += 0.3
+		end
+		return strip
+	end
+	local top = blade("TrimmerBladeTop", 0.035, 0.15)
+	local bottom = blade("TrimmerBladeBottom", -0.035, 0)
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= handle and child ~= body and child ~= bar and child ~= top and child ~= bottom
+			and not child:FindFirstChildOfClass("WeldConstraint") then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = handle, child, child
+		end
+	end
+	rig(handle, { handle :: BasePart, body, bar, top, bottom }, CFrame.identity, look)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, handle.CFrame:PointToObjectSpace(point), handle
+	end
+	handle.Name = "Handle"
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
 local procedural: { [string]: () -> Tool } = {
 	Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers, Pitchfork = ToolModels.pitchfork,
-	HarvestHook = ToolModels.harvestHook, TwinSickles = ToolModels.twinSickles,
+	HarvestHook = ToolModels.harvestHook, TwinSickles = ToolModels.twinSickles, LongScythe = ToolModels.longScythe,
+	HedgeTrimmer = ToolModels.hedgeTrimmer,
 }
 
 -- Dual-wield tools (look.model.offhand): while the Tool is equipped, the server puts a copy of
@@ -420,7 +558,7 @@ end
 -- The tool frame (see ToolPresentation.Model) recovered from the imported meshes, so it does
 -- not matter how the importer oriented or centred them: X runs along the handle mesh's long
 -- axis toward the other meshes, Y is the head's thinnest axis, Z the side the head sits on.
-local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre: number, headName: string?): CFrame?
+local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre: number, headName: string?, gripSide: number?): CFrame?
 	if #others == 0 then return nil end
 	local function axes(part: BasePart): { { axis: Vector3, size: number } }
 		local cf, size = part.CFrame, part.Size
@@ -451,7 +589,8 @@ local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre:
 		z = side.Unit
 		if x:Cross(y):Dot(z) < 0 then y = -y end -- Keep the frame right-handed with Z toward the head.
 	end
-	return CFrame.fromMatrix(handle.Position + x * gripFromCentre, x, y, z)
+	-- gripSide: a grip bar off the handle mesh's centre (the Hedge Trimmer's rear loop).
+	return CFrame.fromMatrix(handle.Position + x * gripFromCentre + z * (gripSide or 0), x, y, z)
 end
 
 -- Builds the Tool from ServerStorage.PopcornTemplates.Tools.<template>, or nil if it is missing
@@ -471,7 +610,7 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 			if part.Name == look.model.handle then handle = part else table.insert(others, part) end
 		end
 	end
-	local frame = if handle then toolFrame(handle, others, look.model.gripFromCentre, look.model.head) else nil
+	local frame = if handle then toolFrame(handle, others, look.model.gripFromCentre, look.model.head, look.model.gripSide) else nil
 	if not handle or not frame then
 		warn("[PopcornTycoon] Tool template " .. look.model.template .. " is missing its meshes; using the part-built model")
 		copy:Destroy()

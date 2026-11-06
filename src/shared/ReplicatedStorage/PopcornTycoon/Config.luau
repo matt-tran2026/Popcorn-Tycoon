@@ -102,6 +102,34 @@ local tools: { [string]: Types.ToolDefinition } = {
 		-- Each hand's slash; the Combo clip (the spin) has its own length within the cooldown.
 		swingSeconds = 0.3, snipStaggerSeconds = 0.04,
 	},
+	-- Catalog: Long Scythe (Uncommon; creator, Nov 6 2026): 6 stalks, 1.1 s, 15 studs, 1x, raw
+	-- corn. Great Harvest: a wide 180 degree sweep (everything in front and to both sides), so a
+	-- player standing inside a dense field clears parts of several rows at once. The weakness is
+	-- the slow, heavy swing: the longest cooldown so far and a long recovery in the clip. Price
+	-- is a first guess, 1.5x the Twin Sickles ($500).
+	LongScythe = {
+		displayName = "Long Scythe", description = "Great Harvest: sweep 6 stalks in a wide half circle",
+		rarity = "Uncommon", behavior = "ArcSweep",
+		price = 750, currency = "Cash",
+		reach = 15, arcDegrees = 180, maxTargets = 6, cooldownSeconds = 1.1, yieldMultiplier = 1,
+		-- The heavy sweep: wind-up, blade through the corn at the Hit marker, long recovery.
+		swingSeconds = 0.8, snipStaggerSeconds = 0.05,
+	},
+	-- Catalog: Hedge Trimmer (Uncommon; creator, Nov 6 2026): 5 stalks, 0.75 s, 8 studs, 1x, raw
+	-- corn. Precision Cutting: a narrow rectangle straight ahead (LineHarvest), not an arc. The
+	-- 6-stud lane covers both rows when the player walks down the gap between them (rows 5 apart),
+	-- only one when standing on a row; nothing more than 3 studs to the side: the weakness, with
+	-- the short reach. On today's 5-stud grid a lane from 1 behind to 8 ahead holds 2 stalks per
+	-- row, so a trim cuts at most 4 (the cap stays 5, as the catalog says; open decision in the
+	-- design page). Price is a first guess between the Twin Sickles ($500) and the Long Scythe.
+	HedgeTrimmer = {
+		displayName = "Hedge Trimmer", description = "Precision Cutting: trim 5 stalks in a narrow strip straight ahead",
+		rarity = "Uncommon", behavior = "LineHarvest",
+		price = 600, currency = "Cash",
+		reach = 8, laneWidth = 6, maxTargets = 5, cooldownSeconds = 0.75, yieldMultiplier = 1,
+		-- The Trim clip: push (Hit at 0.12 s), blade chatter, settle.
+		swingSeconds = 0.45, snipStaggerSeconds = 0.03,
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).

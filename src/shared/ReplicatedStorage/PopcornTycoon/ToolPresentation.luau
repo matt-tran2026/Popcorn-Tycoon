@@ -12,7 +12,11 @@ export type Pose = { [string]: { number } }
 -- t is the fraction of the clip (0..1). ease shapes the move INTO this key.
 export type Key = { t: number, pose: Pose, ease: ("Sine" | "Back" | "Quad" | "Linear")? }
 -- markers: name -> fraction of the clip, for syncing sounds and effects (e.g. Hit).
-export type Clip = { seconds: number, keys: { Key }, loop: boolean?, markers: { [string]: number }? }
+-- buzz: a fast vibration layered on the clip between fractions `from` and `to`: each joint in
+-- `joints` gets its value times sin(2 pi hz t) added (fading out over the last 15% of the span),
+-- e.g. the Hedge Trimmer's blades sliding past each other and the wrist jittering.
+export type Buzz = { from: number, to: number, hz: number, joints: Pose }
+export type Clip = { seconds: number, keys: { Key }, loop: boolean?, markers: { [string]: number }?, buzz: Buzz? }
 -- id is the uploaded original sound (nil until uploaded); fallback keeps the old sound working.
 export type Sound = { id: string?, fallback: string?, volume: number, pitch: { number } }
 export type Model = {
@@ -21,6 +25,9 @@ export type Model = {
 	handle: string, -- the mesh that becomes the Tool's Handle (the one the hand grips)
 	-- Distance from the handle mesh's bounding-box centre to the grip point, toward the head.
 	gripFromCentre: number,
+	-- Distance along the tool frame's Z from the handle mesh's bounding-box centre to the grip
+	-- point, for handles whose grip bar is off-centre (the Hedge Trimmer's rear loop). Default 0.
+	gripSide: number?,
 	materials: { [string]: Enum.Material },
 	-- Tool frame used by `grip` and `points`: X along the handle toward the head, Y out of the
 	-- blade's flat face, Z the side the head curls toward. Origin = the grip point.
@@ -55,9 +62,22 @@ export type PullVfx = {
 -- Combo Sweep (Twin Sickles): two glowing ribbons whirl once round the player during the spin.
 -- radius/width: where the ribbon sits (studs from the player's centre); height above the root.
 export type ComboVfx = { seconds: number, radius: number, width: number, height: number, colors: { Color3 } }
+-- Wind trail (Long Scythe's Great Harvest): ribbons, one per radius, sweep `degrees` round the
+-- player from their right to their left at the clip's Sweep marker, showing the swing's reach.
+export type WindVfx = { seconds: number, degrees: number, radii: { number }, width: number, height: number, colors: { Color3 } }
+-- Trim strip (Hedge Trimmer's Precision Cutting): at the Hit marker a flat translucent rectangle
+-- the size of the tool's lane (Config laneWidth, LaneBehind to reach) fills along the ground
+-- from the player outward in `seconds`, then fades over `fadeSeconds`. While the blades run
+-- (`spraySeconds` from the start of the swing) grass flecks spray from `sprayPoint` and small
+-- sparks fly from `sparkPoint` (named points on the tool).
+export type TrimVfx = {
+	seconds: number, fadeSeconds: number, color: Color3, transparency: number,
+	spraySeconds: number, sprayPoint: string, sprayColor: Color3, sparkPoint: string, sparkColor: Color3,
+}
 -- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
 export type Vfx = {
 	leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean?, pull: PullVfx?, combo: ComboVfx?,
+	wind: WindVfx?, trim: TrimVfx?,
 }
 export type Presentation = {
 	rarity: string,
@@ -110,6 +130,41 @@ local function guard(pose: Pose): Pose
 		else
 			merged[name] = value
 		end
+	end
+	return merged
+end
+
+-- Long Scythe: two-handed. The right hand holds the shaft at the grip; the left reaches across to
+-- the butt end (about a stud behind it), so the left arm is held forward and toward the right in
+-- every key. `twoHand` merges that base into a pose; offsets on the left arm add to it.
+local SCYTHE_LEFT: Pose = { LeftShoulder = { 40, 0, 40 }, LeftElbow = { 25, 0, 0 }, LeftWrist = { 0, 0, 0 } }
+local function twoHand(pose: Pose): Pose
+	local merged: Pose = {}
+	for name, value in SCYTHE_LEFT do merged[name] = value end
+	for name, value in pose do
+		local base = SCYTHE_LEFT[name]
+		merged[name] = if base then { base[1] + value[1], base[2] + value[2], base[3] + value[3] } else value
+	end
+	return merged
+end
+
+-- Hedge Trimmer: two-handed. The right hand holds the rear loop at the waist (arm dropped and
+-- bent, elbow in), the bar pointing ahead and a little left and down; the left hand holds the
+-- top of the front bow. With the right arm straight out (the default tool hold, first try) the
+-- bow was 3.2 studs from the left shoulder, out of reach. These angles came from a forward-
+-- kinematics search on the R15 rig in Play (Nov 6 2026): grip at (0.78, -0.37, -0.93) from the
+-- root, left hand 0.24 studs from the bow bar. `trimHands` merges this base into a pose;
+-- offsets on these joints add to it.
+local TRIM_LEFT: Pose = {
+	RightShoulder = { -95, 0, -50 }, RightElbow = { 70, 0, 0 },
+	LeftShoulder = { 60, 0, 35 }, LeftElbow = { 0, 0, 0 }, LeftWrist = { 0, 0, 0 },
+}
+local function trimHands(pose: Pose): Pose
+	local merged: Pose = {}
+	for name, value in TRIM_LEFT do merged[name] = value end
+	for name, value in pose do
+		local base = TRIM_LEFT[name]
+		merged[name] = if base then { base[1] + value[1], base[2] + value[2], base[3] + value[3] } else value
 	end
 	return merged
 end
@@ -281,8 +336,9 @@ local tools: { [string]: Presentation } = {
 		},
 		sounds = {
 			-- Original synthesised sounds (assets/tools/Common/Pitchfork/audio), uploaded Nov 5 2026
-			-- through the Asset Manager. Fallbacks are the Sickle's equip, swoosh and stalk snap.
-			Equip = { id = "rbxassetid://80005805168325", fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.95, 1.05 } },
+			-- through the Asset Manager. Fallbacks are the Sickle's swoosh and stalk snap. Equip uses
+			-- the Sickle's equip sound (creator, Nov 6 2026).
+			Equip = { id = "rbxassetid://116936988986525", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
 			Swing = { id = "rbxassetid://76327908959778", fallback = "rbxassetid://136321679774475", volume = 0.36, pitch = { 0.94, 1.06 } },
 			Harvest = { id = "rbxassetid://118142725285059", fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.9, 1.1 } },
 		},
@@ -342,9 +398,10 @@ local tools: { [string]: Presentation } = {
 		},
 		sounds = {
 			-- Original synthesised sounds (assets/tools/Common/HarvestHook/audio), uploaded Nov 5 2026
-			-- through the Import Queue. Fallbacks: the Pitchfork's equip, the Sickle's air swoosh
-			-- and the shared stalk snap. Pull plays when an ear reaches the player.
-			Equip = { id = "rbxassetid://134838537880385", fallback = "rbxassetid://80005805168325", volume = 0.3, pitch = { 0.95, 1.05 } },
+			-- through the Import Queue. Equip uses the Sickle's equip sound (creator, Nov 6 2026).
+			-- Fallbacks: the Sickle's air swoosh and the shared stalk snap. Pull plays when an ear
+			-- reaches the player.
+			Equip = { id = "rbxassetid://116936988986525", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
 			Swing = { id = "rbxassetid://75439704625894", fallback = "rbxassetid://136321679774475", volume = 0.35, pitch = { 0.9, 1.0 } },
 			Harvest = { id = "rbxassetid://121639839244296", fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.92, 1.1 } },
 			Pull = { id = "rbxassetid://71365913156932", fallback = nil, volume = 0.32, pitch = { 0.95, 1.12 } },
@@ -449,6 +506,162 @@ local tools: { [string]: Presentation } = {
 			},
 		},
 	},
+	-- Long two-handed scythe (assets/tools/Uncommon/LongScythe, from the creator's reference
+	-- render, built the way the creator's weapon pack builds its weapons: flat extruded plates,
+	-- solid colours, a dark outline plate behind the blade, SmoothPlastic). Numbers come from
+	-- build_long_scythe.py: shaft mesh from -1.3 to 5.36 along X (centre 2.03 ahead of the
+	-- grip), blade tip (3.141, 0, 3.665), heel of the edge (4.594, 0, 1.109).
+	LongScythe = {
+		rarity = "Uncommon",
+		-- The left hand holds the butt end; it must not swing with the run animation.
+		holdJoints = { "LeftShoulder", "LeftElbow", "LeftWrist" },
+		model = {
+			template = "LongScythe", handle = "LongScytheHandle", gripFromCentre = -2.03, head = "LongScytheBlade",
+			materials = {
+				LongScytheHandle = Enum.Material.SmoothPlastic, LongScytheBlade = Enum.Material.SmoothPlastic,
+				LongScytheFittings = Enum.Material.SmoothPlastic,
+			},
+			-- Right hand, shaft held across the body (forward, to the left and up) with the blade
+			-- hanging down from its top into the corn, edge toward the player, as in the reference.
+			-- A flat-lying blade (first try) was edge-on to the camera behind the player and vanished.
+			grip = ToolPresentation.hold(Vector3.new(-0.7, 0.35, -0.65), Vector3.new(0.65, 0, -0.7)),
+			points = {
+				BladeTip = Vector3.new(3.141, 0, 3.665), BladeHeel = Vector3.new(4.594, 0, 1.109),
+				BladeBack = Vector3.new(5.344, 0, 2.35), BladeRoot = Vector3.new(5.101, 0, 0.208),
+			},
+			-- The whole blade face leaves a wide, pale wind streak.
+			trail = { from = "BladeTip", to = "BladeRoot", lifetime = 0.3,
+				colors = { Color3.fromRGB(250, 255, 252), Color3.fromRGB(150, 235, 210) } },
+		},
+		clips = {
+			-- Hefted up from the hip into both hands.
+			Equip = { seconds = 0.42, keys = {
+				{ t = 0, pose = twoHand({ RightShoulder = { -70, 0, 0 }, RightWrist = { 0, 0, 30 }, LeftShoulder = { -40, 0, -20 } }) },
+				{ t = 0.65, pose = twoHand({ RightShoulder = { 10, 0, 0 }, RightWrist = { 0, 0, -8 } }), ease = "Back" },
+				{ t = 1, pose = twoHand({}) },
+			}, markers = { Shing = 0.6 } },
+			-- Slow, heavy breathing; the blade rocks a little.
+			Idle = { seconds = 2.8, loop = true, keys = {
+				{ t = 0, pose = twoHand({}) },
+				{ t = 0.5, pose = twoHand({ RightShoulder = { 3, 0, 2 }, LeftShoulder = { 3, 0, 2 }, Waist = { 0, 2, 0 } }) },
+				{ t = 1, pose = twoHand({}) },
+			} },
+			-- Great Harvest, 0.8 s = Config.Tools.LongScythe.swingSeconds: a slow wind-up far to
+			-- the right with a deep twist (0.24 s), the blade whipped through a half circle to
+			-- the left (Hit at 0.34 s), a held follow-through, then a long heavy recovery: the
+			-- catalog's weakness. Sweep starts the wind trail as the blade leaves the right.
+			Swing = { seconds = 0.8, keys = {
+				{ t = 0, pose = twoHand({}) },
+				{ t = 0.3, pose = twoHand({ Waist = { 0, -38, 0 }, RightShoulder = { 6, 0, 62 }, RightWrist = { 0, 0, 22 },
+					LeftShoulder = { 0, 0, 40 }, Neck = { 0, 10, 0 } }), ease = "Quad" },
+				-- The shaft is already held across to the left, so a short follow-through is enough to
+				-- finish on the left; a bigger one (first try: shoulder -80, waist 42) carried the
+				-- blade round behind the player.
+				{ t = 0.52, pose = twoHand({ Waist = { 0, 24, 0 }, RightShoulder = { -6, 0, -30 }, RightWrist = { 0, 0, -16 },
+					LeftShoulder = { 0, 0, -26 }, Neck = { 0, -6, 0 } }), ease = "Quad" },
+				{ t = 0.64, pose = twoHand({ Waist = { 0, 28, 0 }, RightShoulder = { -8, 0, -38 }, RightWrist = { 0, 0, -20 },
+					LeftShoulder = { 0, 0, -32 }, Neck = { 0, -8, 0 } }) },
+				{ t = 1, pose = twoHand({}), ease = "Sine" },
+			}, markers = { Sweep = 0.3, Hit = 0.42 } },
+		},
+		sounds = {
+			-- Original synthesised sounds go in assets/tools/Uncommon/LongScythe/audio; until they
+			-- are uploaded the fallbacks play: the Sickle's air swoosh pitched down for weight, and
+			-- the shared stalk snap. Equip uses the Sickle's equip sound (creator, Nov 6 2026).
+			Equip = { id = "rbxassetid://116936988986525", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.4, pitch = { 0.72, 0.8 } },
+			Harvest = { id = nil, fallback = "rbxassetid://125411384210572", volume = 0.45, pitch = { 0.9, 1.1 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 5, leafColor = Color3.new(1, 1, 1),
+			-- Two pale wind ribbons sweep the half circle: one where the blade passes, one out
+			-- near the 15-stud reach, so players see how far Great Harvest cuts.
+			wind = {
+				seconds = 0.2, degrees = 180, radii = { 6, 11.5 }, width = 2.4, height = -0.6,
+				colors = { Color3.fromRGB(235, 255, 245), Color3.fromRGB(160, 240, 205) },
+			},
+		},
+	},
+	-- Motorised hedge trimmer (assets/tools/Uncommon/HedgeTrimmer, from the creator's reference
+	-- render, built like the weapon pack: flat plates, flat colours, dark outline plates).
+	-- Numbers come from build_hedge_trimmer.py: rear loop mesh centred 0.059 behind and 0.43
+	-- below the grip bar (gripFromCentre, gripSide), the bar's centre line 0.62 below the grip
+	-- (tool Z points from the housing toward the bar), blade from x 2.15 to 4.6, front bow top
+	-- at (1.05, 0, -0.96). Design page: "Hedge Trimmer Tool Design".
+	HedgeTrimmer = {
+		rarity = "Uncommon",
+		-- The left hand holds the front bow; it must not swing with the run animation.
+		holdJoints = { "LeftShoulder", "LeftElbow", "LeftWrist" },
+		model = {
+			template = "HedgeTrimmer", handle = "TrimmerHandle", gripFromCentre = 0.059, gripSide = -0.43,
+			head = "TrimmerBladeTop",
+			materials = {
+				TrimmerHandle = Enum.Material.SmoothPlastic, TrimmerBody = Enum.Material.SmoothPlastic,
+				TrimmerBar = Enum.Material.Metal, TrimmerBladeTop = Enum.Material.Metal, TrimmerBladeBottom = Enum.Material.Metal,
+			},
+			-- The two blades slide along the bar on their own motors (the Trim clip's buzz).
+			joints = {
+				TrimmerBladeTop = { motor = "BladeA", pivot = Vector3.new(3.375, 0, 0.62) },
+				TrimmerBladeBottom = { motor = "BladeB", pivot = Vector3.new(3.375, 0, 0.62) },
+			},
+			-- Bar pointing ahead (a little left and down), turned about 37 degrees off flat: the housing up
+			-- and to the left, the side panel facing up and right, so the camera behind the player
+			-- sees the teeth, the orange panel and the housing (a blade seen edge-on vanishes, as
+			-- found with the Long Scythe).
+			-- (Given in the bent hand's frame; from the same search as trimHands' base pose.)
+			grip = ToolPresentation.hold(Vector3.new(-0.16, 0.22, -0.96), Vector3.new(0.11, 0.97, 0.2)),
+			points = {
+				BladeTip = Vector3.new(4.6, 0, 0.62), BladeRoot = Vector3.new(2.25, 0, 0.62),
+				BladeMid = Vector3.new(3.375, 0, 0.62), LeftHand = Vector3.new(1.05, 0, -0.96),
+				Motor = Vector3.new(1.55, 0, 0.3),
+			},
+		},
+		clips = {
+			-- Lifted from the hip into both hands with a motor blip (Shing).
+			Equip = { seconds = 0.36, keys = {
+				{ t = 0, pose = trimHands({ RightShoulder = { -25, 0, 0 }, RightWrist = { 0, 0, 25 }, LeftShoulder = { -55, 0, -20 } }) },
+				{ t = 0.65, pose = trimHands({ RightShoulder = { 6, 0, 0 }, RightWrist = { 0, 0, -6 } }), ease = "Back" },
+				{ t = 1, pose = trimHands({}) },
+			}, markers = { Shing = 0.55 } },
+			-- Ready stance: a slow, small sway. Nothing buzzes while idle.
+			Idle = { seconds = 2.2, loop = true, keys = {
+				{ t = 0, pose = trimHands({}) },
+				{ t = 0.5, pose = trimHands({ RightShoulder = { 2, 0, 1 }, LeftShoulder = { 2, 0, 1 } }) },
+				{ t = 1, pose = trimHands({}) },
+			} },
+			-- Precision Cutting, 0.45 s = Config.Tools.HedgeTrimmer.swingSeconds: a short lift and
+			-- push (Hit at 0.12 s: the trim strip and the snips), two side-to-side shakes while the
+			-- blades chatter, then settle. Small yaw only: the cut is a straight strip.
+			Swing = { seconds = 0.45, keys = {
+				{ t = 0, pose = trimHands({}) },
+				{ t = 0.27, pose = trimHands({ RightShoulder = { 10, 0, 0 }, RightElbow = { -12, 0, 0 }, LeftShoulder = { 10, 0, 0 },
+					LeftElbow = { -8, 0, 0 }, Neck = { -3, 0, 0 } }), ease = "Quad" },
+				{ t = 0.45, pose = trimHands({ RightShoulder = { 8, 0, 8 }, LeftShoulder = { 8, 0, 8 }, Waist = { 0, 5, 0 } }) },
+				{ t = 0.62, pose = trimHands({ RightShoulder = { 8, 0, -7 }, LeftShoulder = { 8, 0, -7 }, Waist = { 0, -5, 0 } }) },
+				{ t = 0.8, pose = trimHands({ RightShoulder = { 5, 0, 0 }, LeftShoulder = { 5, 0, 0 } }) },
+				{ t = 1, pose = trimHands({}), ease = "Sine" },
+			}, markers = { Hit = 0.27 },
+			-- The two blades slide past each other +-0.07 studs at 22 Hz; the wrist jitters.
+			buzz = { from = 0.04, to = 0.8, hz = 22, joints = {
+				BladeA = { 0, 0, 0, 0.07, 0, 0 }, BladeB = { 0, 0, 0, -0.07, 0, 0 }, RightWrist = { 1.4, 0, 1.4 },
+			} } },
+		},
+		sounds = {
+			-- Original synthesised sounds (assets/tools/Uncommon/HedgeTrimmer/audio), uploaded by the
+			-- creator Nov 6 2026. Fallbacks: the Sickle's equip, the air swoosh, the clippers' snip.
+			Equip = { id = "rbxassetid://129080146516303", fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = "rbxassetid://137220544623359", fallback = "rbxassetid://136321679774475", volume = 0.32, pitch = { 0.96, 1.05 } },
+			Harvest = { id = "rbxassetid://122745530221694", fallback = "rbxassetid://72252775021618", volume = 0.4, pitch = { 0.95, 1.12 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 5, leafColor = Color3.new(1, 1, 1), snipFlash = true,
+			trim = {
+				seconds = 0.18, fadeSeconds = 0.35, color = Color3.fromRGB(139, 224, 90), transparency = 0.55,
+				spraySeconds = 0.32, sprayPoint = "BladeMid", sprayColor = Color3.new(1, 1, 1),
+				sparkPoint = "BladeRoot", sparkColor = Color3.fromRGB(255, 178, 56),
+			},
+		},
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -496,6 +709,26 @@ function ToolPresentation.validate(toolIds: { string })
 		local combo = look.vfx.combo
 		if combo then
 			assert(combo.seconds > 0 and combo.radius > combo.width / 2 and #combo.colors >= 1, toolId .. " combo effect is invalid")
+		end
+		local wind = look.vfx.wind
+		if wind then
+			assert(wind.seconds > 0 and wind.degrees > 0 and wind.degrees <= 360 and #wind.radii >= 1 and #wind.radii <= 3
+				and #wind.colors >= 1, toolId .. " wind effect is invalid")
+			for _, radius in wind.radii do assert(radius > wind.width / 2, toolId .. " wind ribbon overlaps the player") end
+			assert(look.clips.Swing and look.clips.Swing.markers and look.clips.Swing.markers.Sweep, toolId .. " wind needs a Sweep marker")
+		end
+		local trim = look.vfx.trim
+		if trim then
+			assert(trim.seconds > 0 and trim.fadeSeconds > 0 and trim.spraySeconds > 0 and trim.transparency >= 0 and trim.transparency < 1,
+				toolId .. " trim effect is invalid")
+			assert(look.model.points[trim.sprayPoint] and look.model.points[trim.sparkPoint], toolId .. " trim effect names a missing point")
+			assert(look.clips.Swing and look.clips.Swing.markers and look.clips.Swing.markers.Hit, toolId .. " trim needs a Hit marker")
+		end
+		for name, clip in look.clips do
+			local buzz = clip.buzz
+			if buzz then
+				assert(buzz.from >= 0 and buzz.to <= 1 and buzz.from < buzz.to and buzz.hz > 0, toolId .. "." .. name .. " buzz is invalid")
+			end
 		end
 	end
 end

@@ -52,7 +52,8 @@ local function take(profile: Types.Profile, field: Types.Field, stalk: Types.Sta
 	return corn, available, taken < available
 end
 
--- Hand picking through a stalk's prompt. Always available, whatever tool is held.
+-- Hand picking through a stalk's prompt, only with empty hands: while a swung tool is held, corn
+-- comes only from its swings (creator, Nov 6 2026; before, E still picked mid-cooldown).
 function HarvestService.attempt(player: Player, ownerUserId: unknown, fieldId: unknown, stalkId: unknown): Types.HarvestResult
 	local clock = os.clock()
 	local previous = lastAttempt[player.UserId]
@@ -65,6 +66,7 @@ function HarvestService.attempt(player: Player, ownerUserId: unknown, fieldId: u
 	local profile = State.get(player.UserId)
 	if not profile then return result(false, "Profile unavailable") end
 	if not profile.ownedTools.Manual then return result(false, "Manual tool required") end
+	if Config.Tools[profile.equippedTool] then return result(false, "Swing your tool to harvest") end
 	local field = profile.fields[fieldId]
 	if not field or field.ownerUserId ~= player.UserId then return result(false, "Not your field") end
 	local stalk = field.stalks[stalkId]

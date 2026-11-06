@@ -43,7 +43,11 @@ local function ball(parent: Instance, name: string, diameter: number, at: Vector
 end
 
 -- Moving things never collide (they only move on clients) and stay out of the brick collision pass.
-local function walkThrough(model: Instance)
+-- They also stream as one unit: with StreamingEnabled a Default model reaches the client before
+-- its parts, which the client animator can't place. Sky movers that roam far from where the
+-- server built them (balloons, gulls) are Persistent so they never stream out.
+local function walkThrough(model: Model, mode: Enum.ModelStreamingMode?)
+	model.ModelStreamingMode = mode or Enum.ModelStreamingMode.Atomic
 	for _, d in model:GetDescendants() do
 		if d:IsA("BasePart") then d.CanCollide, d.CanQuery = false, false d:SetAttribute("WalkThrough", true) end
 	end
@@ -114,6 +118,7 @@ local function fountain(root: Model, center: Vector3)
 	local spin = bucket(f, "GiantBucket", ground * CFrame.new(0, 6.2, 0), 7.2, 16, 12, 22, 2611, true)
 	spin:SetAttribute("Ambient", "Spin")
 	spin:SetAttribute("SpinSpeed", 0.25)
+	spin.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 
 	-- Marquee bulbs around the basin cap; clients chase them.
 	local bulbs = Instance.new("Folder")
@@ -178,6 +183,7 @@ local function balloons(root: Model, center: Vector3)
 	for i = 1, 3 do
 		local at = center + Vector3.new(0, 70, 0)
 		local m = Instance.new("Model")
+		m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 		m.Name, m.Parent = "Balloon", root
 		local envelope = bucket(m, "Envelope", CFrame.new(at), 6.5, 13, 10, 14, 300 + i, false)
 		;(envelope:FindFirstChild("Body") :: Part).Color = colours[i]
@@ -199,7 +205,7 @@ local function balloons(root: Model, center: Vector3)
 		m:SetAttribute("OrbitPhase", i * 2.1)
 		m:SetAttribute("Bob", 2.5)
 		m:SetAttribute("SpinSpeed", 0.12)
-		walkThrough(m)
+		walkThrough(m, Enum.ModelStreamingMode.Persistent)
 	end
 end
 
@@ -208,6 +214,7 @@ local function gulls(root: Model, center: Vector3)
 	for i = 1, 7 do
 		local at = center + Vector3.new(0, 40, 0)
 		local m = Instance.new("Model")
+		m.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 		m.Name, m.Parent = "Gull", root
 		part(m, "Body", Vector3.new(0.7, 0.6, 2.2), CFrame.new(at), WHITE)
 		part(m, "Beak", Vector3.new(0.25, 0.25, 0.5), CFrame.new(at + Vector3.new(0, 0, -1.3)), GOLD)
@@ -223,7 +230,7 @@ local function gulls(root: Model, center: Vector3)
 		m:SetAttribute("OrbitSpeed", (if i % 2 == 0 then -1 else 1) * (0.22 + (i % 3) * 0.05))
 		m:SetAttribute("OrbitPhase", i * 0.9)
 		m:SetAttribute("Bob", 1.5)
-		walkThrough(m)
+		walkThrough(m, Enum.ModelStreamingMode.Persistent)
 	end
 end
 
