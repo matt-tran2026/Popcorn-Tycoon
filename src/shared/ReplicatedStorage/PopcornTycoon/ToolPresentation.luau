@@ -6,7 +6,8 @@
 local ToolPresentation = {}
 
 -- Joint name -> { x, y, z } rotation in degrees, layered on top of whatever the Animator plays.
--- Names are R15 joints (ToolAnimator maps the arm/neck ones onto R6 rigs too).
+-- Names are R15 joints (ToolAnimator maps the arm/neck ones onto R6 rigs too). A tool joint may
+-- add a translation in studs as entries 4-6 ({ 0, 0, 0, 1.2, 0, 0 } slides 1.2 along tool X).
 export type Pose = { [string]: { number } }
 -- t is the fraction of the clip (0..1). ease shapes the move INTO this key.
 export type Key = { t: number, pose: Pose, ease: ("Sine" | "Back" | "Quad" | "Linear")? }
@@ -35,6 +36,10 @@ export type Model = {
 	joints: { [string]: { motor: string, pivot: Vector3 } }?,
 	-- Mesh name -> the mesh it is welded to instead of the Handle (parts that ride on a joint).
 	welds: { [string]: string }?,
+	-- The Tool's Handle is a small invisible grip part at the grip point instead of the handle
+	-- mesh, so `joints` may move the handle mesh itself (the Pitchfork's shaft slides through
+	-- the hand on a thrust). Named points then ride on the handle mesh.
+	holder: boolean?,
 }
 -- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
 export type Vfx = { leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean? }
@@ -168,6 +173,69 @@ local tools: { [string]: Presentation } = {
 		},
 		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true },
 	},
+	-- Long three-prong pitchfork (assets/tools/Common/Pitchfork, from the creator's reference
+	-- render). Numbers come from build_pitchfork.py: shaft mesh from -1.565 to 2.56 along X
+	-- (centre 0.498 ahead of the grip), prong tips at x 4.6-4.7. Design canvas: "Pitchfork Design".
+	Pitchfork = {
+		rarity = "Common",
+		model = {
+			template = "Pitchfork", handle = "PitchforkHandle", gripFromCentre = -0.498, head = "PitchforkHead",
+			materials = { PitchforkHandle = Enum.Material.Wood, PitchforkHead = Enum.Material.Metal },
+			-- The hand holds an invisible grip; the shaft hangs off it on the Thrust motor and the
+			-- head is welded to the shaft, so the stab slides the whole fork forward.
+			holder = true,
+			joints = { PitchforkHandle = { motor = "Thrust", pivot = Vector3.zero } },
+			welds = { PitchforkHead = "PitchforkHandle" },
+			-- Right hand, shaft pointing straight ahead and a touch down, prongs lying flat so
+			-- the camera behind the player sees the three tines spread over the row.
+			grip = ToolPresentation.hold(Vector3.new(0, -0.08, -1), Vector3.new(0, 1, 0)),
+			points = {
+				MiddleTip = Vector3.new(4.72, 0.08, 0),
+				OuterTipL = Vector3.new(4.58, 0.13, 0.43), OuterTipR = Vector3.new(4.58, 0.13, -0.43),
+			},
+			-- A flat streak across the prong tips, drawn while the fork drives forward.
+			trail = { from = "OuterTipL", to = "OuterTipR", lifetime = 0.16,
+				colors = { Color3.fromRGB(255, 252, 240), Color3.fromRGB(214, 236, 255) } },
+		},
+		clips = {
+			-- Swung up from the hip into a ready port with a little twirl of the wrist.
+			Equip = { seconds = 0.36, keys = {
+				{ t = 0, pose = { RightShoulder = { -80, 0, 0 }, RightWrist = { 0, 0, 35 }, Thrust = { 0, 0, 0, -1.2, 0, 0 } } },
+				{ t = 0.65, pose = { RightShoulder = { 8, 0, 0 }, RightWrist = { 0, 0, -10 }, Thrust = { 0, 0, 0, 0.25, 0, 0 } }, ease = "Back" },
+				{ t = 1, pose = {} },
+			}, markers = { Shing = 0.6 } },
+			-- Slow breathing sway; the fork bobs a little in the hand.
+			Idle = { seconds = 2.6, loop = true, keys = {
+				{ t = 0, pose = { RightShoulder = { 0, 0, 0 }, Thrust = { 0, 0, 0, 0, 0, 0 } } },
+				{ t = 0.5, pose = { RightShoulder = { 3, 1, 0 }, RightWrist = { 2, 0, 0 }, Thrust = { 0, 0, 0, 0.08, 0, 0 } } },
+				{ t = 1, pose = { RightShoulder = { 0, 0, 0 }, Thrust = { 0, 0, 0, 0, 0, 0 } } },
+			} },
+			-- Piercing Harvest: pull back with a twist, then drive straight down the row. The
+			-- shaft slides 1.9 studs forward through the hand at the jab, holds, and recovers.
+			-- 0.42 s = Config.Tools.Pitchfork.swingSeconds; Hit times the snips down the line.
+			Swing = { seconds = 0.42, keys = {
+				{ t = 0, pose = {} },
+				-- Little yaw: the head must travel along the lane, not sweep across it (a 20 degree
+				-- waist twist moved the prongs ~4 studs sideways in the first playtest).
+				{ t = 0.33, pose = { Waist = { 0, -8, 0 }, RightShoulder = { -4, -2, 0 }, LeftShoulder = { 0, 8, 0 },
+					Neck = { 0, 4, 0 }, Thrust = { 0, 0, 0, -1.0, 0, 0 } }, ease = "Quad" },
+				{ t = 0.5, pose = { Waist = { 0, 5, 0 }, RightShoulder = { -2, 3, 0 }, LeftShoulder = { 0, -8, 0 },
+					Neck = { 0, -3, 0 }, Thrust = { 0, 0, 0, 1.9, 0, 0 } }, ease = "Quad" },
+				{ t = 0.68, pose = { Waist = { 0, 4, 0 }, RightShoulder = { -2, 3, 0 }, LeftShoulder = { 0, -7, 0 },
+					Neck = { 0, -3, 0 }, Thrust = { 0, 0, 0, 1.75, 0, 0 } } },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Hit = 0.48 } },
+		},
+		sounds = {
+			-- Original synthesised sounds are in assets/tools/Common/Pitchfork/audio, waiting for
+			-- the creator's upload (no ids yet). Until then the Sickle's uploaded equip, swoosh
+			-- and stalk snap stand in.
+			Equip = { id = nil, fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.92, 0.98 } },
+			Swing = { id = nil, fallback = "rbxassetid://136321679774475", volume = 0.36, pitch = { 0.82, 0.9 } },
+			Harvest = { id = nil, fallback = "rbxassetid://125411384210572", volume = 0.48, pitch = { 0.9, 1.08 } },
+		},
+		vfx = { leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 5, leafColor = Color3.new(1, 1, 1), snipFlash = true },
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -193,7 +261,8 @@ function ToolPresentation.validate(toolIds: { string })
 		end
 		local model = look.model
 		for part, joint in model.joints or {} do
-			assert(part ~= model.handle and joint.motor ~= "", toolId .. " joint " .. part .. " must be a non-handle mesh with a motor name")
+			assert((model.holder or part ~= model.handle) and joint.motor ~= "",
+				toolId .. " joint " .. part .. " must be a non-handle mesh (or use a holder) with a motor name")
 		end
 		for part, to in model.welds or {} do
 			assert(part ~= model.handle and part ~= to, toolId .. " weld " .. part .. " is invalid")

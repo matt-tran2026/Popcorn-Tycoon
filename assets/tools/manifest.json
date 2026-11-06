@@ -247,17 +247,88 @@
     "LineHarvest"
    ],
    "conversion": "RawCorn",
-   "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "stage": 1,
+   "blenderSource": "assets/tools/Common/Pitchfork/source/Pitchfork.blend",
+   "exportedMesh": "assets/tools/Common/Pitchfork/exports/Pitchfork.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.Pitchfork",
+    "imported": false,
+    "importedAt": null,
+    "meshIds": null,
+    "note": "Waiting for the creator's 3D Importer upload (scale by 0.01). Until then ToolModels.pitchfork (part-built, same names, holder grip and Thrust motor) is used."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.Pitchfork.clips) + Motor6D Thrust (holder grip -> shaft, slides 1.9 studs on the jab)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    },
+    "publishedAnimationIds": null
+   },
+   "audio": [
+    {
+     "name": "Pitchfork_Equip",
+     "file": "assets/tools/Common/Pitchfork/audio/Pitchfork_Equip.wav",
+     "source": "original, synthesised (scripts/synth_pitchfork_audio.py)",
+     "assetId": null,
+     "fallback": "rbxassetid://116936988986525",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "Pitchfork_Thrust",
+     "file": "assets/tools/Common/Pitchfork/audio/Pitchfork_Thrust.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://136321679774475",
+     "uploaded": null,
+     "inUse": false
+    },
+    {
+     "name": "Pitchfork_Stab",
+     "file": "assets/tools/Common/Pitchfork/audio/Pitchfork_Stab.wav",
+     "source": "original, synthesised",
+     "assetId": null,
+     "fallback": "rbxassetid://125411384210572",
+     "uploaded": null,
+     "inUse": false
+    }
+   ],
+   "vfx": {
+    "harvest": "pooled leaf burst, 5 per stalk + pooled snip flash, staggered 0.06 s down the line; streak trail across the outer prong tips",
+    "texture": {
+     "file": "assets/tools/_shared/textures/Leaf_Fleck.png",
+     "assetId": "rbxassetid://107437834728710"
+    }
+   },
+   "integration": "LineHarvest gameplay (ToolRules lane 11 x 4 studs, 3 targets, 0.8 s); $150 first guess; part-built model in game until the FBX import",
+   "tests": "Pitchfork 24/24 (2026-11-05, Play); real F-key thrust harvested 3; client thrust sampled (slide 1.9, head 7.3 studs ahead at the jab)",
+   "status": "in game (part-built stand-in); Blender FBX and original sounds made, waiting on the creator's import and audio upload",
+   "buildScript": "assets/tools/Common/Pitchfork/scripts/build_pitchfork.py",
+   "meshes": {
+    "PitchforkHandle": {
+     "tris": 240,
+     "material": "Wood"
+    },
+    "PitchforkHead": {
+     "tris": 774,
+     "material": "Metal"
+    }
+   },
+   "preview": "assets/tools/Common/Pitchfork/previews/Pitchfork_preview.png",
+   "design": "https://claude.ai/artifact/GQYiUQ9Y3DRSGLv5TCJBNQ"
   },
   {
    "toolId": "HarvestHook",

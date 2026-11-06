@@ -60,6 +60,19 @@ local tools: { [string]: Types.ToolDefinition } = {
 		reach = 8, arcDegrees = 90, maxTargets = 1, cooldownSeconds = 0.12, yieldMultiplier = 1,
 		swingSeconds = 0.12, snipStaggerSeconds = 0,
 	},
+	-- Catalog #3 (creator, Nov 5 2026): 3 stalks, 0.8 s, 11 studs, 1x, narrow forward thrust.
+	-- LineHarvest (ToolRules.pickTargets) takes ripe stalks in a straight lane ahead, nearest
+	-- first. Rows are Config.Plot.spacing (5) apart, so a 4-stud lane only ever covers one row
+	-- and a full 3-stalk thrust needs the first stalk within 1 stud (positioning skill). Price
+	-- is a first guess between the Clippers ($100) and the Sickle ($200).
+	Pitchfork = {
+		displayName = "Pitchfork", description = "Thrust through up to 3 ripe stalks in a line",
+		rarity = "Common", behavior = "LineHarvest",
+		price = 150, currency = "Cash",
+		reach = 11, laneWidth = 4, maxTargets = 3, cooldownSeconds = 0.8, yieldMultiplier = 1,
+		-- The stab reaches the corn at the Thrust clip's Hit marker; snips then run down the row.
+		swingSeconds = 0.42, snipStaggerSeconds = 0.06,
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
@@ -203,10 +216,18 @@ function Config.validate()
 	assert(whole(Config.Sell.cashPerPopcorn) and Config.Sell.cashPerPopcorn >= 1 and Config.Sell.range > 0, "Invalid sell rate")
 	for id, tool in Config.Tools do
 		assert(Config.Economy.currencies[tool.currency], "Invalid tool currency " .. id)
-		assert(whole(tool.price) and tool.reach > 0 and tool.arcDegrees > 0 and tool.arcDegrees <= 360, "Invalid tool " .. id)
+		assert(whole(tool.price) and tool.reach > 0, "Invalid tool " .. id)
+		-- Each family needs its own shape: an arc, or a lane narrower than a row gap.
+		if tool.behavior == "LineHarvest" then
+			local width = tool.laneWidth
+			assert(width and width > 0 and width < Config.Plot.spacing * 2, "LineHarvest needs a laneWidth under two row gaps: " .. id)
+		else
+			local arc = tool.arcDegrees
+			assert(arc and arc > 0 and arc <= 360, "Invalid tool arc " .. id)
+		end
 		assert(whole(tool.maxTargets) and tool.maxTargets >= 1 and tool.cooldownSeconds > 0, "Invalid tool " .. id)
 		assert(whole(tool.yieldMultiplier) and tool.yieldMultiplier >= 1, "Invalid tool " .. id)
-		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget", "Unimplemented tool behavior " .. id)
+		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget" or tool.behavior == "LineHarvest", "Unimplemented tool behavior " .. id)
 		assert(tool.behavior ~= "SingleTarget" or tool.maxTargets == 1, "SingleTarget tools cut one stalk: " .. id)
 		assert(tool.cooldownSeconds >= (tool.swingSeconds or 0), "Swings must not overlap: " .. id)
 	end

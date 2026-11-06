@@ -54,10 +54,16 @@ function ToolAnimator.sample(clip: Clip, t: number): Pose
 	local alpha = math.clamp((t - a.t) / span, 0, 1)
 	alpha = TweenService:GetValue(alpha, EASE[b.ease or "Sine"], Enum.EasingDirection.InOut)
 	local pose: Pose = {}
+	-- Rotation (1-3) and the optional translation of tool joints (4-6); missing entries are 0.
 	local function blend(name: string)
 		if pose[name] then return end
-		local from, to = a.pose[name] or { 0, 0, 0 }, b.pose[name] or { 0, 0, 0 }
-		pose[name] = { from[1] + (to[1] - from[1]) * alpha, from[2] + (to[2] - from[2]) * alpha, from[3] + (to[3] - from[3]) * alpha }
+		local from, to = a.pose[name] or {}, b.pose[name] or {}
+		local value: { number } = {}
+		for k = 1, math.max(3, #from, #to) do
+			local x, y = from[k] or 0, to[k] or 0
+			value[k] = x + (y - x) * alpha
+		end
+		pose[name] = value
 	end
 	for name in a.pose do blend(name) end
 	for name in b.pose do blend(name) end
@@ -100,7 +106,8 @@ function ToolAnimator.attach(character: Model): Player
 				-- If nothing re-posed this joint since our last write, start from the base we
 				-- used then, so rotations never pile up frame after frame.
 				local base = if lastWritten[name] and j.Transform == lastWritten[name] then lastBase[name] else j.Transform
-				local value = base * CFrame.Angles(math.rad(rotation[1] * weight), math.rad(rotation[2] * weight), math.rad(rotation[3] * weight))
+				local slide = CFrame.new((rotation[4] or 0) * weight, (rotation[5] or 0) * weight, (rotation[6] or 0) * weight)
+				local value = base * slide * CFrame.Angles(math.rad(rotation[1] * weight), math.rad(rotation[2] * weight), math.rad(rotation[3] * weight))
 				j.Transform = value
 				lastWritten[name], lastBase[name] = value, base
 			end

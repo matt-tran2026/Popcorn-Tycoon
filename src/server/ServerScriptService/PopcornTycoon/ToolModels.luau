@@ -168,7 +168,63 @@ function ToolModels.cornClippers(): Tool
 	return tool
 end
 
-local procedural: { [string]: () -> Tool } = { Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers }
+-- The invisible part the hand holds for tools with model.holder (the Pitchfork): it sits at the
+-- grip point in the tool frame, and the visible meshes hang off it on joints and welds.
+local function holderPart(frame: CFrame): Part
+	local p = Instance.new("Part")
+	p.Name, p.Size, p.CFrame, p.Transparency = "Handle", Vector3.new(0.2, 0.2, 0.2), frame, 1
+	p.CanCollide, p.CanTouch, p.CanQuery, p.Massless, p.CastShadow = false, false, false, true, false
+	return p
+end
+
+-- Part-built pitchfork, used until the Blender template is imported. Built straight in the
+-- tool frame (X along the shaft toward the prongs, Y the prongs' thin axis, Z across them; grip
+-- point at the origin) with the Blender model's mesh names, holder grip, Thrust joint and points.
+function ToolModels.pitchfork(): Tool
+	local look = assert(ToolPresentation.get("Pitchfork"))
+	local tool = Instance.new("Tool")
+	tool.Name = "Pitchfork"
+	tool:SetAttribute("ToolId", "Pitchfork")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Thrust through up to 3 ripe stalks in a line"
+	local wood, iron, steel = Color3.fromRGB(150, 108, 70), Color3.fromRGB(92, 98, 106), Color3.fromRGB(196, 203, 212)
+	local tip = Color3.fromRGB(240, 243, 246)
+	local metal = Enum.Material.Metal
+	local function bar(name: string, a: Vector3, b: Vector3, width: number, thick: number, color: Color3): Part
+		local along = b - a
+		return piece(tool, name, Vector3.new(along.Magnitude, thick, width), CFrame.fromMatrix((a + b) / 2, along.Unit, Vector3.yAxis), color, metal)
+	end
+	local holder = holderPart(CFrame.identity)
+	holder.Parent = tool
+	local shaft = cylinder(tool, "PitchforkHandle", 4.12, 0.32, 0.5, wood, Enum.Material.Wood)
+	cylinder(tool, "PitchforkKnob", 0.16, 0.36, -1.5, Color3.fromRGB(110, 76, 46), Enum.Material.Wood)
+	cylinder(tool, "PitchforkFerrule", 0.56, 0.4, 2.7, iron, metal)
+	local head = bar("PitchforkHead", Vector3.new(2.9, 0, 0), Vector3.new(4.45, 0, 0), 0.17, 0.13, steel)
+	bar("PitchforkTipM", Vector3.new(4.4, 0, 0), Vector3.new(4.7, 0, 0), 0.08, 0.08, tip)
+	for _, side in { 1, -1 } do
+		bar("PitchforkBow" .. side, Vector3.new(2.92, 0, 0.05 * side), Vector3.new(3.42, 0, 0.55 * side), 0.17, 0.13, steel)
+		bar("PitchforkTine" .. side, Vector3.new(3.36, 0, 0.55 * side), Vector3.new(4.36, 0, 0.47 * side), 0.16, 0.12, steel)
+		bar("PitchforkTip" .. side, Vector3.new(4.32, 0, 0.475 * side), Vector3.new(4.6, 0, 0.43 * side), 0.08, 0.08, tip)
+	end
+	-- Everything but the shaft rides on the shaft, which slides on the Thrust motor.
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= holder and child ~= shaft and child ~= head then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = shaft, child, child
+		end
+	end
+	rig(holder, { holder :: BasePart, shaft, head }, CFrame.identity, look)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, shaft.CFrame:PointToObjectSpace(point), shaft
+	end
+	tool.Grip = look.model.grip
+	return tool
+end
+
+local procedural: { [string]: () -> Tool } = {
+	Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers, Pitchfork = ToolModels.pitchfork,
+}
 
 -- The tool frame (see ToolPresentation.Model) recovered from the imported meshes, so it does
 -- not matter how the importer oriented or centred them: X runs along the handle mesh's long
@@ -193,9 +249,17 @@ local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre:
 	local y = head[1].axis
 	local side = (headCentre - handle.Position)
 	side -= x * side:Dot(x) + y * side:Dot(y)
-	if side.Magnitude < 1e-3 then return nil end
-	local z = side.Unit
-	if x:Cross(y):Dot(z) < 0 then y = -y end -- Keep the frame right-handed with Z toward the head.
+	local z: Vector3
+	if side.Magnitude < 1e-3 then
+		-- A head centred on the handle (the Pitchfork's three prongs): no side to point Z at,
+		-- and the head is symmetric, so any right-handed Z across it works.
+		if math.abs(x:Dot(y)) > 0.99 then return nil end
+		y = (y - x * x:Dot(y)).Unit
+		z = x:Cross(y)
+	else
+		z = side.Unit
+		if x:Cross(y):Dot(z) < 0 then y = -y end -- Keep the frame right-handed with Z toward the head.
+	end
 	return CFrame.fromMatrix(handle.Position + x * gripFromCentre, x, y, z)
 end
 
@@ -227,7 +291,8 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 	tool:SetAttribute("ToolId", toolId)
 	tool:SetAttribute("ModelSource", "Blender")
 	tool.CanBeDropped, tool.RequiresHandle = false, true
-	local parts = { handle :: BasePart, table.unpack(others) }
+	local mesh = handle :: BasePart
+	local parts = { mesh, table.unpack(others) }
 	for _, part in parts do
 		part.Anchored, part.CanCollide, part.CanTouch, part.CanQuery, part.Massless = false, false, false, false, true
 		part.CastShadow = true
@@ -237,15 +302,30 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 		if material then part.Material = material end
 		part.Parent = tool
 	end
+	local toolFrameCf = frame :: CFrame
+	if look.model.holder then
+		-- The hand holds an invisible grip at the grip point; the handle mesh hangs off it on
+		-- its joint (the Pitchfork's Thrust), and named points ride on the handle mesh.
+		local holder = holderPart(toolFrameCf)
+		holder.Parent = tool
+		rig(holder, { holder :: BasePart, table.unpack(parts) }, toolFrameCf, look)
+		copy:Destroy()
+		for name, point in look.model.points do
+			local attachment = Instance.new("Attachment")
+			attachment.Name, attachment.Position, attachment.Parent = name, mesh.CFrame:PointToObjectSpace(toolFrameCf:PointToWorldSpace(point)), mesh
+		end
+		tool.Grip = look.model.grip
+		return tool
+	end
 	-- Welds, or Motor6Ds for moving parts (before the handle is renamed to "Handle").
-	rig(handle :: BasePart, parts, frame :: CFrame, look)
-	handle.Name = "Handle"
+	rig(mesh, parts, toolFrameCf, look)
+	mesh.Name = "Handle"
 	copy:Destroy()
 	-- Named points in the tool frame become attachments on the handle.
-	local local_ = handle.CFrame:ToObjectSpace(frame)
+	local local_ = mesh.CFrame:ToObjectSpace(toolFrameCf)
 	for name, point in look.model.points do
 		local attachment = Instance.new("Attachment")
-		attachment.Name, attachment.Position, attachment.Parent = name, local_:PointToWorldSpace(point), handle
+		attachment.Name, attachment.Position, attachment.Parent = name, local_:PointToWorldSpace(point), mesh
 	end
 	tool.Grip = local_ * look.model.grip
 	return tool
@@ -254,17 +334,18 @@ end
 -- The swing ribbon between two named points; ToolController enables it during a swing.
 local function addTrail(tool: Tool, look: ToolPresentation.Presentation)
 	local spec = look.model.trail
-	local handle = tool:FindFirstChild("Handle")
-	if not spec or not handle or handle:FindFirstChild("SwingTrail") then return end
-	local a0, a1 = handle:FindFirstChild(spec.from), handle:FindFirstChild(spec.to)
+	if not spec or tool:FindFirstChild("SwingTrail", true) then return end
+	-- Points sit on the Handle, or on the moving handle mesh for tools with a holder grip.
+	local a0, a1 = tool:FindFirstChild(spec.from, true), tool:FindFirstChild(spec.to, true)
 	if not (a0 and a0:IsA("Attachment") and a1 and a1:IsA("Attachment")) then return end
+	local carrier = a0.Parent :: Instance
 	local trail = Instance.new("Trail")
 	trail.Name, trail.Attachment0, trail.Attachment1 = "SwingTrail", a0, a1
 	trail.Lifetime, trail.MinLength, trail.Enabled = spec.lifetime, 0.05, false
 	trail.Color = ColorSequence.new(spec.colors[1], spec.colors[#spec.colors])
 	trail.Transparency = NumberSequence.new(0.3, 1)
 	trail.LightEmission, trail.FaceCamera = 0.35, true
-	trail.Parent = handle
+	trail.Parent = carrier
 end
 
 -- Whether a tool ID can be built: it has a procedural builder, or a presentation entry whose

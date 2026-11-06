@@ -64,8 +64,8 @@ local useAlt = false
 
 -- The harvesting swing: pose clip, trail on for its duration, swish at the start.
 local function swing(tool: Tool, look: ToolPresentation.Presentation?)
-	local handle = tool:FindFirstChild("Handle")
-	local found = if handle then handle:FindFirstChild("SwingTrail") else nil
+	-- On the Handle, or on the moving shaft for tools with a holder grip (Pitchfork).
+	local found = tool:FindFirstChild("SwingTrail", true)
 	local trail = if found and found:IsA("Trail") then found else nil
 	local clip = if look then look.clips.Swing else nil
 	if look and look.clips.SwingAlt then

@@ -85,7 +85,9 @@ end
 function HarvestService.swing(player: Player, toolId: string): Types.HarvestResult
 	local tool = Config.Tools[toolId]
 	if not tool then return result(false, "Unknown tool") end
-	if tool.behavior ~= "ArcSweep" and tool.behavior ~= "SingleTarget" then return result(false, "Unknown tool") end
+	if tool.behavior ~= "ArcSweep" and tool.behavior ~= "SingleTarget" and tool.behavior ~= "LineHarvest" then
+		return result(false, "Unknown tool")
+	end
 	-- Cadence: each accepted swing moves the due time one cooldown on from the later of now and
 	-- the previous due time, and a swing may arrive up to half a cooldown early. Network jitter
 	-- between two honest swings (it matters at the clippers' 0.12 s) is absorbed, yet over any
@@ -118,8 +120,10 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 			fieldOf[id] = field
 		end
 	end
-	-- ArcSweep and SingleTarget share the targeting rule; SingleTarget tools have maxTargets 1
-	-- and a narrow arc (Config.validate), so they cut the one nearest ripe stalk in front.
+	-- ArcSweep and SingleTarget share the arc rule; SingleTarget tools have maxTargets 1 and a
+	-- narrow arc (Config.validate), so they cut the one nearest ripe stalk in front. LineHarvest
+	-- (Pitchfork) takes the nearest ripe stalks in a straight lane along the facing direction.
+	-- The shape comes from the server's own root part, never from the client.
 	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool)
 	if #picked == 0 then return result(false, "Swing closer to ripe corn") end
 	if State.carried(profile) >= State.bagCapacity(profile) then

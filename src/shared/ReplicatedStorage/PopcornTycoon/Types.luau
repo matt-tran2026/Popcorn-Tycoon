@@ -39,11 +39,14 @@ export type HarvestResult = { ok: boolean, reason: string, amount: number, tool:
 export type Currency = "Cash" | "Popcorn"
 export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Secret"
 -- Harvesting families (docs/design/TOOL_COLLECTION.md). Implemented: ArcSweep (up to
--- maxTargets in a wide arc) and SingleTarget (the one nearest ripe stalk in a narrow cone).
-export type ToolBehavior = "ArcSweep" | "SingleTarget"
+-- maxTargets in a wide arc), SingleTarget (the one nearest ripe stalk in a narrow cone) and
+-- LineHarvest (up to maxTargets in a straight lane ahead, laneWidth studs wide).
+export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest"
 export type ToolDefinition = {
 	displayName: string, description: string, rarity: ToolRarity, behavior: ToolBehavior,
-	price: number, currency: Currency, reach: number, arcDegrees: number,
+	-- arcDegrees: the sweep of ArcSweep/SingleTarget tools. laneWidth: the full width of a
+	-- LineHarvest lane, centred on the facing direction.
+	price: number, currency: Currency, reach: number, arcDegrees: number?, laneWidth: number?,
 	maxTargets: number, cooldownSeconds: number, yieldMultiplier: number,
 	swingSeconds: number?, snipStaggerSeconds: number?, kernelFlySeconds: number?,
 }
