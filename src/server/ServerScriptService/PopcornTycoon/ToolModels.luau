@@ -613,10 +613,87 @@ function ToolModels.cornLasso(): Tool
 	return tool
 end
 
+-- Part-built weed whacker, used until the Blender template is imported. Built straight in the
+-- tool frame (X along the shaft toward the head, Y up out of the disc's face, Z toward the gauge
+-- side; grip point on the trigger grip at the origin) with the Blender model's mesh names, the
+-- Spin and Engine joints and the points (the rim points ride the blade), in the design canvas's
+-- colours. Blender (x, y, z) -> (x, y, z).
+function ToolModels.weedWhacker(): Tool
+	local look = assert(ToolPresentation.get("WeedWhacker"))
+	local tool = Instance.new("Tool")
+	tool.Name = "WeedWhacker"
+	tool:SetAttribute("ToolId", "WeedWhacker")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Continuous Cutting: hold to cut a ripe stalk every 0.12 s within 7 studs"
+	local plastic, metal, neon = Enum.Material.SmoothPlastic, Enum.Material.Metal, Enum.Material.Neon
+	local orange, dark, tank = Color3.fromRGB(242, 107, 29), Color3.fromRGB(43, 47, 54), Color3.fromRGB(185, 190, 198)
+	local shaftGrey, steel, rubber = Color3.fromRGB(122, 128, 136), Color3.fromRGB(201, 208, 216), Color3.fromRGB(36, 39, 44)
+	local function box(name: string, size: Vector3, at: Vector3, color: Color3, material: Enum.Material): Part
+		return piece(tool, name, size, CFrame.new(at), color, material)
+	end
+	-- Trigger grip (the Handle), trigger and throttle lock; the shaft and its clutch bell.
+	local handle = box("WhackerGrip", Vector3.new(0.95, 0.4, 0.38), Vector3.new(-0.025, 0, 0), orange, plastic)
+	box("WhackerTrigger", Vector3.new(0.24, 0.18, 0.14), Vector3.new(0.18, -0.28, 0), dark, plastic)
+	box("WhackerLock", Vector3.new(0.26, 0.16, 0.16), Vector3.new(-0.19, 0.27, 0), dark, plastic)
+	local shaft = piece(tool, "WhackerShaft", Vector3.new(4.24, 0.2, 0.2), CFrame.new(1.5, 0, 0), shaftGrey, metal)
+	shaft.Shape = Enum.PartType.Cylinder
+	-- Engine: housing, cylinder cover, tank, starter cover, air filter, clutch bell; gauge on +Z.
+	local engine = box("WhackerEngine", Vector3.new(0.95, 1.04, 0.84), Vector3.new(-1.275, 0.1, 0), orange, plastic)
+	local engineParts = {
+		box("WhackerCylinder", Vector3.new(0.62, 0.42, 0.6), Vector3.new(-1.25, 0.57, 0), dark, plastic),
+		box("WhackerTank", Vector3.new(0.72, 0.38, 0.68), Vector3.new(-1.3, -0.57, 0), tank, plastic),
+		box("WhackerStarter", Vector3.new(0.16, 0.8, 0.72), Vector3.new(-1.84, 0.1, 0), dark, plastic),
+		box("WhackerFilter", Vector3.new(0.56, 0.54, 0.16), Vector3.new(-1.28, 0.01, 0.52), dark, plastic),
+		box("WhackerClutch", Vector3.new(0.4, 0.5, 0.5), Vector3.new(-0.7, 0, 0), orange, plastic),
+	}
+	local heat = box("WhackerHeat", Vector3.new(0.68, 0.24, 0.06), Vector3.new(-1.28, 0.44, 0.51), Color3.new(1, 1, 1), neon)
+	-- Loop handle: top bar (the left hand), two legs and the clamp.
+	local loop = box("WhackerLoop", Vector3.new(0.18, 0.18, 0.84), Vector3.new(0.85, 0.8, 0), rubber, plastic)
+	local loopParts = {
+		box("WhackerLoopLegA", Vector3.new(0.16, 0.7, 0.16), Vector3.new(0.85, 0.45, 0.34), rubber, plastic),
+		box("WhackerLoopLegB", Vector3.new(0.16, 0.7, 0.16), Vector3.new(0.85, 0.45, -0.34), rubber, plastic),
+		box("WhackerClamp", Vector3.new(0.2, 0.4, 0.84), Vector3.new(0.85, 0, 0), dark, plastic),
+	}
+	-- Gearhead and the guard over the back half of the disc.
+	local guard = box("WhackerGuard", Vector3.new(0.6, 0.5, 0.4), Vector3.new(3.77, -0.11, 0), dark, plastic)
+	local guardPlate = box("WhackerGuardPlate", Vector3.new(0.9, 0.08, 1.7), Vector3.new(3.45, -0.33, 0), dark, plastic)
+	-- The disc (a cylinder turned so its axis is tool Y) and three dark slots riding on it.
+	local blade = piece(tool, "WhackerBlade", Vector3.new(0.06, 1.6, 1.6), CFrame.new(3.9, -0.44, 0) * CFrame.Angles(0, 0, math.rad(90)), steel, metal)
+	blade.Shape = Enum.PartType.Cylinder
+	local slots: { Part } = {}
+	for k = 0, 2 do
+		local a = math.rad(120 * k)
+		local at = Vector3.new(3.9 + 0.48 * math.cos(a), -0.4, 0.48 * math.sin(a))
+		table.insert(slots, piece(tool, "WhackerSlot", Vector3.new(0.24, 0.04, 0.12), CFrame.new(at) * CFrame.Angles(0, -a, 0), dark, metal))
+	end
+	local function weld(to: BasePart, part: BasePart)
+		local w = Instance.new("WeldConstraint")
+		w.Part0, w.Part1, w.Parent = to, part, part
+	end
+	for _, part in engineParts do weld(engine, part) end
+	for _, part in loopParts do weld(loop, part) end
+	for _, part in slots do weld(blade, part) end
+	for _, part in { tool:FindFirstChild("WhackerTrigger") :: BasePart, tool:FindFirstChild("WhackerLock") :: BasePart, guardPlate :: BasePart } do
+		weld(if part == guardPlate then guard else handle, part)
+	end
+	rig(handle, { handle :: BasePart, shaft, engine, heat, loop, guard, blade }, CFrame.identity, look)
+	local carriers: { [string]: BasePart } = { WhackerBlade = blade }
+	for name, point in look.model.points do
+		local on = (look.model.pointsOn or {})[name]
+		local carrier = (if on then carriers[on] else nil) or handle
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, carrier.CFrame:PointToObjectSpace(point), carrier
+	end
+	handle.Name = "Handle"
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
 local procedural: { [string]: () -> Tool } = {
 	Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers, Pitchfork = ToolModels.pitchfork,
 	HarvestHook = ToolModels.harvestHook, TwinSickles = ToolModels.twinSickles, LongScythe = ToolModels.longScythe,
 	HedgeTrimmer = ToolModels.hedgeTrimmer, SpringLoadedPicker = ToolModels.springLoadedPicker, CornLasso = ToolModels.cornLasso,
+	WeedWhacker = ToolModels.weedWhacker,
 }
 
 -- Dual-wield tools (look.model.offhand): while the Tool is equipped, the server puts a copy of
@@ -737,6 +814,17 @@ local function toolFrame(handle: BasePart, others: { BasePart }, gripFromCentre:
 	return CFrame.fromMatrix(handle.Position + x * gripFromCentre + z * (gripSide or 0), x, y, z)
 end
 
+-- The part a named point rides: the mesh look.model.pointsOn names, else `default`.
+local function carrierOf(look: ToolPresentation.Presentation, name: string, parts: { BasePart }, default: BasePart): BasePart
+	local on = (look.model.pointsOn or {})[name]
+	if on then
+		for _, part in parts do
+			if part.Name == on then return part end
+		end
+	end
+	return default
+end
+
 -- Builds the Tool from ServerStorage.PopcornTemplates.Tools.<template>, or nil if it is missing
 -- or does not have the expected meshes (the caller then uses the procedural model).
 local function fromTemplate(toolId: string, look: ToolPresentation.Presentation): Tool?
@@ -785,8 +873,9 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 		rig(holder, { holder :: BasePart, table.unpack(parts) }, toolFrameCf, look)
 		copy:Destroy()
 		for name, point in look.model.points do
+			local carrier = carrierOf(look, name, parts, mesh)
 			local attachment = Instance.new("Attachment")
-			attachment.Name, attachment.Position, attachment.Parent = name, mesh.CFrame:PointToObjectSpace(toolFrameCf:PointToWorldSpace(point)), mesh
+			attachment.Name, attachment.Position, attachment.Parent = name, carrier.CFrame:PointToObjectSpace(toolFrameCf:PointToWorldSpace(point)), carrier
 		end
 		tool.Grip = look.model.grip
 		return tool
@@ -795,11 +884,13 @@ local function fromTemplate(toolId: string, look: ToolPresentation.Presentation)
 	rig(mesh, parts, toolFrameCf, look)
 	mesh.Name = "Handle"
 	copy:Destroy()
-	-- Named points in the tool frame become attachments on the handle.
+	-- Named points in the tool frame become attachments on the handle (or on the moving mesh
+	-- that look.model.pointsOn names, so they ride it).
 	local local_ = mesh.CFrame:ToObjectSpace(toolFrameCf)
 	for name, point in look.model.points do
+		local carrier = carrierOf(look, name, parts, mesh)
 		local attachment = Instance.new("Attachment")
-		attachment.Name, attachment.Position, attachment.Parent = name, local_:PointToWorldSpace(point), mesh
+		attachment.Name, attachment.Position, attachment.Parent = name, carrier.CFrame:PointToObjectSpace(toolFrameCf:PointToWorldSpace(point)), carrier
 	end
 	tool.Grip = local_ * look.model.grip
 	return tool

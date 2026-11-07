@@ -33,6 +33,9 @@ export type Model = {
 	-- blade's flat face, Z the side the head curls toward. Origin = the grip point.
 	grip: CFrame,
 	points: { [string]: Vector3 },
+	-- Named points that ride a moving mesh instead of the Handle (point name -> mesh name): the
+	-- Weed Whacker's rim points spin with the blade, so its trail draws the spinning disc.
+	pointsOn: { [string]: string }?,
 	trail: { from: string, to: string, lifetime: number, colors: { Color3 } }?,
 	-- The mesh whose thinnest axis is the tool frame's Y (default: any non-handle mesh). Needed
 	-- when the head has parts that are not flat (springs, bolts).
@@ -102,10 +105,23 @@ export type LassoVfx = {
 	ropeColor: Color3, ropeShade: Color3, ropeWidth: number,
 	earColor: Color3, huskColor: Color3, trailColors: { Color3 },
 }
+-- Continuous Cutting (Weed Whacker, ContinuousHarvest): the blade turns on the `spinJoint`
+-- motor at idleSpin degrees/s when idling and runSpin when running (easing over spinUpSeconds /
+-- spinDownSeconds; it stops while overheated); the engine shakes on `engineJoint` by idleShake
+-- or runShake degrees. The heat gauge mesh (`gaugeMesh`, white in the model) is tinted along
+-- heatColors (cool, warm, hot) and flashes while locked. While running, leaves spray from
+-- sprayPoint and the trail (model.trail) draws the spinning disc; on an overheat, smoke puffs
+-- from smokePoint and sparks from sparkPoint. A HUD meter shows the heat while the tool is held.
+export type WhackerVfx = {
+	spinJoint: string, idleSpin: number, runSpin: number, spinUpSeconds: number, spinDownSeconds: number,
+	engineJoint: string, idleShake: number, runShake: number,
+	gaugeMesh: string, heatColors: { Color3 },
+	sprayPoint: string, sprayColor: Color3, smokePoint: string, smokeColor: Color3, sparkPoint: string, sparkColor: Color3,
+}
 -- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
 export type Vfx = {
 	leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean?, pull: PullVfx?, combo: ComboVfx?,
-	wind: WindVfx?, trim: TrimVfx?, dash: DashVfx?, lasso: LassoVfx?,
+	wind: WindVfx?, trim: TrimVfx?, dash: DashVfx?, lasso: LassoVfx?, whacker: WhackerVfx?,
 }
 export type Presentation = {
 	rarity: string,
@@ -192,6 +208,27 @@ local function trimHands(pose: Pose): Pose
 	for name, value in TRIM_LEFT do merged[name] = value end
 	for name, value in pose do
 		local base = TRIM_LEFT[name]
+		merged[name] = if base then { base[1] + value[1], base[2] + value[2], base[3] + value[3] } else value
+	end
+	return merged
+end
+
+-- Weed Whacker: two-handed, both arms held outright (holdJoints), so these are the arms' whole
+-- pose. The right hand holds the trigger grip at the right hip (0.5 right, 0.35 down, 0.5 ahead
+-- of the root), the shaft pointing ahead, left and down to the disc about 0.7 studs off the
+-- ground; the left arm reaches out to the loop's top bar (0.22 studs from the palm). Angles from a
+-- forward-kinematics search on the live R15 rig in Play (Nov 7 2026; with the loop first at 1.3
+-- along the shaft the left hand fell a stud short, so the loop moved to 0.85). `whackHands`
+-- merges this base into a pose; offsets on these joints add to it.
+local WHACK_BASE: Pose = {
+	RightShoulder = { -25, 0, -60 }, RightElbow = { 65, 0, 0 }, RightWrist = { 0, 0, 0 },
+	LeftShoulder = { 52, 0, 48 }, LeftElbow = { 0, 0, 0 }, LeftWrist = { 0, 0, 0 },
+}
+local function whackHands(pose: Pose): Pose
+	local merged: Pose = {}
+	for name, value in WHACK_BASE do merged[name] = value end
+	for name, value in pose do
+		local base = WHACK_BASE[name]
 		merged[name] = if base then { base[1] + value[1], base[2] + value[2], base[3] + value[3] } else value
 	end
 	return merged
@@ -856,6 +893,98 @@ local tools: { [string]: Presentation } = {
 			},
 		},
 	},
+	-- Two-stroke weed whacker from the creator's reference render (assets/tools/Rare/WeedWhacker,
+	-- in the weapon-pack style: flat colour per face, outline plates). Numbers come from
+	-- build_weed_whacker.py: the trigger grip mesh is centred 0.025 behind the grip; the blade
+	-- (head) lies flat under the gearhead and the gauge, air filter and knob sit on Blender +Z
+	-- (sideMargin 0.10), so Blender (x, y, z) -> tool (x, y, z). Disc centre (3.9, -0.44, 0), engine
+	-- pivot at the clutch (-0.55, 0, 0), loop top (0.85, 0.8, 0). Design canvas: "Weed Whacker Design".
+	WeedWhacker = {
+		rarity = "Rare",
+		-- Both hands are on the tool; neither arm may swing with the run animation.
+		holdJoints = { "RightShoulder", "RightElbow", "RightWrist", "LeftShoulder", "LeftElbow", "LeftWrist" },
+		model = {
+			template = "WeedWhacker", handle = "WhackerGrip", gripFromCentre = 0.025, head = "WhackerBlade",
+			materials = {
+				WhackerGrip = Enum.Material.SmoothPlastic, WhackerShaft = Enum.Material.Metal,
+				WhackerEngine = Enum.Material.SmoothPlastic, WhackerHeat = Enum.Material.Neon,
+				WhackerLoop = Enum.Material.SmoothPlastic, WhackerGuard = Enum.Material.SmoothPlastic,
+				WhackerBlade = Enum.Material.Metal,
+			},
+			-- The disc spins on its own motor (about tool Y, its own plane); the engine shakes on
+			-- another, and the heat gauge rides the engine.
+			joints = {
+				WhackerBlade = { motor = "Spin", pivot = Vector3.new(3.9, -0.44, 0) },
+				WhackerEngine = { motor = "Engine", pivot = Vector3.new(-0.55, 0, 0) },
+			},
+			welds = { WhackerHeat = "WhackerEngine" },
+			-- Shaft ahead, left and down from the right hip ((-0.45, -0.38, -1) from the root), the
+			-- disc's face up and tilted toward the camera behind the player ((0, 1, 0.5)). Given in the
+			-- bent hand's grip frame, from the same search as WHACK_BASE.
+			grip = ToolPresentation.hold(Vector3.new(-0.242, 0.176, -0.954), Vector3.new(-0.967, 0.043, 0.253)),
+			points = {
+				Hub = Vector3.new(3.9, -0.44, 0), BladeFront = Vector3.new(4.8, -0.44, 0),
+				Spray = Vector3.new(4.4, -0.5, 0), EngineTop = Vector3.new(-1.25, 0.88, 0),
+				Exhaust = Vector3.new(-1.14, -0.01, -0.57), HeatGauge = Vector3.new(-1.28, 0.44, 0.54),
+				LeftHand = Vector3.new(0.85, 0.8, 0),
+				RimOuter = Vector3.new(4.76, -0.44, 0), RimInner = Vector3.new(4.42, -0.44, 0),
+			},
+			pointsOn = { RimOuter = "WhackerBlade", RimInner = "WhackerBlade" },
+			-- The swirl: a short trail between two rim points on the spinning blade (on while running).
+			trail = { from = "RimOuter", to = "RimInner", lifetime = 0.12, colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 196, 140) } },
+		},
+		clips = {
+			-- Swung up from the hip into both hands; the starter cord's tug (Shing = the pull-start).
+			Equip = { seconds = 0.5, keys = {
+				{ t = 0, pose = whackHands({ RightShoulder = { 25, 0, 0 }, RightWrist = { 0, 0, 25 }, LeftShoulder = { -55, 0, -20 } }) },
+				{ t = 0.6, pose = whackHands({ RightShoulder = { -6, 0, 0 }, RightWrist = { 0, 0, -6 } }), ease = "Back" },
+				{ t = 1, pose = whackHands({}) },
+			}, markers = { Shing = 0.35 } },
+			-- Idling: a slow, small sway; the engine shake and the slow blade come from vfx.whacker.
+			Idle = { seconds = 2.4, loop = true, keys = {
+				{ t = 0, pose = whackHands({}) },
+				{ t = 0.5, pose = whackHands({ RightShoulder = { 2, 0, 1 }, LeftShoulder = { 2, 0, 1 } }) },
+				{ t = 1, pose = whackHands({}) },
+			} },
+			-- Continuous Cutting (looped while the engine runs): the head sweeps side to side through
+			-- the corn on a waist turn, a little lower than idle, with the arms buzzing.
+			Cut = { seconds = 1.1, loop = true, keys = {
+				{ t = 0, pose = whackHands({ Waist = { 0, 12, 0 }, RightShoulder = { -4, 0, 0 }, LeftShoulder = { -4, 0, 0 } }) },
+				{ t = 0.5, pose = whackHands({ Waist = { 0, -12, 0 }, RightShoulder = { -4, 0, 0 }, LeftShoulder = { -4, 0, 0 } }) },
+				{ t = 1, pose = whackHands({ Waist = { 0, 12, 0 }, RightShoulder = { -4, 0, 0 }, LeftShoulder = { -4, 0, 0 } }) },
+			}, buzz = { from = 0, to = 1, hz = 28, joints = { RightWrist = { 1.2, 0, 1.2 }, LeftWrist = { 1.2, 0, -1.2 } } } },
+			-- Overheat: the engine coughs, the head drops and is shaken, then the stance recovers.
+			Overheat = { seconds = 0.9, keys = {
+				{ t = 0, pose = whackHands({}) },
+				{ t = 0.25, pose = whackHands({ RightShoulder = { -10, 0, 0 }, LeftShoulder = { -10, 0, 0 }, Neck = { -6, 0, 0 } }), ease = "Quad" },
+				{ t = 0.45, pose = whackHands({ RightShoulder = { -7, 0, 4 }, LeftShoulder = { -7, 0, 4 } }) },
+				{ t = 0.6, pose = whackHands({ RightShoulder = { -9, 0, -4 }, LeftShoulder = { -9, 0, -4 } }) },
+				{ t = 1, pose = whackHands({}) },
+			}, markers = { Sputter = 0 } },
+		},
+		sounds = {
+			-- Original synthesised sounds (assets/tools/Rare/WeedWhacker/audio), uploaded Nov 7 2026
+			-- through Studio's Import: the pull-start (Equip), a seamless two-stroke loop whose pitch
+			-- follows the blade (Run), a dry thwip and stalk snap per cut (Harvest) and the engine
+			-- coughing out with a cooling hiss (Overheat). Fallbacks: the Hedge Trimmer's equip and snip.
+			Equip = { id = "rbxassetid://133743619724015", fallback = "rbxassetid://129080146516303", volume = 0.32, pitch = { 0.97, 1.03 } },
+			Run = { id = "rbxassetid://125492824377742", fallback = nil, volume = 0.3, pitch = { 1, 1 } },
+			Harvest = { id = "rbxassetid://88070935132095", fallback = "rbxassetid://122745530221694", volume = 0.3, pitch = { 0.92, 1.12 } },
+			Overheat = { id = "rbxassetid://122754344700259", fallback = nil, volume = 0.4, pitch = { 0.97, 1.03 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true,
+			whacker = {
+				spinJoint = "Spin", idleSpin = 240, runSpin = 1260, spinUpSeconds = 0.35, spinDownSeconds = 0.8,
+				engineJoint = "Engine", idleShake = 0.5, runShake = 1.4,
+				gaugeMesh = "WhackerHeat",
+				heatColors = { Color3.fromRGB(63, 208, 255), Color3.fromRGB(255, 178, 46), Color3.fromRGB(255, 59, 47) },
+				sprayPoint = "Spray", sprayColor = Color3.new(1, 1, 1),
+				smokePoint = "EngineTop", smokeColor = Color3.fromRGB(150, 150, 156),
+				sparkPoint = "Exhaust", sparkColor = Color3.fromRGB(255, 178, 56),
+			},
+		},
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -908,6 +1037,19 @@ function ToolPresentation.validate(toolIds: { string })
 		local trail = look.model.trail
 		if trail then
 			assert(look.model.points[trail.from] and look.model.points[trail.to], toolId .. " trail names a missing point")
+		end
+		for point, mesh in model.pointsOn or {} do
+			assert(look.model.points[point] ~= nil and mesh ~= "", toolId .. " pointsOn names a missing point " .. point)
+		end
+		local whacker = look.vfx.whacker
+		if whacker then
+			local motors: { [string]: boolean } = {}
+			for _, joint in model.joints or {} do motors[joint.motor] = true end
+			assert(motors[whacker.spinJoint] and motors[whacker.engineJoint], toolId .. " whacker names a missing motor")
+			assert(look.model.points[whacker.sprayPoint] and look.model.points[whacker.smokePoint] and look.model.points[whacker.sparkPoint],
+				toolId .. " whacker names a missing point")
+			assert(whacker.runSpin > whacker.idleSpin and whacker.idleSpin >= 0 and whacker.spinUpSeconds > 0 and whacker.spinDownSeconds > 0
+				and #whacker.heatColors >= 2, toolId .. " whacker effect is invalid")
 		end
 		local pull = look.vfx.pull
 		if pull then

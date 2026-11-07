@@ -129,6 +129,9 @@ function ToolRules.pickTargets(origin: Vector3, facing: Vector3, candidates: { T
 	if tool.behavior == "TargetedPull" then
 		return ToolRules.lassoTargets(origin, if flatFacing.Magnitude < 1e-3 then nil else flatFacing.Unit, candidates, tool, aim, slack)
 	end
+	if tool.behavior == "ContinuousHarvest" then
+		return ToolRules.continuousTargets(origin, facing, candidates, tool)
+	end
 	if flatFacing.Magnitude < 1e-3 then return {} end
 	flatFacing = flatFacing.Unit
 	local arc: number? = nil
@@ -174,6 +177,77 @@ function ToolRules.dashReach(rootCFrame: CFrame, tool: Types.ToolDefinition, ign
 	local hit = workspace:Blockcast(start, ToolRules.DashBody, facing * tool.reach, params)
 	if not hit then return tool.reach end
 	return math.clamp(hit.Distance - ToolRules.DashClearance, 0, tool.reach)
+end
+
+-- ContinuousHarvest (Weed Whacker): every ripe candidate within reach of the character (flat
+-- distance from the root, all the way round), ordered by flat distance from the cutting head,
+-- `continuous.headAhead` studs along the facing, so stalks in front go first. At most maxTargets
+-- (1: one stalk per tick). With no facing the head is taken to be over the root.
+function ToolRules.continuousTargets(origin: Vector3, facing: Vector3, candidates: { Types.TargetCandidate }, tool: Types.ToolDefinition): { string }
+	local flatFacing = Vector3.new(facing.X, 0, facing.Z)
+	local ahead = if tool.continuous then tool.continuous.headAhead else 0
+	local head = origin + (if flatFacing.Magnitude > 1e-3 then flatFacing.Unit * ahead else Vector3.zero)
+	local hits: { Hit } = {}
+	local seen: { [string]: boolean } = {}
+	for _, candidate in candidates do
+		local away = flatDistance(candidate.position, origin)
+		local fromHead = flatDistance(candidate.position, head)
+		if not seen[candidate.id] and away == away and fromHead == fromHead and away <= tool.reach then
+			seen[candidate.id] = true
+			table.insert(hits, { id = candidate.id, distance = fromHead })
+		end
+	end
+	return nearest(hits, tool.maxTargets)
+end
+
+-- ContinuousHarvest heat (pure: the clock is passed in; server and client share it). Heat rises
+-- 1 / runSeconds per second while running; at 1 the tool overheats: it stops and is locked for
+-- coolSeconds while the heat falls back to 0. Not running, heat falls 1 / coolSeconds per second.
+function ToolRules.newHeat(): Types.HeatState
+	return { heat = 0, at = 0, running = false, overheatUntil = -math.huge }
+end
+
+-- The heat at `clock` (0..1) and whether the tool is locked by an overheat then.
+function ToolRules.heatAt(tool: Types.ToolDefinition, state: Types.HeatState, clock: number): (number, boolean)
+	local spec = tool.continuous
+	if not spec then return 0, false end
+	local elapsed = math.max(0, clock - state.at)
+	if state.running then
+		local heat = state.heat + elapsed / spec.runSeconds
+		if heat < 1 then return heat, false end
+		-- It overheated while running at `over` and has been cooling since.
+		local over = state.at + (1 - state.heat) * spec.runSeconds
+		local cooled = 1 - math.max(0, clock - over) / spec.coolSeconds
+		return math.max(0, cooled), clock < over + spec.coolSeconds
+	end
+	if clock < state.overheatUntil then
+		return math.clamp((state.overheatUntil - clock) / spec.coolSeconds, 0, 1), true
+	end
+	return math.max(0, state.heat - elapsed / spec.coolSeconds), false
+end
+
+-- Brings the state up to `clock`: a running tool whose heat reached 1 is stopped and locked
+-- until it has cooled. Returns true if that overheat happened in this call.
+function ToolRules.settleHeat(tool: Types.ToolDefinition, state: Types.HeatState, clock: number): boolean
+	local spec = tool.continuous
+	if not spec or not state.running then return false end
+	if state.heat + math.max(0, clock - state.at) / spec.runSeconds < 1 then return false end
+	local over = state.at + (1 - state.heat) * spec.runSeconds
+	state.running, state.heat, state.at, state.overheatUntil = false, 1, over, over + spec.coolSeconds
+	return true
+end
+
+-- Starts or stops the engine at `clock`. Starting is refused while an overheat lock lasts.
+-- Returns whether it is running afterwards.
+function ToolRules.setRunning(tool: Types.ToolDefinition, state: Types.HeatState, want: boolean, clock: number): boolean
+	ToolRules.settleHeat(tool, state, clock)
+	local heat, locked = ToolRules.heatAt(tool, state, clock)
+	if want and not state.running and not locked then
+		state.running, state.heat, state.at = true, heat, clock
+	elseif not want and state.running then
+		state.running, state.heat, state.at = false, heat, clock
+	end
+	return state.running
 end
 
 -- Alternating tools. A fresh state starts on the right hand with no streak.

@@ -863,4 +863,152 @@ function ToolEffects.lassoReply(th: LassoThrow, targets: { Vector3 })
 	if th.targets == nil then th.targets = targets end
 end
 
+-- Continuous Cutting (Weed Whacker). A looping engine sound on the held tool (3D, local to the
+-- holder like every tool sound); its pitch and volume follow the blade. Returns nil without an id.
+function ToolEffects.loopSound(sound: ToolPresentation.Sound?, parent: Instance): Sound?
+	if not sound then return nil end
+	local id = ToolPresentation.soundId(sound)
+	if not id then return nil end
+	local s = Instance.new("Sound")
+	s.Name = "PopcornToolLoop"
+	s.SoundId, s.Volume, s.Looped = id, sound.volume, true
+	s.RollOffMinDistance, s.RollOffMaxDistance = 6, 60
+	s.Parent = parent
+	s:Play()
+	return s
+end
+
+-- The gauge colour for a heat (0..1): along `colors` (cool, warm, hot), evenly spaced.
+function ToolEffects.heatColor(colors: { Color3 }, heat: number): Color3
+	local n = #colors
+	if n == 0 then return Color3.new(1, 1, 1) end
+	if n == 1 then return colors[1] end
+	local x = math.clamp(heat, 0, 1) * (n - 1)
+	local i = math.min(math.floor(x) + 1, n - 1)
+	return colors[i]:Lerp(colors[i + 1], x - (i - 1))
+end
+
+-- The held tool's heat on screen: a small bar above the hotbar, "HEAT" with a fill that runs
+-- cool to hot, and "OVERHEATED" flashing while it is locked. One per equip; destroy() removes it.
+export type HeatMeter = { set: (self: HeatMeter, heat: number, locked: boolean) -> (), destroy: (self: HeatMeter) -> () }
+function ToolEffects.heatMeter(colors: { Color3 }): HeatMeter?
+	local player = game:GetService("Players").LocalPlayer
+	local gui = player and player:FindFirstChildOfClass("PlayerGui")
+	if not gui then return nil end
+	local screen = Instance.new("ScreenGui")
+	screen.Name = "PopcornHeatMeter"
+	screen.ResetOnSpawn, screen.IgnoreGuiInset = false, false
+	screen.DisplayOrder = 5
+	local frame = Instance.new("Frame")
+	frame.Name = "Meter"
+	frame.AnchorPoint = Vector2.new(0.5, 1)
+	frame.Position = UDim2.new(0.5, 0, 1, -92)
+	frame.Size = UDim2.fromOffset(220, 30)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 26, 42)
+	frame.BackgroundTransparency = 0.15
+	frame.Parent = screen
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+	local stroke = Instance.new("UIStroke")
+	stroke.Color, stroke.Thickness, stroke.Transparency = Color3.fromRGB(255, 255, 255), 2, 0.6
+	stroke.Parent = frame
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Position, label.Size = UDim2.fromOffset(10, 0), UDim2.new(0, 64, 1, 0)
+	label.Font, label.TextSize = Enum.Font.GothamBold, 13
+	label.TextColor3 = Color3.fromRGB(242, 244, 248)
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Text = "HEAT"
+	label.Parent = frame
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.Position, track.Size = UDim2.fromOffset(62, 9), UDim2.new(1, -72, 0, 12)
+	track.BackgroundColor3 = Color3.fromRGB(44, 53, 80)
+	track.Parent = frame
+	Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = colors[1] or Color3.new(1, 1, 1)
+	fill.Parent = track
+	Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+	screen.Parent = gui
+	local meter = {} :: any
+	function meter.set(_, heat: number, locked: boolean)
+		fill.Size = UDim2.fromScale(math.clamp(heat, 0, 1), 1)
+		local flash = locked and (os.clock() * 4) % 1 < 0.5
+		fill.BackgroundColor3 = if flash then Color3.new(1, 1, 1) else ToolEffects.heatColor(colors, heat)
+		label.Text = if locked then "COOLING" else "HEAT"
+		label.TextColor3 = if locked then (colors[#colors] or label.TextColor3) else Color3.fromRGB(242, 244, 248)
+		stroke.Color = if locked then (colors[#colors] or stroke.Color) else Color3.fromRGB(255, 255, 255)
+	end
+	function meter.destroy()
+		screen:Destroy()
+	end
+	return meter :: HeatMeter
+end
+
+-- Leaves spraying off the spinning head while the engine runs (one emitter made once per tool in
+-- the spray point, switched on and off) and, on an overheat, a puff of smoke from the engine top
+-- and sparks from the exhaust (one emitter each, made once, told to Emit).
+function ToolEffects.whackerSpray(tool: Tool, spec: ToolPresentation.WhackerVfx, on: boolean)
+	local spray = tool:FindFirstChild(spec.sprayPoint, true)
+	if not (spray and spray:IsA("Attachment")) then return end
+	local emitter = sprayEmitter(spray, "WhackerSpray", function(e)
+		e.Texture = ToolPresentation.Textures.LeafFleck
+		e.Color = ColorSequence.new(spec.sprayColor)
+		e.Rate = 26 * ToolEffects.particleScale
+		e.Lifetime = NumberRange.new(0.3, 0.55)
+		e.Speed = NumberRange.new(7, 12)
+		-- The attachment's axes follow the imported mesh, so spray all round the head.
+		e.SpreadAngle = Vector2.new(80, 80)
+		e.Acceleration = Vector3.new(0, -26, 0)
+		e.Drag = 2.5
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new(-400, 400)
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.32), NumberSequenceKeypoint.new(1, 0.18) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.7, 0), NumberSequenceKeypoint.new(1, 1) })
+		e.EmissionDirection = Enum.NormalId.Top
+		e.LightInfluence = 0.6
+	end)
+	local camera = workspace.CurrentCamera
+	local near = not camera or (camera.CFrame.Position - spray.WorldPosition).Magnitude <= NEAR
+	emitter.Enabled = on and near and ToolEffects.particleScale > 0
+end
+
+function ToolEffects.overheatPuff(tool: Tool, spec: ToolPresentation.WhackerVfx)
+	if ToolEffects.particleScale <= 0 then return end
+	local top = tool:FindFirstChild(spec.smokePoint, true)
+	if top and top:IsA("Attachment") then
+		sprayEmitter(top, "WhackerSmoke", function(e)
+			e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+			e.Color = ColorSequence.new(spec.smokeColor)
+			e.Lifetime = NumberRange.new(0.8, 1.3)
+			e.Speed = NumberRange.new(2, 4)
+			e.SpreadAngle = Vector2.new(30, 30)
+			e.Acceleration = Vector3.new(0, 3, 0)
+			e.Drag = 1.5
+			e.Rotation = NumberRange.new(0, 360)
+			e.RotSpeed = NumberRange.new(-60, 60)
+			e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1.6) })
+			e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+			e.EmissionDirection = Enum.NormalId.Top
+			e.LightInfluence = 0.8
+		end):Emit(math.max(1, math.floor(10 * ToolEffects.particleScale)))
+	end
+	local exhaust = tool:FindFirstChild(spec.sparkPoint, true)
+	if exhaust and exhaust:IsA("Attachment") then
+		sprayEmitter(exhaust, "WhackerSparks", function(e)
+			e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			e.Color = ColorSequence.new(spec.sparkColor)
+			e.Lifetime = NumberRange.new(0.15, 0.3)
+			e.Speed = NumberRange.new(5, 9)
+			e.SpreadAngle = Vector2.new(60, 60)
+			e.Acceleration = Vector3.new(0, -30, 0)
+			e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 0) })
+			e.LightEmission, e.LightInfluence = 1, 0
+		end):Emit(math.max(1, math.floor(12 * ToolEffects.particleScale)))
+	end
+end
+
 return ToolEffects

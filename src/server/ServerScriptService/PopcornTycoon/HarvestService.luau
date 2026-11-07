@@ -16,6 +16,9 @@ local swingDue: { [number]: number } = {}
 -- Alternating tools (Twin Sickles): whose hand is next and the streak toward the combo, per
 -- player, for the tool it was counted with (switching tools starts afresh).
 local combos: { [number]: { toolId: string, state: Types.ComboState } } = {}
+-- Held tools (Weed Whacker, ContinuousHarvest): per player, the tool, its heat (ToolRules
+-- HeatState on the server clock ToolService passes in) and when the next cut is due.
+local cutters: { [number]: { toolId: string, heat: Types.HeatState, nextCut: number } } = {}
 local HarvestService = {}
 
 local function result(ok: boolean, reason: string, amount: number?): Types.HarvestResult
@@ -86,6 +89,52 @@ function HarvestService.attempt(player: Player, ownerUserId: unknown, fieldId: u
 	return result(true, if leftOver then "Bag full" else "Harvested", corn)
 end
 
+-- The player's ripe stalks, from every owned plot, as targeting candidates (each remembers its
+-- plot). Only ripe stalks are candidates, so growing corn never soaks up a tool's targets.
+local function ripeCandidates(player: Player, profile: Types.Profile, at: number): ({ Types.TargetCandidate }, { [string]: Types.Field })
+	local candidates: { Types.TargetCandidate } = {}
+	local fieldOf: { [string]: Types.Field } = {}
+	local rulesOf: { [string]: Types.GrowthRules } = {}
+	for fieldId, field in profile.fields do
+		if Config.Crops[field.cropId] then rulesOf[fieldId] = FarmUpgrades.fieldRules(field) end
+	end
+	for id, part in Farms.stalkParts(player.UserId) do
+		local fieldId = Farms.fieldOf(player.UserId, id)
+		local field = if fieldId then profile.fields[fieldId] else nil
+		local rules = if fieldId then rulesOf[fieldId] else nil
+		local stalk = if field then field.stalks[id] else nil
+		if field and rules and stalk and field.ownerUserId == player.UserId and Growth.yields(stalk.growthStartedAt, at, rules) > 0 then
+			table.insert(candidates, { id = id, position = part.Position })
+			fieldOf[id] = field
+		end
+	end
+	return candidates, fieldOf
+end
+
+-- Takes every picked stalk that fits in the bag and builds the reply. Must not yield: callers
+-- pick and commit in one step.
+local function commit(player: Player, profile: Types.Profile, toolId: string, tool: Types.ToolDefinition, picked: { string }, fieldOf: { [string]: Types.Field }, at: number): Types.HarvestResult
+	if State.carried(profile) >= State.bagCapacity(profile) then
+		return result(false, "Bag full · pop it at the microwave")
+	end
+	local total, full = 0, false
+	local targets: { Vector3 } = {}
+	for _, id in picked do
+		local field = fieldOf[id]
+		local corn, _, leftOver = take(profile, field, field.stalks[id], at, tool.yieldMultiplier)
+		if corn > 0 then
+			total += corn
+			table.insert(targets, (Farms.target(player.UserId, field.id, id) :: Part).Position)
+		end
+		if leftOver then full = true end
+	end
+	if total == 0 then return result(false, "Bag full · pop it at the microwave") end
+	player:SetAttribute("RawCorn", State.carried(profile))
+	local response = result(true, if full then "Bag full" else "Harvested", total)
+	response.tool, response.targets = toolId, targets
+	return response
+end
+
 -- One swing of an owned, equipped tool. The server picks the targets from the character's
 -- position and facing; the client never names stalks. Targeted tools (Corn Lasso) also take the
 -- client's aim point, which only says where it aimed: the server snaps it to one of the player's
@@ -138,24 +187,8 @@ function HarvestService.swing(player: Player, toolId: string, aim: unknown?): Ty
 		return response
 	end
 	local at = now()
-	-- Only ripe stalks are candidates, so growing corn never soaks up a swing's targets.
 	-- Candidates come from every owned plot; each stalk remembers its plot (Farms.fieldOf).
-	local candidates: { Types.TargetCandidate } = {}
-	local fieldOf: { [string]: Types.Field } = {}
-	local rulesOf: { [string]: Types.GrowthRules } = {}
-	for fieldId, field in profile.fields do
-		if Config.Crops[field.cropId] then rulesOf[fieldId] = FarmUpgrades.fieldRules(field) end
-	end
-	for id, part in Farms.stalkParts(player.UserId) do
-		local fieldId = Farms.fieldOf(player.UserId, id)
-		local field = if fieldId then profile.fields[fieldId] else nil
-		local rules = if fieldId then rulesOf[fieldId] else nil
-		local stalk = if field then field.stalks[id] else nil
-		if field and rules and stalk and field.ownerUserId == player.UserId and Growth.yields(stalk.growthStartedAt, at, rules) > 0 then
-			table.insert(candidates, { id = id, position = part.Position })
-			fieldOf[id] = field
-		end
-	end
+	local candidates, fieldOf = ripeCandidates(player, profile, at)
 	-- ArcSweep and SingleTarget share the arc rule; SingleTarget tools have maxTargets 1 and a
 	-- narrow arc (Config.validate), so they cut the one nearest ripe stalk in front. LineHarvest
 	-- (Pitchfork) takes the nearest ripe stalks in a straight lane along the facing direction.
@@ -183,32 +216,87 @@ function HarvestService.swing(player: Player, toolId: string, aim: unknown?): Ty
 		missed.dashReach = dashReach
 		return outcome(missed)
 	end
-	if State.carried(profile) >= State.bagCapacity(profile) then
-		return outcome(result(false, "Bag full · pop it at the microwave"))
-	end
 	-- No yields between picking targets and committing every take.
-	local total, full = 0, false
-	local targets: { Vector3 } = {}
-	for _, id in picked do
-		local field = fieldOf[id]
-		local corn, _, leftOver = take(profile, field, field.stalks[id], at, tool.yieldMultiplier)
-		if corn > 0 then
-			total += corn
-			table.insert(targets, (Farms.target(player.UserId, field.id, id) :: Part).Position)
-		end
-		if leftOver then full = true end
-	end
-	if total == 0 then return outcome(result(false, "Bag full · pop it at the microwave")) end
-	player:SetAttribute("RawCorn", State.carried(profile))
-	local response = result(true, if full then "Bag full" else "Harvested", total)
-	response.tool, response.targets, response.dashReach = toolId, targets, dashReach
+	local response = commit(player, profile, toolId, tool, picked, fieldOf, at)
+	if response.ok then response.dashReach = dashReach end
 	return outcome(response)
+end
+
+-- Held tools (ContinuousHarvest). The heat state of a player's cutter for this tool, made fresh
+-- when they switch tools (so heat belongs to the tool it was built up on).
+local function cutter(userId: number, toolId: string): { toolId: string, heat: Types.HeatState, nextCut: number }
+	local entry = cutters[userId]
+	if not entry or entry.toolId ~= toolId then
+		entry = { toolId = toolId, heat = ToolRules.newHeat(), nextCut = -math.huge }
+		cutters[userId] = entry
+	end
+	return entry
+end
+
+-- Starts (want true) or stops the engine of a held tool at `clock` (the server clock ToolService
+-- uses for every cutter). Starting needs the tool owned and equipped, a living character and no
+-- overheat lock; stopping always works. Returns the heat state for the Tool's attributes, or nil
+-- for a tool that is not a held tool.
+function HarvestService.hold(player: Player, toolId: string, want: boolean, clock: number): Types.HeatState?
+	local tool = Config.Tools[toolId]
+	if not tool or tool.behavior ~= "ContinuousHarvest" then return nil end
+	local profile = State.get(player.UserId)
+	if want and (not profile or not profile.ownedTools[toolId] or profile.equippedTool ~= toolId or not livingRoot(player)) then
+		want = false
+	end
+	local entry = cutter(player.UserId, toolId)
+	local was = entry.heat.running
+	ToolRules.setRunning(tool, entry.heat, want, clock)
+	-- A fresh start cuts at once; a stop-start never cuts sooner than the cadence allows.
+	if entry.heat.running and not was then entry.nextCut = math.max(entry.nextCut, clock) end
+	return entry.heat
+end
+
+-- The running held tool's id and heat state for a player, if any.
+function HarvestService.cutterOf(userId: number): (string?, Types.HeatState?)
+	local entry = cutters[userId]
+	if not entry then return nil, nil end
+	return entry.toolId, entry.heat
+end
+
+-- One tick of a player's held tool (ToolService's shared loop, every frame). Settles the heat
+-- (an overheat stops it: second return true) and, when a cut is due, cuts the ripe stalk the
+-- server's own targeting picks from its root part. Cadence: one cut per cooldownSeconds on
+-- average (the due time moves on by a cooldown per cut) and never two within half a cooldown;
+-- a tick with nothing in reach looks again half a cooldown later. Returns nil when nothing was
+-- due. Losing the tool or the character stops the engine.
+function HarvestService.cutTick(player: Player, clock: number): (Types.HarvestResult?, boolean)
+	local entry = cutters[player.UserId]
+	if not entry or not entry.heat.running then return nil, false end
+	local tool = Config.Tools[entry.toolId]
+	if ToolRules.settleHeat(tool, entry.heat, clock) then return nil, true end
+	if clock < entry.nextCut then return nil, false end
+	local profile = State.get(player.UserId)
+	if not profile or not profile.ownedTools[entry.toolId] or profile.equippedTool ~= entry.toolId then
+		ToolRules.setRunning(tool, entry.heat, false, clock)
+		return result(false, tool.displayName .. " not equipped"), false
+	end
+	local root = livingRoot(player)
+	if not root then
+		ToolRules.setRunning(tool, entry.heat, false, clock)
+		return result(false, "Character unavailable"), false
+	end
+	local at = now()
+	local candidates, fieldOf = ripeCandidates(player, profile, at)
+	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool)
+	if #picked == 0 then
+		entry.nextCut = clock + tool.cooldownSeconds * 0.5
+		return result(false, "Walk into ripe corn"), false
+	end
+	entry.nextCut = math.max(entry.nextCut + tool.cooldownSeconds, clock + tool.cooldownSeconds * 0.5)
+	return commit(player, profile, entry.toolId, tool, picked, fieldOf, at), false
 end
 
 function HarvestService.release(userId: number)
 	lastAttempt[userId] = nil
 	swingDue[userId] = nil
 	combos[userId] = nil
+	cutters[userId] = nil
 end
 
 return HarvestService

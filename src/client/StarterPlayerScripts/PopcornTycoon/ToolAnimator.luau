@@ -75,11 +75,12 @@ end
 -- Adds the clip's buzz (a fast vibration, e.g. the Hedge Trimmer's chattering blades) to a
 -- sampled pose: each buzz joint gets its value times sin(2 pi hz elapsed), fading out over the
 -- last 15% of the buzz span. Joints the keys don't pose are added at their buzz value alone.
+-- A looping clip whose buzz runs to its end (the Weed Whacker's Cut) never fades.
 function ToolAnimator.addBuzz(clip: Clip, pose: Pose, t: number, elapsed: number)
 	local buzz = clip.buzz
 	if not buzz or t < buzz.from or t > buzz.to then return end
 	local span = buzz.to - buzz.from
-	local fade = math.clamp((buzz.to - t) / math.max(span * 0.15, 1e-6), 0, 1)
+	local fade = if clip.loop and buzz.to >= 1 then 1 else math.clamp((buzz.to - t) / math.max(span * 0.15, 1e-6), 0, 1)
 	local wave = math.sin(2 * math.pi * buzz.hz * elapsed) * fade
 	for name, value in buzz.joints do
 		local current = pose[name] or {}
@@ -96,6 +97,11 @@ export type Player = {
 	setIdle: (self: Player, clip: Clip?) -> (),
 	stop: (self: Player) -> (),
 	playing: (self: Player) -> boolean,
+	-- Continuous motion layered after the clips every frame, on tool joints the clips don't pose:
+	-- setSpin turns a joint about its Y axis at `degreesPerSecond` (the Weed Whacker's blade);
+	-- setShake jitters a joint by up to `degrees` on each axis (its engine). 0 stops either.
+	setSpin: (self: Player, joint: string, degreesPerSecond: number) -> (),
+	setShake: (self: Player, joint: string, degrees: number) -> (),
 }
 
 -- Stretching parts (ToolPresentation model.stretch, the Spring-Loaded Picker's coil): the part's
@@ -135,6 +141,9 @@ function ToolAnimator.attach(character: Model, held: { string }?, stretch: { [st
 	local onMarker: ((string) -> ())? = nil
 	local firedMarkers: { [string]: boolean } = {}
 	local connection: RBXScriptConnection? = nil
+	local spins: { [string]: { rate: number, angle: number } } = {}
+	local shakes: { [string]: number } = {}
+	local lastStep = os.clock()
 
 	local function joint(name: string): any
 		local found = joints[name]
@@ -167,6 +176,8 @@ function ToolAnimator.attach(character: Model, held: { string }?, stretch: { [st
 
 	local function step()
 		local now = os.clock()
+		local dt = math.clamp(now - lastStep, 0, 0.1)
+		lastStep = now
 		local blendIdle = 1
 		if active then
 			local clip = active :: Clip
@@ -191,9 +202,29 @@ function ToolAnimator.attach(character: Model, held: { string }?, stretch: { [st
 		if idle and blendIdle > 0 then
 			local clip = idle :: Clip
 			local t = ((now - idleStarted) / clip.seconds) % 1
+			local pose = ToolAnimator.sample(clip, t)
+			ToolAnimator.addBuzz(clip, pose, t, now - idleStarted)
 			-- Ease the idle back in over 0.2 s after a one-shot so it never snaps.
-			apply(ToolAnimator.sample(clip, t), math.clamp((now - idleStarted) / 0.2, 0, 1))
+			apply(pose, math.clamp((now - idleStarted) / 0.2, 0, 1))
 		end
+		-- Spinning and shaking tool joints, after the clips (which never pose these joints).
+		local overlay: Pose = {}
+		for name, spin in spins do
+			spin.angle = (spin.angle + spin.rate * dt) % 360
+			overlay[name] = { 0, spin.angle, 0 }
+		end
+		for name, degrees in shakes do
+			if degrees > 0 then
+				-- Three incommensurate fast waves read as an engine's rattle, not a wobble.
+				overlay[name] = {
+					degrees * math.sin(now * 2 * math.pi * 31), degrees * 0.6 * math.sin(now * 2 * math.pi * 37 + 1),
+					degrees * math.sin(now * 2 * math.pi * 43 + 2),
+				}
+			else
+				overlay[name] = { 0, 0, 0 }
+			end
+		end
+		if next(overlay) then apply(overlay, 1) end
 		if stretch then
 			for _, spec in stretch do
 				local own, follow = joint(spec.motor), joint(spec.follow)
@@ -213,6 +244,17 @@ function ToolAnimator.attach(character: Model, held: { string }?, stretch: { [st
 	end
 	function player.playing(): boolean
 		return active ~= nil
+	end
+	function player.setSpin(_, name: string, degreesPerSecond: number)
+		local spin = spins[name]
+		if not spin then
+			spin = { rate = 0, angle = 0 }
+			spins[name] = spin
+		end
+		spin.rate = degreesPerSecond
+	end
+	function player.setShake(_, name: string, degrees: number)
+		shakes[name] = math.max(0, degrees)
 	end
 	function player.stop()
 		if connection then connection:Disconnect() end

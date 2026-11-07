@@ -2,6 +2,7 @@
 -- Tool purchases, the Roblox Tool instances that carry them, and what is equipped.
 -- The profile is the source of truth: Tool instances are rebuilt from ownedTools on spawn.
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
 local Types = require(Shared.Types)
@@ -10,6 +11,7 @@ local State = require(script.Parent.PlayerStateService)
 local Farms = require(script.Parent.FarmService)
 local Harvest = require(script.Parent.HarvestService)
 local ToolModels = require(script.Parent.ToolModels)
+local ToolRules = require(Shared.ToolRules)
 local feedback: RemoteEvent? = nil
 local spawnConnections: { [number]: RBXScriptConnection } = {}
 local ToolService = {}
@@ -47,6 +49,8 @@ local function give(player: Player, toolId: string)
 	tool.Unequipped:Connect(function()
 		local profile = State.get(player.UserId)
 		if profile and profile.equippedTool == toolId then setEquipped(player, "Manual") end
+		-- A held tool's engine stops when it is put away.
+		if Config.Tools[toolId].behavior == "ContinuousHarvest" then ToolService.hold(player, toolId, false) end
 	end)
 	-- No harvest on Tool.Activated: it replicates every click, including the ones the client's
 	-- cooldown ignores, so spam-clicking cut corn without a visible swing (Nov 6 2026). Swings
@@ -54,8 +58,103 @@ local function give(player: Player, toolId: string)
 	tool.Parent = backpack
 end
 
+-- Held tools (ContinuousHarvest). The clock every cutter runs on: the server's synced clock,
+-- which clients read too (workspace:GetServerTimeNow), so the heat they show from the Tool's
+-- attributes matches the server's.
+local function serverClock(): number
+	return workspace:GetServerTimeNow()
+end
+
+-- Players whose held tool is running, and the last refusal each was told (refusals repeat every
+-- tick while nothing is in reach, so each is sent once per press of the button).
+local running: { [number]: boolean } = {}
+local lastRefusal: { [number]: string } = {}
+local lastHold: { [number]: number } = {}
+
+-- Mirrors a held tool's heat onto its Tool so every client can show it (gauge tint, HUD meter):
+-- Heat (0..1) at HeatAt, Running, OverheatUntil (all on the server clock).
+local function publishHeat(player: Player, toolId: string, state: Types.HeatState)
+	local tool = owned(player, toolId)
+	if not tool then return end
+	tool:SetAttribute("Heat", state.heat)
+	tool:SetAttribute("HeatAt", state.at)
+	tool:SetAttribute("Running", state.running)
+	tool:SetAttribute("OverheatUntil", if state.overheatUntil > -math.huge then state.overheatUntil else 0)
+end
+
+-- One start/stop request from the ToolHold remote (the client sends it when the button goes
+-- down and up). Starting needs the tool in the character's hand; HarvestService.hold checks
+-- ownership, equip state, the character and the overheat lock. Requests are capped at 20 a
+-- second per player; a stop is never dropped.
+function ToolService.hold(player: Player, toolId: unknown, want: unknown)
+	if typeof(toolId) ~= "string" or typeof(want) ~= "boolean" then return end
+	local definition = Config.Tools[toolId]
+	if not definition or definition.behavior ~= "ContinuousHarvest" then return end
+	local clock = serverClock()
+	if want then
+		local previous = lastHold[player.UserId]
+		if previous and clock - previous < 0.05 then return end
+		lastHold[player.UserId] = clock
+		local character = player.Character
+		local held = character and character:FindFirstChildOfClass("Tool")
+		if not held or held:GetAttribute("ToolId") ~= toolId then return end
+	end
+	local state = Harvest.hold(player, toolId, want, clock)
+	if not state then return end
+	running[player.UserId] = if state.running then true else nil
+	lastRefusal[player.UserId] = nil
+	publishHeat(player, toolId, state)
+	-- Asked to start but locked: say so (the gauge shows it too).
+	if want and not state.running and feedback then
+		local _, locked = ToolRules.heatAt(definition, state, clock)
+		if locked then feedback:FireClient(player, { ok = false, reason = "Overheated! Let it cool", amount = 0 }) end
+	end
+end
+
+-- The shared loop for every running held tool: one Heartbeat connection, each player's due cut
+-- at most once per frame. Successful cuts are sent like a swing's harvest (tool and target), an
+-- overheat stops the engine and is announced, and farms refresh once per frame with any cut.
+local function tickCutters()
+	local clock = serverClock()
+	local anyCut = false
+	for userId in running do
+		local player = Players:GetPlayerByUserId(userId)
+		if not player then
+			running[userId] = nil
+			continue
+		end
+		local response, overheated = Harvest.cutTick(player, clock)
+		local toolId, state = Harvest.cutterOf(userId)
+		if overheated and toolId and state then
+			running[userId] = nil
+			publishHeat(player, toolId, state)
+			local definition = Config.Tools[toolId]
+			local cool = if definition.continuous then definition.continuous.coolSeconds else 0
+			if feedback then
+				feedback:FireClient(player, { ok = false, reason = "Overheated! Cooling for " .. tostring(cool) .. " s", amount = 0, tool = toolId })
+			end
+		elseif response then
+			if response.ok then
+				-- (lastRefusal is kept: walking between ripe patches would repeat "Walk into ripe
+				-- corn" after every cut, so each refusal is said once per press.)
+				anyCut = true
+				if feedback then feedback:FireClient(player, response) end
+			elseif lastRefusal[userId] ~= response.reason then
+				lastRefusal[userId] = response.reason
+				if feedback then feedback:FireClient(player, response) end
+			end
+			if state and not state.running and toolId then
+				running[userId] = nil
+				publishHeat(player, toolId, state)
+			end
+		end
+	end
+	if anyCut then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
+end
+
 function ToolService.init(harvestFeedback: RemoteEvent)
 	feedback = harvestFeedback
+	RunService.Heartbeat:Connect(tickCutters)
 end
 
 -- One swing request from the ToolSwing remote: the client sends it only when it plays the swing
@@ -181,6 +280,9 @@ function ToolService.release(userId: number)
 	if connection then connection:Disconnect() end
 	spawnConnections[userId] = nil
 	lastRequest[userId] = nil
+	running[userId] = nil
+	lastRefusal[userId] = nil
+	lastHold[userId] = nil
 end
 
 return ToolService

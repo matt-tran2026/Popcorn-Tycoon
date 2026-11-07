@@ -20,6 +20,9 @@ local player = Players.LocalPlayer
 -- (toolId, aim?): one swing, sent only when the swing animation plays (Bootstrap.server,
 -- ToolService.swing). aim is the Corn Lasso's aimed stalk; other tools send none.
 local swingRequest = Shared:WaitForChild("Remotes"):WaitForChild("ToolSwing") :: RemoteEvent
+-- (toolId, holding): held tools (Weed Whacker) say when the button goes down and up; the server
+-- runs the engine and cuts on its own cadence (ToolService.hold).
+local holdRequest = Shared:WaitForChild("Remotes"):WaitForChild("ToolHold") :: RemoteEvent
 local Controller = {}
 
 local function myStalks(): { Types.TargetCandidate }
@@ -374,8 +377,116 @@ local function swing(tool: Tool, look: ToolPresentation.Presentation?, toolId: s
 	end
 end
 
+-- Continuous Cutting (Weed Whacker, ContinuousHarvest). While the tool is equipped one session
+-- runs per frame: it reads the server's heat from the Tool's attributes (Heat at HeatAt, Running,
+-- OverheatUntil, on the server clock) through the shared ToolRules.heatAt, and shows it: the Cut
+-- or Idle clip, the blade's spin and the engine's shake (eased), the looping engine sound's pitch,
+-- the gauge mesh's tint (flashing while locked), the swirl trail and leaf spray while running, the
+-- HUD meter, and on an overheat the Overheat clip, sound, smoke and sparks. A press shows the
+-- engine starting at once; if the server has not confirmed it within 0.3 s the server's word wins.
+-- Holding the button through an overheat starts it again once it has cooled.
+type Whacker = { stop: () -> (), press: () -> (), release: () -> () }
+local function startWhacker(tool: Tool, look: ToolPresentation.Presentation?, toolId: string, definition: Types.ToolDefinition): Whacker?
+	local spec = if look then look.vfx.whacker else nil
+	if not look or not spec then return nil end
+	local holding, pressedAt = false, -math.huge
+	local shownRunning = false
+	local spin = spec.idleSpin
+	local lastOverheat = tool:GetAttribute("OverheatUntil")
+	local wasLocked = false
+	local handle = tool:FindFirstChild("Handle")
+	local loop = Effects.loopSound(look.sounds.Run, handle or tool)
+	local meter = Effects.heatMeter(spec.heatColors)
+	local gauges: { BasePart } = {}
+	for _, part in tool:GetDescendants() do
+		if part:IsA("BasePart") and part.Name == spec.gaugeMesh then table.insert(gauges, part) end
+	end
+	local trail = trailOf(tool)
+	local last = os.clock()
+	local function heatNow(): (number, boolean, boolean)
+		local state: Types.HeatState = {
+			heat = tonumber(tool:GetAttribute("Heat")) or 0, at = tonumber(tool:GetAttribute("HeatAt")) or 0,
+			running = tool:GetAttribute("Running") == true, overheatUntil = tonumber(tool:GetAttribute("OverheatUntil")) or 0,
+		}
+		local clock = workspace:GetServerTimeNow()
+		local heat, locked = ToolRules.heatAt(definition, state, clock)
+		-- Past the overheat point the server stops the engine on its next tick; show it now.
+		local runningNow = state.running and not locked
+		return heat, locked, runningNow
+	end
+	local connection = RunService.RenderStepped:Connect(function()
+		local now = os.clock()
+		local dt = math.clamp(now - last, 0, 0.1)
+		last = now
+		local heat, locked, serverRunning = heatNow()
+		local running = not locked and (serverRunning or (holding and now - pressedAt < 0.3))
+		-- A fresh overheat (OverheatUntil moved on): cough, smoke, sparks, the head drops.
+		local overheat = tool:GetAttribute("OverheatUntil")
+		if overheat ~= lastOverheat then
+			lastOverheat = overheat
+			if locked then
+				Effects.sound(look.sounds.Overheat)
+				Effects.overheatPuff(tool, spec)
+				if animator and look.clips.Overheat then animator:play(look.clips.Overheat) end
+			end
+		end
+		-- Cooled down with the button still held: start again.
+		if wasLocked and not locked and holding then
+			pressedAt = now
+			holdRequest:FireServer(toolId, true)
+		end
+		wasLocked = locked
+		if running ~= shownRunning then
+			shownRunning = running
+			if animator then animator:setIdle(if running then look.clips.Cut else look.clips.Idle) end
+		end
+		-- Blade and engine: spin eases up fast and down slowly; nothing turns while it cools.
+		local target = if locked then 0 elseif running then spec.runSpin else spec.idleSpin
+		local tau = if target > spin then spec.spinUpSeconds else spec.spinDownSeconds
+		spin += (target - spin) * math.clamp(dt * 3 / tau, 0, 1)
+		if animator then
+			animator:setSpin(spec.spinJoint, spin)
+			animator:setShake(spec.engineJoint, if locked then 0 elseif running then spec.runShake else spec.idleShake)
+		end
+		local pace = spin / spec.runSpin
+		if loop then
+			loop.PlaybackSpeed = 0.55 + 0.6 * pace
+			loop.Volume = if locked then 0 else (look.sounds.Run.volume * (0.45 + 0.55 * pace))
+		end
+		if trail then trail.Enabled = running end
+		Effects.whackerSpray(tool, spec, running)
+		local flash = locked and (os.clock() * 4) % 1 < 0.5
+		local tint = if flash then Color3.new(1, 1, 1) else Effects.heatColor(spec.heatColors, heat)
+		for _, gauge in gauges do gauge.Color = tint end
+		if meter then meter:set(heat, locked) end
+	end)
+	local session = {} :: Whacker
+	function session.press()
+		if holding then return end
+		holding, pressedAt = true, os.clock()
+		holdRequest:FireServer(toolId, true)
+	end
+	function session.release()
+		if not holding then return end
+		holding = false
+		holdRequest:FireServer(toolId, false)
+	end
+	function session.stop()
+		session.release()
+		connection:Disconnect()
+		if loop then loop:Destroy() end
+		if meter then meter:destroy() end
+		if trail then trail.Enabled = false end
+		Effects.whackerSpray(tool, spec, false)
+		for _, gauge in gauges do gauge.Color = Color3.new(1, 1, 1) end
+	end
+	return session
+end
+
 -- When the blade reaches the corn: the played clip's Hit marker (the Combo spin for a combo).
+-- Held tools cut the moment the server says so.
 local function hitLead(toolId: string, definition: Types.ToolDefinition, combo: boolean): number
+	if definition.behavior == "ContinuousHarvest" then return 0 end
 	local look = ToolPresentation.get(toolId)
 	local clip = if look then (if combo and look.clips.Combo then look.clips.Combo else look.clips.Swing) else nil
 	local at = if clip and clip.markers and clip.markers.Hit then clip.markers.Hit else 0.35
@@ -387,6 +498,11 @@ function Controller.start(feedback: RemoteEvent)
 	local heldId: string? = nil
 	local lastSwing = 0
 	local lastScan = 0
+	local whacker: Whacker? = nil
+	local function stopWhacker()
+		if whacker then whacker.stop() end
+		whacker = nil
+	end
 
 	local function bind(tool: Tool)
 		local toolId = tool:GetAttribute("ToolId")
@@ -394,18 +510,28 @@ function Controller.start(feedback: RemoteEvent)
 		tool:SetAttribute("Bound", true)
 		local definition = Config.Tools[toolId]
 		local look = ToolPresentation.get(toolId)
+		local continuous = definition.behavior == "ContinuousHarvest"
 		tool.Equipped:Connect(function()
 			held, heldId = tool, toolId
 			startAnimator(tool, look)
 			Prompts.setHarvestSuppressed(true)
-			-- Mouse click and touch tap activate Tools natively; F gives keyboards a swing key.
+			stopWhacker()
+			if continuous then whacker = startWhacker(tool, look, toolId, definition) end
+			-- Mouse click and touch tap activate Tools natively; F gives keyboards a swing key (held
+			-- tools run while it is down).
 			Actions:BindAction("PopcornSwing", function(_, state)
-				if state == Enum.UserInputState.Begin and held == tool then tool:Activate() end
+				if held ~= tool then return Enum.ContextActionResult.Sink end
+				if state == Enum.UserInputState.Begin then
+					tool:Activate()
+				elseif continuous and (state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel) then
+					tool:Deactivate()
+				end
 				return Enum.ContextActionResult.Sink
 			end, false, Enum.KeyCode.F)
 		end)
 		tool.Unequipped:Connect(function()
 			if look and look.vfx.lasso then showHeldLoop(tool, look, true) end
+			if continuous then stopWhacker() end
 			if held == tool then
 				held, heldId = nil, nil
 				stopAnimator()
@@ -414,7 +540,15 @@ function Controller.start(feedback: RemoteEvent)
 			Prompts.setHarvestSuppressed(false)
 			hideMarkers()
 		end)
+		-- Held tools: the button down starts the engine, up stops it; nothing else is sent.
+		tool.Deactivated:Connect(function()
+			if continuous and whacker and held == tool then whacker.release() end
+		end)
 		tool.Activated:Connect(function()
+			if continuous then
+				if whacker and held == tool then whacker.press() end
+				return
+			end
 			-- Clicks during the cooldown do nothing. Only a swing that plays here is sent to the
 			-- server, so corn is only ever cut by a swing the player sees (Nov 6 2026; the server
 			-- used to swing on every replicated click and accepted some the client never showed).
@@ -430,6 +564,7 @@ function Controller.start(feedback: RemoteEvent)
 	watch(player:WaitForChild("Backpack"))
 	player.CharacterAdded:Connect(function(character)
 		held, heldId = nil, nil
+		stopWhacker()
 		stopAnimator()
 		Prompts.setHarvestSuppressed(false)
 		hideMarkers()

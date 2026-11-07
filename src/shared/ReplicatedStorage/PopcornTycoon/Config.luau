@@ -165,6 +165,21 @@ local tools: { [string]: Types.ToolDefinition } = {
 		-- follow through. The rope's flight, cinch and the ears riding back are client effects.
 		swingSeconds = 0.38, snipStaggerSeconds = 0.08,
 	},
+	-- Catalog: Weed Whacker (Rare; creator, Nov 7 2026): 1 stalk per 0.12 s, 7 s of continuous
+	-- operation, 3 s overheat cooldown, 7-stud radius, continuous close-range harvesting, 1x, raw
+	-- corn. ContinuousHarvest, the first held tool: while the button is held the server cuts the
+	-- ripe stalk within 7 studs of the character that is nearest the spinning head (headAhead
+	-- studs in front), one every 0.12 s, from one shared loop (ToolService). Running fills the heat
+	-- gauge in 7 s; full heat locks it for 3 s while it cools (letting go early cools it at the same
+	-- rate). Weakness: short range and the overheat. Price is a first guess, 2x the Long Scythe
+	-- ($750), as the first Rare.
+	WeedWhacker = {
+		displayName = "Weed Whacker", description = "Continuous Cutting: hold to cut a ripe stalk every 0.12 s within 7 studs; overheats after 7 s",
+		rarity = "Rare", behavior = "ContinuousHarvest",
+		price = 1500, currency = "Cash",
+		reach = 7, maxTargets = 1, cooldownSeconds = 0.12, yieldMultiplier = 1,
+		continuous = { runSeconds = 7, coolSeconds = 3, headAhead = 3 },
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
@@ -317,6 +332,12 @@ function Config.validate()
 			local dash = tool.dash
 			assert(tool.behavior ~= "DashHarvest" or (dash ~= nil and dash.speed > 0 and dash.hop >= 0
 				and tool.reach / dash.speed + (tool.swingSeconds or 0) * 0.5 < tool.cooldownSeconds), "DashHarvest needs a dash that lands inside a cooldown: " .. id)
+		elseif tool.behavior == "ContinuousHarvest" then
+			-- Held tools cut one stalk per tick; the head sits inside the reach; no swing clip.
+			local spec = tool.continuous
+			assert(spec and spec.runSeconds > tool.cooldownSeconds and spec.coolSeconds > 0
+				and spec.headAhead >= 0 and spec.headAhead < tool.reach, "ContinuousHarvest needs run/cool times and a head inside the reach: " .. id)
+			assert(tool.maxTargets == 1 and tool.swingSeconds == nil, "ContinuousHarvest tools cut one stalk per tick and have no swing: " .. id)
 		elseif tool.behavior == "TargetedPull" then
 			-- The loop snags neighbours around the aimed stalk; it must stay well inside the reach.
 			local loop = tool.loopRadius
@@ -328,7 +349,9 @@ function Config.validate()
 		assert(whole(tool.maxTargets) and tool.maxTargets >= 1 and tool.cooldownSeconds > 0, "Invalid tool " .. id)
 		assert(whole(tool.yieldMultiplier) and tool.yieldMultiplier >= 1, "Invalid tool " .. id)
 		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget" or tool.behavior == "LineHarvest"
-			or tool.behavior == "PullHarvest" or tool.behavior == "DashHarvest" or tool.behavior == "TargetedPull", "Unimplemented tool behavior " .. id)
+			or tool.behavior == "PullHarvest" or tool.behavior == "DashHarvest" or tool.behavior == "TargetedPull"
+			or tool.behavior == "ContinuousHarvest", "Unimplemented tool behavior " .. id)
+		assert(tool.continuous == nil or tool.behavior == "ContinuousHarvest", "Only ContinuousHarvest tools run continuously: " .. id)
 		assert(tool.loopRadius == nil or tool.behavior == "TargetedPull", "Only TargetedPull tools have a loop: " .. id)
 		assert(tool.dash == nil or tool.behavior == "DashHarvest", "Only DashHarvest tools dash: " .. id)
 		assert(tool.behavior ~= "SingleTarget" or tool.maxTargets == 1, "SingleTarget tools cut one stalk: " .. id)
@@ -367,6 +390,10 @@ function Config.validate()
 		if tool.combo then
 			local spin = look.clips.Combo
 			assert(spin and spin.seconds <= tool.cooldownSeconds, "Combo clip missing or longer than the cooldown: " .. id)
+		end
+		-- A held tool loops its Cut clip while running and shows its heat (vfx.whacker).
+		if tool.behavior == "ContinuousHarvest" then
+			assert(look.clips.Cut and look.clips.Cut.loop and look.vfx.whacker, "ContinuousHarvest tools need a looping Cut clip and whacker effects: " .. id)
 		end
 	end
 	local map, farm = Config.Map, Config.Farm

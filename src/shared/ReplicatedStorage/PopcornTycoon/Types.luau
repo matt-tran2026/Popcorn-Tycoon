@@ -51,8 +51,19 @@ export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" |
 -- PullHarvest (the nearest maxTargets in a long forward cone; the client pulls the ears back)
 -- and DashHarvest (the LineHarvest lane, cut short where a wall would stop the character; the
 -- client lunges the character down it) and TargetedPull (the ripe stalk the player aims at, up
--- to reach away, plus the nearest ripe stalks within loopRadius of it; the client throws a rope).
-export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest" | "PullHarvest" | "DashHarvest" | "TargetedPull"
+-- to reach away, plus the nearest ripe stalks within loopRadius of it; the client throws a rope)
+-- and ContinuousHarvest (held, not swung: while the button is held the server cuts one ripe
+-- stalk within reach every cooldownSeconds, nearest the cutting head first, until the tool
+-- overheats; see ToolContinuous and HeatState).
+export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest" | "PullHarvest" | "DashHarvest" | "TargetedPull" | "ContinuousHarvest"
+-- ContinuousHarvest (Weed Whacker): runSeconds of running fills the heat gauge from empty; full
+-- heat locks the tool for coolSeconds while it cools to empty, and letting go cools it at the
+-- same rate (1 / coolSeconds per second). headAhead: how far in front of the character the
+-- cutting head is; targets nearest that point go first (reach is still measured from the root).
+export type ToolContinuous = { runSeconds: number, coolSeconds: number, headAhead: number }
+-- Server truth of a continuous tool's heat (the client reads it from Tool attributes): `heat`
+-- (0..1) at time `at`, whether the engine is running since then, and when an overheat lock ends.
+export type HeatState = { heat: number, at: number, running: boolean, overheatUntil: number }
 -- DashHarvest movement (client-side; the server only shortens the lane at walls the same way):
 -- speed in studs per second along the facing, hop = the upward kick at take-off (studs per
 -- second). The dash covers the lane's full length (reach, or less at a wall).
@@ -79,6 +90,8 @@ export type ToolDefinition = {
 	dash: ToolDash?,
 	-- TargetedPull tools (Corn Lasso): how far from the aimed stalk the loop also snags others.
 	loopRadius: number?,
+	-- ContinuousHarvest tools (Weed Whacker): run time, overheat cooldown and the head's position.
+	continuous: ToolContinuous?,
 	swingSeconds: number?, snipStaggerSeconds: number?, kernelFlySeconds: number?,
 }
 export type TargetCandidate = { id: string, position: Vector3 }

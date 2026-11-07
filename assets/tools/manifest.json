@@ -1,6 +1,6 @@
 {
  "version": 1,
- "updated": "2026-11-06",
+ "updated": "2026-11-07",
  "conventions": "docs/design/TOOL_COLLECTION.md",
  "sharedAssets": {
   "Leaf_Fleck": {
@@ -926,16 +926,100 @@
    ],
    "conversion": "RawCorn",
    "stage": 1,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "blenderSource": "assets/tools/Rare/WeedWhacker/source/WeedWhacker.blend",
+   "exportedMesh": "assets/tools/Rare/WeedWhacker/exports/WeedWhacker.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.WeedWhacker",
+    "imported": true,
+    "importedAt": "2026-11-07",
+    "meshIds": {
+     "WhackerGrip": "rbxassetid://92550855369371",
+     "WhackerShaft": "rbxassetid://77357440849952",
+     "WhackerEngine": "rbxassetid://134107413702419",
+     "WhackerHeat": "rbxassetid://128273275128914",
+     "WhackerLoop": "rbxassetid://136649932772722",
+     "WhackerGuard": "rbxassetid://86534384389117",
+     "WhackerBlade": "rbxassetid://129589320399935"
+    },
+    "note": "Imported by Claude with desktop control (3D Importer, read at 100x); scaled by 0.01 over MCP and moved to the templates folder. Saved in the place file only."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.WeedWhacker.clips), two-handed with both arms held (holdJoints); the Cut clip loops while the engine runs (waist sweep, buzzing wrists); ToolAnimator.setSpin turns the blade on its Spin motor and setShake rattles the engine on its Engine motor.",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Cut",
+     "Overheat"
+    ],
+    "markers": {
+     "Equip": [
+      "Shing"
+     ],
+     "Overheat": [
+      "Sputter"
+     ]
+    }
+   },
+   "audio": [
+    "assets/tools/Rare/WeedWhacker/audio/WeedWhacker_Equip.wav",
+    "assets/tools/Rare/WeedWhacker/audio/WeedWhacker_Run.wav",
+    "assets/tools/Rare/WeedWhacker/audio/WeedWhacker_Harvest.wav",
+    "assets/tools/Rare/WeedWhacker/audio/WeedWhacker_Overheat.wav"
+   ],
+   "vfx": "vfx.whacker: blade spin (idle 240, running 1260 deg/s, eased) and engine shake on their motors; the heat gauge mesh (Neon) tinted cool blue -> amber -> red and flashing while locked; a swirl trail between two rim points that ride the blade; leaf spray from the head while running; smoke and sparks on overheat (ToolEffects.overheatPuff); a HUD heat meter (ToolEffects.heatMeter). Leaf bursts and snip flashes per confirmed stalk.",
+   "integration": "Config.Tools.WeedWhacker (ContinuousHarvest: one ripe stalk within 7 studs of the root per 0.12 s, nearest the head 3 studs ahead first; 7 s run, 3 s overheat lock, $1,500). ToolHold remote (toolId, holding); the server runs every cutter from one Heartbeat loop in ToolService and keeps the heat (ToolRules.heatAt/settleHeat/setRunning), mirrored onto the Tool as Heat/HeatAt/Running/OverheatUntil.",
+   "tests": "tests/WeedWhacker.server.luau 54/54 in Play with the Blender template (2026-11-07; also 54/54 earlier with the part-built model after fixing two test mistakes); client hold, spin, gauge tint, trail and meter sampled in Play; CornLasso 39/39 and HedgeTrimmer suites re-run after the HarvestService refactor (pass).",
+   "status": "in game (Blender model, original sounds)",
+   "audioIds": {
+    "Equip": "rbxassetid://133743619724015",
+    "Run": "rbxassetid://125492824377742",
+    "Harvest": "rbxassetid://88070935132095",
+    "Overheat": "rbxassetid://122754344700259"
+   },
+   "audioNote": "Original synthesised WAVs uploaded by Claude through Studio Import on 2026-11-07 (0 Robux each). Run is a seamless 1 s loop played on the held tool, its pitch following the blade.",
+   "styleReference": "Creator's weapon pack (the Rivals weapons folder), construction style only, as the Hedge Trimmer. No pack meshes or names used.",
+   "designPage": "https://claude.ai/artifact/7evSGJm7UZsvKYNcUCZDY2",
+   "meshes": {
+    "WhackerGrip": {
+     "tris": 372,
+     "material": "SmoothPlastic"
+    },
+    "WhackerShaft": {
+     "tris": 156,
+     "material": "Metal",
+     "weldTo": "WhackerGrip"
+    },
+    "WhackerEngine": {
+     "tris": 1032,
+     "material": "SmoothPlastic",
+     "motor": "Engine"
+    },
+    "WhackerHeat": {
+     "tris": 360,
+     "material": "Neon",
+     "weldTo": "WhackerEngine"
+    },
+    "WhackerLoop": {
+     "tris": 464,
+     "material": "SmoothPlastic",
+     "weldTo": "WhackerGrip"
+    },
+    "WhackerGuard": {
+     "tris": 388,
+     "material": "SmoothPlastic",
+     "weldTo": "WhackerGrip"
+    },
+    "WhackerBlade": {
+     "tris": 596,
+     "material": "Metal",
+     "motor": "Spin"
+    }
+   },
+   "preview": "assets/tools/Rare/WeedWhacker/previews/WeedWhacker_preview.png",
+   "inGameScreenshot": "assets/tools/Rare/WeedWhacker/previews/WeedWhacker_ingame.jpg"
   },
   {
    "toolId": "BoomerangSickle",

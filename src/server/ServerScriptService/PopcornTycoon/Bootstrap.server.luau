@@ -52,6 +52,14 @@ swingRequest.Parent = remotes
 swingRequest.OnServerEvent:Connect(function(player: Player, toolId: unknown, aim: unknown)
 	Tools.swing(player, toolId, aim)
 end)
+-- Held tools (Weed Whacker): (toolId, holding) when the button goes down (true) and up (false).
+-- The server runs the engine, cuts on its own cadence and keeps the heat (ToolService.hold).
+local holdRequest = Instance.new("RemoteEvent")
+holdRequest.Name = "ToolHold"
+holdRequest.Parent = remotes
+holdRequest.OnServerEvent:Connect(function(player: Player, toolId: unknown, holding: unknown)
+	Tools.hold(player, toolId, holding)
+end)
 -- Owner-only Developer Panel: (requestId, command, args) -> response. Created only in Studio
 -- (AdminConfig); every request is authorized and validated again by AdminService.
 Admin.init(remotes)
