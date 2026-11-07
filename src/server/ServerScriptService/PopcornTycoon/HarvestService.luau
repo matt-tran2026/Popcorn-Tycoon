@@ -1,6 +1,7 @@
 --!strict
 -- Every harvest path (hand prompts and swung tools) goes through take(), so maturity,
 -- capacity, partial fits and regrowth follow one rule.
+local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("PopcornTycoon")
 local Config = require(Shared.Config)
 local Growth = require(Shared.Growth)
@@ -86,13 +87,21 @@ function HarvestService.attempt(player: Player, ownerUserId: unknown, fieldId: u
 end
 
 -- One swing of an owned, equipped tool. The server picks the targets from the character's
--- position and facing; the client never names stalks.
-function HarvestService.swing(player: Player, toolId: string): Types.HarvestResult
+-- position and facing; the client never names stalks. Targeted tools (Corn Lasso) also take the
+-- client's aim point, which only says where it aimed: the server snaps it to one of the player's
+-- own ripe stalks within reach of its own root part, or the throw takes nothing.
+function HarvestService.swing(player: Player, toolId: string, aim: unknown?): Types.HarvestResult
 	local tool = Config.Tools[toolId]
 	if not tool then return result(false, "Unknown tool") end
 	if tool.behavior ~= "ArcSweep" and tool.behavior ~= "SingleTarget" and tool.behavior ~= "LineHarvest"
-		and tool.behavior ~= "PullHarvest" then
+		and tool.behavior ~= "PullHarvest" and tool.behavior ~= "DashHarvest" and tool.behavior ~= "TargetedPull" then
 		return result(false, "Unknown tool")
+	end
+	-- Only a finite Vector3 counts as an aim, and only for targeted tools.
+	local aimPoint: Vector3? = nil
+	if tool.behavior == "TargetedPull" and typeof(aim) == "Vector3" then
+		local v = aim :: Vector3
+		if v.X == v.X and v.Y == v.Y and v.Z == v.Z and v.Magnitude < 1e6 then aimPoint = v end
 	end
 	-- Cadence: each accepted swing moves the due time one cooldown on from the later of now and
 	-- the previous due time, and a swing may arrive up to half a cooldown early. Network jitter
@@ -154,8 +163,26 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	-- The Twin Sickles are ArcSweep with each hand's arc turned to its side and a combo arc.
 	-- The shape comes from the server's own root part, never from the client.
 	-- Alternating tools turn each hand's arc toward its side, and the combo widens it.
-	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool, shape)
-	if #picked == 0 then return outcome(result(false, "Swing closer to ripe corn")) end
+	-- DashHarvest (Spring-Loaded Picker): the lane the dash will travel from where the server sees
+	-- the character now, cut short where a wall stops it (the client runs the same cast to stop
+	-- the lunge there). Every character is ignored, so other players never shorten it.
+	local dashReach: number? = nil
+	if tool.behavior == "DashHarvest" then
+		local ignore: { Instance } = {}
+		for _, other in Players:GetPlayers() do
+			if other.Character then table.insert(ignore, other.Character) end
+		end
+		dashReach = ToolRules.dashReach(root.CFrame, tool, ignore)
+	end
+	-- TargetedPull (Corn Lasso): the aimed stalk (snapped from the client's aim point, within
+	-- reach of the server's root plus a little slack for lag) and the loop's neighbours.
+	local slack = if tool.behavior == "TargetedPull" then ToolRules.ReachSlack else nil
+	local picked = ToolRules.pickTargets(root.Position, root.CFrame.LookVector, candidates, tool, shape, dashReach, aimPoint, slack)
+	if #picked == 0 then
+		local missed = result(false, if tool.behavior == "TargetedPull" then "Aim at ripe corn in range" else "Swing closer to ripe corn")
+		missed.dashReach = dashReach
+		return outcome(missed)
+	end
 	if State.carried(profile) >= State.bagCapacity(profile) then
 		return outcome(result(false, "Bag full · pop it at the microwave"))
 	end
@@ -174,7 +201,7 @@ function HarvestService.swing(player: Player, toolId: string): Types.HarvestResu
 	if total == 0 then return outcome(result(false, "Bag full · pop it at the microwave")) end
 	player:SetAttribute("RawCorn", State.carried(profile))
 	local response = result(true, if full then "Bag full" else "Harvested", total)
-	response.tool, response.targets = toolId, targets
+	response.tool, response.targets, response.dashReach = toolId, targets, dashReach
 	return outcome(response)
 end
 

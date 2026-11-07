@@ -36,10 +36,11 @@ export type FarmUpgradeDefinition = {
 -- tool and targets are set for swung tools so the client can play one snip per stalk.
 -- Alternating tools (Twin Sickles) also report the hand that swung, whether it was the combo
 -- swing, and the streak of successful swings counted toward the next combo, so the client's
--- prediction (ToolController) resyncs after every swing.
+-- prediction (ToolController) resyncs after every swing. Dash tools report the lane length the
+-- server used (dashReach: reach, or less where a wall cut it short).
 export type HarvestResult = {
 	ok: boolean, reason: string, amount: number, tool: string?, targets: { Vector3 }?,
-	hand: SwingHand?, combo: boolean?, streak: number?,
+	hand: SwingHand?, combo: boolean?, streak: number?, dashReach: number?,
 }
 -- Every price names the balance it is paid from (see Config.Economy).
 export type Currency = "Cash" | "Popcorn"
@@ -47,8 +48,15 @@ export type ToolRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" |
 -- Harvesting families (docs/design/TOOL_COLLECTION.md). Implemented: ArcSweep (up to
 -- maxTargets in a wide arc), SingleTarget (the one nearest ripe stalk in a narrow cone) and
 -- LineHarvest (up to maxTargets in a straight lane ahead, laneWidth studs wide) and
--- PullHarvest (the nearest maxTargets in a long forward cone; the client pulls the ears back).
-export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest" | "PullHarvest"
+-- PullHarvest (the nearest maxTargets in a long forward cone; the client pulls the ears back)
+-- and DashHarvest (the LineHarvest lane, cut short where a wall would stop the character; the
+-- client lunges the character down it) and TargetedPull (the ripe stalk the player aims at, up
+-- to reach away, plus the nearest ripe stalks within loopRadius of it; the client throws a rope).
+export type ToolBehavior = "ArcSweep" | "SingleTarget" | "LineHarvest" | "PullHarvest" | "DashHarvest" | "TargetedPull"
+-- DashHarvest movement (client-side; the server only shortens the lane at walls the same way):
+-- speed in studs per second along the facing, hop = the upward kick at take-off (studs per
+-- second). The dash covers the lane's full length (reach, or less at a wall).
+export type ToolDash = { speed: number, hop: number }
 -- Alternating dual-wield swings (Twin Sickles): the hands take turns, and every `every`-th
 -- successful swing in a row (each within windowSeconds of the last hit) is a combo swing with
 -- a wider arc.
@@ -67,6 +75,10 @@ export type ToolDefinition = {
 	-- Alternating tools: each hand's arc is centred sideDegrees toward that hand's side of the
 	-- facing direction; combo makes every n-th successful swing in a row a wider arc.
 	sideDegrees: number?, combo: ToolCombo?,
+	-- DashHarvest tools: the lunge (laneWidth and reach give the lane it harvests).
+	dash: ToolDash?,
+	-- TargetedPull tools (Corn Lasso): how far from the aimed stalk the loop also snags others.
+	loopRadius: number?,
 	swingSeconds: number?, snipStaggerSeconds: number?, kernelFlySeconds: number?,
 }
 export type TargetCandidate = { id: string, position: Vector3 }

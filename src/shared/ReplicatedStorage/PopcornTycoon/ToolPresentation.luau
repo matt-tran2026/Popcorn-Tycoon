@@ -39,8 +39,16 @@ export type Model = {
 	head: string?,
 	-- Moving parts: mesh name -> a Motor6D (named `motor`) from the Handle that turns the mesh
 	-- about the tool frame's Y axis through `pivot` (tool frame). Pose clips drive it by that
-	-- name, e.g. Jaw = { 0, -24, 0 } (ToolAnimator). Other meshes are welded.
-	joints: { [string]: { motor: string, pivot: Vector3 } }?,
+	-- name, e.g. Jaw = { 0, -24, 0 } (ToolAnimator). Other meshes are welded. `on` hangs the
+	-- motor from another mesh instead of the Handle, so the part rides that mesh's own joint
+	-- (the Spring-Loaded Picker's jaws ride the sliding plunger rod).
+	joints: { [string]: { motor: string, pivot: Vector3, on: string? } }?,
+	-- Stretching parts (the Spring-Loaded Picker's coil): mesh name -> its own joint's motor, the
+	-- joint it follows and its rest length along tool X. Its rear end stays at its motor's pivot
+	-- and its front end follows the `follow` motor's slide: each frame ToolAnimator resizes it
+	-- along tool X to length + slide and moves it half the slide forward. Client-only, like every
+	-- pose. ToolModels marks the mesh with the axis and rest size it needs.
+	stretch: { [string]: { motor: string, follow: string, length: number } }?,
 	-- Mesh name -> the mesh it is welded to instead of the Handle (parts that ride on a joint).
 	welds: { [string]: string }?,
 	-- The Tool's Handle is a small invisible grip part at the grip point instead of the handle
@@ -74,10 +82,30 @@ export type TrimVfx = {
 	seconds: number, fadeSeconds: number, color: Color3, transparency: number,
 	spraySeconds: number, sprayPoint: string, sprayColor: Color3, sparkPoint: string, sparkColor: Color3,
 }
+-- Spring Dash (Spring-Loaded Picker): while the character lunges, a speed streak (a Trail between
+-- two attachments on the root part, `width` studs tall, fading over `trailSeconds`) follows it;
+-- a ring of dust puffs (`dustCount` particles, `dustColor`) kicks up at take-off and landing,
+-- and a spring sparkle pops at the claw (`sparkPoint`) when it fires.
+export type DashVfx = {
+	trailColors: { Color3 }, trailSeconds: number, width: number, dustColor: Color3, dustCount: number, sparkPoint: string,
+}
+-- Long-Range Retrieval (Corn Lasso): at the Swing clip's Throw marker a rope loop flies from the
+-- tool's `ropePoint` to the aimed ear at `speed` studs/s, bowing `rise` studs up per 10 studs
+-- of throw, opening to `openRadius` and spinning `spinTurns` times. It waits up to `waitSeconds`
+-- for the server; for each confirmed stalk it cinches to `cinchRadius` in `cinchSeconds` and the
+-- ears ride the rope back to the hand in `backSeconds` (a refused throw reels back empty). The
+-- held loop mesh (`loopMesh`) hides while a rope is out. `ropeColor`/`ropeWidth` style the rope
+-- (a Beam) and the loop (pooled rope segments); ears use the Hook Pull's ear colours.
+export type LassoVfx = {
+	speed: number, rise: number, openRadius: number, cinchRadius: number, spinTurns: number,
+	waitSeconds: number, cinchSeconds: number, backSeconds: number, ropePoint: string, loopMesh: string,
+	ropeColor: Color3, ropeShade: Color3, ropeWidth: number,
+	earColor: Color3, huskColor: Color3, trailColors: { Color3 },
+}
 -- snipFlash: a tiny white sparkle where each confirmed stalk is cut (clippers and shears).
 export type Vfx = {
 	leafTexture: string, leavesPerStalk: number, leafColor: Color3, snipFlash: boolean?, pull: PullVfx?, combo: ComboVfx?,
-	wind: WindVfx?, trim: TrimVfx?,
+	wind: WindVfx?, trim: TrimVfx?, dash: DashVfx?, lasso: LassoVfx?,
 }
 export type Presentation = {
 	rarity: string,
@@ -662,6 +690,172 @@ local tools: { [string]: Presentation } = {
 			},
 		},
 	},
+	-- Spring-loaded gadget (assets/tools/Uncommon/SpringLoadedPicker, from the creator's reference
+	-- render, built like the weapon pack: flat plates, flat colours, dark outline plates). Numbers
+	-- come from build_spring_loaded_picker.py: the D-grip mesh is centred 1.053 ahead of and 0.093
+	-- above the grip (the rear bar), the barrel runs 0.6 above the grip (tool Z = Blender Y here),
+	-- coil from x 1.5 to 3.0, front collar at 3.0, jaw bolts at (3.67, +-0.15 off the barrel).
+	-- Design canvas: "Spring-Loaded Picker — Tool Design".
+	SpringLoadedPicker = {
+		rarity = "Uncommon",
+		model = {
+			template = "SpringLoadedPicker", handle = "PickerHandle", gripFromCentre = -1.053, gripSide = -0.093,
+			head = "PickerJawTop",
+			materials = {
+				PickerHandle = Enum.Material.SmoothPlastic, PickerHead = Enum.Material.SmoothPlastic,
+				PickerSpring = Enum.Material.Metal, PickerRod = Enum.Material.Metal, PickerLatch = Enum.Material.Metal,
+				PickerJawTop = Enum.Material.Metal, PickerJawBottom = Enum.Material.Metal,
+			},
+			-- The rod (with the red head welded on) slides on the Plunger motor; the jaws hang off the
+			-- rod so they ride it; the latch flips on the handle; the coil stretches between the rear
+			-- collar and the head (stretch).
+			joints = {
+				PickerRod = { motor = "Plunger", pivot = Vector3.new(3.0, 0, 0.6) },
+				PickerJawTop = { motor = "JawTop", pivot = Vector3.new(3.67, 0, 0.75), on = "PickerRod" },
+				PickerJawBottom = { motor = "JawBottom", pivot = Vector3.new(3.67, 0, 0.45), on = "PickerRod" },
+				PickerLatch = { motor = "Latch", pivot = Vector3.new(0.98, 0, 0.44) },
+				PickerSpring = { motor = "Spring", pivot = Vector3.new(1.5, 0, 0.6) },
+			},
+			welds = { PickerHead = "PickerRod" },
+			stretch = { PickerSpring = { motor = "Spring", follow = "Plunger", length = 1.5 } },
+			-- Held like a saw: the hand on the D grip's rear bar, the barrel straight ahead above the
+			-- hand, rolled a little so the camera behind the player sees the coil's top and the latch side.
+			grip = ToolPresentation.hold(Vector3.new(0, 0.05, -1), Vector3.new(-0.9, 0.35, 0)),
+			points = {
+				ClawTip = Vector3.new(4.58, 0, 0.6), Muzzle = Vector3.new(3.22, 0, 0.6),
+				SpringMid = Vector3.new(2.25, 0, 0.6), SpringRear = Vector3.new(1.5, 0, 0.6),
+			},
+		},
+		clips = {
+			-- Drawn from the hip with a test pump of the spring (Shing = the ratchet click).
+			Equip = { seconds = 0.34, keys = {
+				{ t = 0, pose = { RightShoulder = { -75, 0, 0 }, RightWrist = { 0, 0, 35 }, Plunger = { 0, 0, 0, -0.35, 0, 0 } } },
+				{ t = 0.55, pose = { RightShoulder = { 8, 0, 0 }, RightWrist = { 0, 0, -8 }, Plunger = { 0, 0, 0, 0.3, 0, 0 },
+					JawTop = { 0, 8, 0 }, JawBottom = { 0, -8, 0 } }, ease = "Back" },
+				{ t = 0.75, pose = { RightShoulder = { 2, 0, 0 }, Plunger = { 0, 0, 0, -0.1, 0, 0 } } },
+				{ t = 1, pose = {} },
+			}, markers = { Shing = 0.55 } },
+			-- Ready stance: a small sway, the head bobbing on its spring.
+			Idle = { seconds = 2.4, loop = true, keys = {
+				{ t = 0, pose = { RightShoulder = { 0, 0, 0 }, Plunger = { 0, 0, 0, 0, 0, 0 } } },
+				{ t = 0.5, pose = { RightShoulder = { 3, 1, 0 }, RightWrist = { 2, 0, 0 }, Plunger = { 0, 0, 0, 0.05, 0, 0 } } },
+				{ t = 1, pose = { RightShoulder = { 0, 0, 0 }, Plunger = { 0, 0, 0, 0, 0, 0 } } },
+			} },
+			-- Spring Dash, 0.55 s = Config.Tools.SpringLoadedPicker.swingSeconds. Coil: the arm draws
+			-- in, the head pulls back 0.45 (coil squashed to 70%), the latch cocks and the jaws gape.
+			-- Fire (Dash marker, 0.15 s): the latch flips, the head shoots out 0.6 (coil 140%), the
+			-- jaws snap shut and the character lunges. Boing: the head bobs back and forth past rest
+			-- with the coil squashing and stretching, the jaws reopen, settle.
+			Swing = { seconds = 0.55, keys = {
+				{ t = 0, pose = {} },
+				{ t = 0.25, pose = { RightShoulder = { -6, 0, 0 }, RightElbow = { 22, 0, 0 }, RightWrist = { -10, 0, 0 },
+					Plunger = { 0, 0, 0, -0.45, 0, 0 }, Latch = { 0, -12, 0 }, JawTop = { 0, -6, 0 }, JawBottom = { 0, 6, 0 } }, ease = "Quad" },
+				{ t = 0.31, pose = { RightShoulder = { 12, 0, 0 }, RightElbow = { -4, 0, 0 }, RightWrist = { 8, 0, 0 },
+					Plunger = { 0, 0, 0, 0.6, 0, 0 }, Latch = { 0, 35, 0 }, JawTop = { 0, 11, 0 }, JawBottom = { 0, -11, 0 } }, ease = "Linear" },
+				{ t = 0.45, pose = { RightShoulder = { 10, 0, 0 }, RightWrist = { 4, 0, 0 },
+					Plunger = { 0, 0, 0, -0.22, 0, 0 }, Latch = { 0, 35, 0 }, JawTop = { 0, 11, 0 }, JawBottom = { 0, -11, 0 } } },
+				{ t = 0.6, pose = { RightShoulder = { 9, 0, 0 }, RightWrist = { 2, 0, 0 },
+					Plunger = { 0, 0, 0, 0.22, 0, 0 }, Latch = { 0, 30, 0 }, JawTop = { 0, 10, 0 }, JawBottom = { 0, -10, 0 } } },
+				{ t = 0.74, pose = { RightShoulder = { 6, 0, 0 }, Plunger = { 0, 0, 0, -0.08, 0, 0 }, Latch = { 0, 18, 0 },
+					JawTop = { 0, 4, 0 }, JawBottom = { 0, -4, 0 } } },
+				{ t = 0.86, pose = { RightShoulder = { 3, 0, 0 }, Plunger = { 0, 0, 0, 0.04, 0, 0 }, Latch = { 0, 8, 0 } } },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Dash = 0.27, Hit = 0.31 } },
+		},
+		sounds = {
+			-- Original synthesised sounds (assets/tools/Uncommon/SpringLoadedPicker/audio), uploaded Nov 6
+			-- 2026 through Studio's Import Queue. Swing is timed to the clip: ratchet clicks while the
+			-- coil winds, the latch clack and the whoosh at the Dash marker (0.15 s). No "boing" in any
+			-- of them (creator, Nov 6). Fallbacks: the Sickle's equip, the Pitchfork's thrust and the
+			-- Sickle's snap (not the clippers' equip, which has a faint spring boing).
+			Equip = { id = "rbxassetid://86204582948295", fallback = "rbxassetid://116936988986525", volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = "rbxassetid://83120645218195", fallback = "rbxassetid://76327908959778", volume = 0.36, pitch = { 0.97, 1.03 } },
+			Harvest = { id = "rbxassetid://114574428454749", fallback = "rbxassetid://125411384210572", volume = 0.45, pitch = { 0.95, 1.12 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 5, leafColor = Color3.new(1, 1, 1), snipFlash = true,
+			dash = {
+				trailColors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 140, 120) }, trailSeconds = 0.22, width = 3,
+				dustColor = Color3.fromRGB(214, 190, 146), dustCount = 10, sparkPoint = "ClawTip",
+			},
+		},
+	},
+	-- A cowboy rope from the creator's reference render (assets/tools/Uncommon/CornLasso, in the
+	-- weapon-pack style: flat colour per face, chunky low-poly tubes). Numbers come from
+	-- build_corn_lasso.py: grip from -0.85 to 0.80 along X (centre 0.025 behind the grip), the
+	-- coil, loop and tassels hang on Blender +Y (sideMargin 0.53), so tool Z is the hanging side and
+	-- Blender (x, y, z) -> tool (x, z, y) for points on the profile. The loop's motor turns it in
+	-- its own plane about the point where the rope leaves the collar.
+	CornLasso = {
+		rarity = "Uncommon",
+		model = {
+			template = "CornLasso", handle = "LassoHandle", gripFromCentre = 0.025, head = "LassoLoop",
+			materials = {
+				LassoHandle = Enum.Material.Leather, LassoFittings = Enum.Material.Metal, LassoTassels = Enum.Material.Leather,
+				LassoCoil = Enum.Material.Fabric, LassoLoop = Enum.Material.Fabric,
+			},
+			joints = { LassoLoop = { motor = "Loop", pivot = Vector3.new(1.12, 0, 0.05) } },
+			-- Right hand, handle forward and up a little, the rope hanging down and slightly right
+			-- of the hand with the rings turned 45 degrees toward the camera behind the player.
+			grip = ToolPresentation.hold(Vector3.new(0, 0.35, -1), Vector3.new(0.7, 0, 0.7)),
+			points = {
+				RopeOut = Vector3.new(1.12, 0, 0.05), Honda = Vector3.new(2.3, 0, 0.4),
+				LoopCentre = Vector3.new(3.0, 0, 0.95), LoopFar = Vector3.new(3.85, 0, 0.95),
+				CoilCentre = Vector3.new(1.55, 0, 0.75), Butt = Vector3.new(-1.25, 0, 0),
+			},
+		},
+		clips = {
+			-- Drawn from the hip; the loop flips round into place.
+			Equip = { seconds = 0.34, keys = {
+				{ t = 0, pose = { RightShoulder = { -70, 0, 0 }, RightWrist = { 0, 0, 30 }, Loop = { 0, -140, 0 } } },
+				{ t = 0.62, pose = { RightShoulder = { 8, 0, 0 }, RightWrist = { 0, 0, -8 }, Loop = { 0, 18, 0 } }, ease = "Back" },
+				{ t = 1, pose = {} },
+			}, markers = { Shing = 0.55 } },
+			-- The loop sways a little on its own; the arm bobs.
+			Idle = { seconds = 2.6, loop = true, keys = {
+				{ t = 0, pose = { RightShoulder = { 0, 0, 0 }, Loop = { 0, -6, 0 } } },
+				{ t = 0.5, pose = { RightShoulder = { 3, 0, 1 }, Loop = { 0, 9, 0 } } },
+				{ t = 1, pose = { RightShoulder = { 0, 0, 0 }, Loop = { 0, -6, 0 } } },
+			} },
+			-- Long-Range Retrieval, 0.38 s = Config.Tools.CornLasso.swingSeconds. Twirl: the arm goes
+			-- up and the loop spins a full turn on its motor (0.17 s). Throw marker at 0.48: the
+			-- request goes out and the rope leaves (the held loop hides). Then a forward throw, a
+			-- yank back as the rope cinches, and settle. The loop's motor returns to 0 while hidden.
+			Swing = { seconds = 0.38, keys = {
+				{ t = 0, pose = {} },
+				{ t = 0.2, pose = { RightShoulder = { 70, 0, 6 }, RightElbow = { 10, 0, 0 }, RightWrist = { 0, 0, 0 },
+					Waist = { 0, -4, 0 }, Loop = { 0, 200, 0 } }, ease = "Quad" },
+				{ t = 0.44, pose = { RightShoulder = { 78, 0, 0 }, RightElbow = { 14, 0, 0 }, RightWrist = { -20, 0, 0 },
+					Waist = { 0, -8, 0 }, Loop = { 0, 360, 0 } }, ease = "Linear" },
+				{ t = 0.58, pose = { RightShoulder = { -12, 0, 0 }, RightElbow = { 0, 0, 0 }, RightWrist = { 22, 0, 0 },
+					Waist = { 0, 8, 0 }, Neck = { 0, -3, 0 }, Loop = { 0, 360, 0 } }, ease = "Quad" },
+				{ t = 0.62, pose = { RightShoulder = { -10, 0, 0 }, RightWrist = { 18, 0, 0 }, Waist = { 0, 7, 0 }, Loop = { 0, 0, 0 } } },
+				{ t = 0.8, pose = { RightShoulder = { 16, 0, 0 }, RightWrist = { -14, 0, 0 }, Waist = { 0, -3, 0 } }, ease = "Quad" },
+				{ t = 1, pose = {}, ease = "Sine" },
+			}, markers = { Throw = 0.48, Hit = 0.48 } },
+		},
+		sounds = {
+			-- Original synthesised sounds (assets/tools/Uncommon/CornLasso/audio), uploaded Nov 6 2026
+			-- through the Import Queue: a leather creak and swish (Equip), two twirl whirs into the
+			-- throw whoosh (Swing), a rope zip and stalk snap as the loop cinches (Harvest) and a soft
+			-- catch when an ear reaches the hand (Pull). Fallbacks: the Sickle's air swoosh and the
+			-- shared stalk snap.
+			Equip = { id = "rbxassetid://124286860237545", fallback = nil, volume = 0.3, pitch = { 0.96, 1.04 } },
+			Swing = { id = "rbxassetid://93656581803685", fallback = "rbxassetid://136321679774475", volume = 0.36, pitch = { 0.95, 1.05 } },
+			Harvest = { id = "rbxassetid://80614267956626", fallback = "rbxassetid://125411384210572", volume = 0.46, pitch = { 0.94, 1.08 } },
+			Pull = { id = "rbxassetid://84040969145635", fallback = nil, volume = 0.32, pitch = { 0.95, 1.1 } },
+		},
+		vfx = {
+			leafTexture = ToolPresentation.Textures.LeafFleck, leavesPerStalk = 4, leafColor = Color3.new(1, 1, 1), snipFlash = true,
+			lasso = {
+				speed = 140, rise = 1.2, openRadius = 1.25, cinchRadius = 0.34, spinTurns = 1.5,
+				waitSeconds = 0.35, cinchSeconds = 0.1, backSeconds = 0.34, ropePoint = "RopeOut", loopMesh = "LassoLoop",
+				ropeColor = Color3.fromRGB(200, 165, 119), ropeShade = Color3.fromRGB(156, 124, 82), ropeWidth = 0.15,
+				earColor = Color3.fromRGB(255, 204, 44), huskColor = Color3.fromRGB(200, 214, 122),
+				trailColors = { Color3.fromRGB(255, 244, 186), Color3.fromRGB(255, 196, 40) },
+			},
+		},
+	},
 }
 
 function ToolPresentation.get(toolId: string): Presentation?
@@ -693,6 +887,24 @@ function ToolPresentation.validate(toolIds: { string })
 		for part, to in model.welds or {} do
 			assert(part ~= model.handle and part ~= to, toolId .. " weld " .. part .. " is invalid")
 		end
+		-- A joint hung on another mesh needs that mesh to be a moving joint itself (else weld it).
+		for part, joint in model.joints or {} do
+			assert(joint.on == nil or (joint.on ~= part and (model.joints :: any)[joint.on] ~= nil),
+				toolId .. " joint " .. part .. " hangs on " .. tostring(joint.on) .. ", which is not a joint")
+		end
+		local motors: { [string]: boolean } = {}
+		for _, joint in model.joints or {} do motors[joint.motor] = true end
+		for part, spec in model.stretch or {} do
+			local own = (model.joints or {})[part]
+			assert(own and own.motor == spec.motor and motors[spec.follow] and spec.follow ~= spec.motor and spec.length > 0,
+				toolId .. " stretch " .. part .. " needs its own joint and a followed motor")
+		end
+		local dash = look.vfx.dash
+		if dash then
+			assert(dash.trailSeconds > 0 and dash.width > 0 and dash.dustCount >= 0 and #dash.trailColors >= 1
+				and look.model.points[dash.sparkPoint] ~= nil, toolId .. " dash effect is invalid")
+			assert(look.clips.Swing and look.clips.Swing.markers and look.clips.Swing.markers.Dash, toolId .. " dash needs a Dash marker")
+		end
 		local trail = look.model.trail
 		if trail then
 			assert(look.model.points[trail.from] and look.model.points[trail.to], toolId .. " trail names a missing point")
@@ -716,6 +928,14 @@ function ToolPresentation.validate(toolIds: { string })
 				and #wind.colors >= 1, toolId .. " wind effect is invalid")
 			for _, radius in wind.radii do assert(radius > wind.width / 2, toolId .. " wind ribbon overlaps the player") end
 			assert(look.clips.Swing and look.clips.Swing.markers and look.clips.Swing.markers.Sweep, toolId .. " wind needs a Sweep marker")
+		end
+		local lasso = look.vfx.lasso
+		if lasso then
+			assert(lasso.speed > 0 and lasso.openRadius > lasso.cinchRadius and lasso.cinchRadius > 0 and lasso.backSeconds > 0
+				and lasso.waitSeconds >= 0 and lasso.cinchSeconds > 0 and lasso.ropeWidth > 0 and #lasso.trailColors >= 1,
+				toolId .. " lasso effect is invalid")
+			assert(look.model.points[lasso.ropePoint] ~= nil, toolId .. " lasso names a missing rope point")
+			assert(look.clips.Swing and look.clips.Swing.markers and look.clips.Swing.markers.Throw, toolId .. " lasso needs a Throw marker")
 		end
 		local trim = look.vfx.trim
 		if trim then

@@ -60,13 +60,14 @@ end
 
 -- One swing request from the ToolSwing remote: the client sends it only when it plays the swing
 -- animation. The tool must be the one in the character's hand; HarvestService.swing then checks
--- ownership, equip state and cadence and decides what the swing cut.
-function ToolService.swing(player: Player, toolId: unknown)
+-- ownership, equip state and cadence and decides what the swing cut. `aim` is the targeted
+-- tools' aim point (Corn Lasso); HarvestService checks it and ignores it for other tools.
+function ToolService.swing(player: Player, toolId: unknown, aim: unknown?)
 	if typeof(toolId) ~= "string" or not Config.Tools[toolId] then return end
 	local character = player.Character
 	local held = character and character:FindFirstChildOfClass("Tool")
 	if not held or held:GetAttribute("ToolId") ~= toolId then return end
-	local response = Harvest.swing(player, toolId)
+	local response = Harvest.swing(player, toolId, aim)
 	if response.ok then Farms.update(DateTime.now().UnixTimestampMillis / 1000) end
 	if feedback and response.reason ~= "Too fast" then feedback:FireClient(player, response) end
 end

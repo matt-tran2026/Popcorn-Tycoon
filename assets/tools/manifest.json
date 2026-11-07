@@ -731,38 +731,191 @@
     "DashHarvest"
    ],
    "conversion": "RawCorn",
-   "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "stage": 1,
+   "blenderSource": "assets/tools/Uncommon/SpringLoadedPicker/source/SpringLoadedPicker.blend",
+   "exportedMesh": "assets/tools/Uncommon/SpringLoadedPicker/exports/SpringLoadedPicker.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.SpringLoadedPicker",
+    "imported": true,
+    "importedAt": "2026-11-06",
+    "meshIds": {
+     "PickerHandle": "rbxassetid://124724423125984",
+     "PickerHead": "rbxassetid://98581261834783",
+     "PickerJawBottom": "rbxassetid://93613684789660",
+     "PickerJawTop": "rbxassetid://116667314257621",
+     "PickerLatch": "rbxassetid://94034667974321",
+     "PickerRod": "rbxassetid://119980564932396",
+     "PickerSpring": "rbxassetid://119671459853640"
+    },
+    "note": "Imported by Claude with desktop control (3D Importer, read at 100x); scaled by 0.01 over MCP and moved to the templates folder. Saved in the place file only."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.SpringLoadedPicker.clips); Plunger motor slides the rod (jaws hang on it via joints.on), Latch flips, the coil stretches with the plunger (model.stretch, ToolAnimator.applyStretch)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Dash",
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    }
+   },
+   "audio": [
+    "assets/tools/Uncommon/SpringLoadedPicker/audio/SpringLoadedPicker_Swing.wav",
+    "assets/tools/Uncommon/SpringLoadedPicker/audio/SpringLoadedPicker_Harvest.wav",
+    "assets/tools/Uncommon/SpringLoadedPicker/audio/SpringLoadedPicker_Equip.wav"
+   ],
+   "vfx": "vfx.dash: speed streak Trail on the root part for the dash, dust ring at take-off and landing (ToolEffects.dashStreak/dashDust), sparkle at the claw on fire; leaf bursts and snip flashes per stalk, each popping as the player passes it. No swing trail.",
+   "integration": "Config.Tools.SpringLoadedPicker (DashHarvest: lane 6 wide, 1 behind to 12 ahead cut short at walls by ToolRules.dashReach, 4 targets, 1.5 s, dash 40 studs/s with a 20 studs/s hop, $650)",
+   "tests": "tests/SpringLoadedPicker.server.luau 42/42 in Play with the Blender template (2026-11-06); client dash sampled in Play",
+   "status": "in game (Blender model, original sounds)",
+   "styleReference": "Creator's weapon pack (Downloads/Rivals weapon pack.rbxm), construction style only, as the Long Scythe and Hedge Trimmer. No pack meshes or names used.",
+   "designPage": "https://claude.ai/artifact/3cB9iuzciMRSf13CMkNuME",
+   "audioNote": "Original synthesised WAVs uploaded by Claude through Studio's Import Queue on 2026-11-06. Swing and Equip re-made without the spring boing at the creator's request and re-uploaded the same day (old ids 116537485638224 and 92533558284452 are no longer used).",
+   "meshes": {
+    "PickerHandle": {
+     "tris": 868,
+     "material": "SmoothPlastic"
+    },
+    "PickerSpring": {
+     "tris": 584,
+     "material": "Metal",
+     "motor": "Spring",
+     "stretches": true
+    },
+    "PickerRod": {
+     "tris": 168,
+     "material": "Metal",
+     "motor": "Plunger"
+    },
+    "PickerHead": {
+     "tris": 268,
+     "material": "SmoothPlastic",
+     "weldTo": "PickerRod"
+    },
+    "PickerJawTop": {
+     "tris": 196,
+     "material": "Metal",
+     "motor": "JawTop",
+     "on": "PickerRod"
+    },
+    "PickerJawBottom": {
+     "tris": 196,
+     "material": "Metal",
+     "motor": "JawBottom",
+     "on": "PickerRod"
+    },
+    "PickerLatch": {
+     "tris": 92,
+     "material": "Metal",
+     "motor": "Latch"
+    }
+   },
+   "preview": "assets/tools/Uncommon/SpringLoadedPicker/previews/SpringLoadedPicker_preview.png",
+   "inGameScreenshot": "assets/tools/Uncommon/SpringLoadedPicker/previews/SpringLoadedPicker_ingame.jpg",
+   "audioIds": {
+    "Swing": "rbxassetid://83120645218195",
+    "Harvest": "rbxassetid://114574428454749",
+    "Equip": "rbxassetid://86204582948295"
+   }
   },
   {
    "toolId": "CornLasso",
    "displayName": "Corn Lasso",
    "rarity": "Uncommon",
    "behaviors": [
-    "ProjectileHarvest",
-    "PullHarvest"
+    "TargetedPull"
    ],
    "conversion": "RawCorn",
-   "stage": null,
-   "blenderSource": null,
-   "exportedMesh": null,
-   "textures": [],
-   "robloxTemplate": null,
-   "animations": null,
-   "audio": [],
-   "vfx": null,
-   "integration": "not started",
-   "tests": "none",
-   "status": "concept"
+   "stage": 1,
+   "blenderSource": "assets/tools/Uncommon/CornLasso/source/CornLasso.blend",
+   "exportedMesh": "assets/tools/Uncommon/CornLasso/exports/CornLasso.fbx",
+   "textures": [
+    "vertex colours (no image)"
+   ],
+   "robloxTemplate": {
+    "path": "ServerStorage.PopcornTemplates.Tools.CornLasso",
+    "imported": true,
+    "importedAt": "2026-11-06",
+    "meshIds": {
+     "LassoCoil": "rbxassetid://117715244809967",
+     "LassoFittings": "rbxassetid://110559708193974",
+     "LassoHandle": "rbxassetid://88554314464839",
+     "LassoLoop": "rbxassetid://123283041151506",
+     "LassoTassels": "rbxassetid://78649805065463"
+    },
+    "note": "Imported by Claude with desktop control (3D Importer, read at 100x); scaled by 0.01 over MCP and moved to the templates folder. Saved in the place file only."
+   },
+   "animations": {
+    "system": "ToolAnimator pose clips (ToolPresentation.CornLasso.clips); the Loop motor turns the held loop in its own plane (idle sway, a full twirl overhead on the wind-up)",
+    "clips": [
+     "Equip",
+     "Idle",
+     "Swing"
+    ],
+    "markers": {
+     "Swing": [
+      "Throw",
+      "Hit"
+     ],
+     "Equip": [
+      "Shing"
+     ]
+    }
+   },
+   "audio": [
+    "assets/tools/Uncommon/CornLasso/audio/CornLasso_Swing.wav",
+    "assets/tools/Uncommon/CornLasso/audio/CornLasso_Harvest.wav",
+    "assets/tools/Uncommon/CornLasso/audio/CornLasso_Pull.wav",
+    "assets/tools/Uncommon/CornLasso/audio/CornLasso_Equip.wav"
+   ],
+   "vfx": "vfx.lasso: at the Throw marker a pooled rope loop (10 rope segments, a knot and a Beam from the RopeOut point) flies to the aimed ear at 140 studs/s, waits for the server, cinches round each confirmed ear (snap, leaf burst, sparkle), and the ears ride the rope back to the hand (ToolEffects.lassoThrow/lassoReply; the held loop hides meanwhile). A refused throw reels back empty. No swing trail.",
+   "integration": "Config.Tools.CornLasso (TargetedPull: the aimed ripe stalk within 25 studs, +2 server slack, snapped within 2.5 studs of the client's aim point, plus the nearest ripe stalk within loopRadius 5.5; 2 targets, 0.4 s, $550). ToolSwing carries (toolId, aim).",
+   "tests": "tests/CornLasso.server.luau 39/39 in Play with the part-built model (2026-11-06); client throw sampled in Play (23-stud throw, cinch, ears back, +2 corn)",
+   "status": "in game (Blender model, original sounds)",
+   "styleReference": "Creator's weapon pack (Downloads/Rivals weapon pack.rbxm), construction style only (chunky low-poly parts, one flat colour per face), as the Long Scythe, Hedge Trimmer and Picker. No pack meshes or names used.",
+   "designPage": "https://claude.ai/artifact/Jsjsw8qthL5AYuqg7boGve",
+   "preview": "assets/tools/Uncommon/CornLasso/previews/CornLasso_preview.png",
+   "inGameScreenshot": "assets/tools/Uncommon/CornLasso/previews/CornLasso_ingame.jpg",
+   "audioIds": {
+    "Swing": "rbxassetid://93656581803685",
+    "Harvest": "rbxassetid://80614267956626",
+    "Pull": "rbxassetid://84040969145635",
+    "Equip": "rbxassetid://124286860237545"
+   },
+   "meshes": {
+    "LassoHandle": {
+     "tris": 332,
+     "material": "Leather"
+    },
+    "LassoFittings": {
+     "tris": 380,
+     "material": "Metal"
+    },
+    "LassoTassels": {
+     "tris": 148,
+     "material": "Leather"
+    },
+    "LassoCoil": {
+     "tris": 788,
+     "material": "Fabric"
+    },
+    "LassoLoop": {
+     "tris": 520,
+     "material": "Fabric",
+     "motor": "Loop"
+    }
+   },
+   "audioNote": "Original synthesised WAVs uploaded by Claude through Studio's Import Queue on 2026-11-06; ids checked with GetProductInfo."
   },
   {
    "toolId": "WeedWhacker",

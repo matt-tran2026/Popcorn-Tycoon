@@ -130,6 +130,41 @@ local tools: { [string]: Types.ToolDefinition } = {
 		-- The Trim clip: push (Hit at 0.12 s), blade chatter, settle.
 		swingSeconds = 0.45, snipStaggerSeconds = 0.03,
 	},
+	-- Catalog: Spring-Loaded Picker (Uncommon; creator, Nov 6 2026): 4 stalks, 1.5 s, 12 studs,
+	-- 1x, raw corn. Spring Dash: the character lunges 12 studs straight ahead (40 studs/s, so
+	-- 0.3 s, with a small hop) and the harvest is the lane it travels: the LineHarvest rule
+	-- (1 behind to 12 ahead, 6 wide, so a dash down the gap between two rows reaches both) cut
+	-- short where a wall would stop the character (ToolRules.dashReach). The weakness: the
+	-- dash always goes the whole way in the facing direction, no steering, so it overshoots
+	-- short rows. Price is a first guess between the Hedge Trimmer ($600) and the Long Scythe.
+	SpringLoadedPicker = {
+		displayName = "Spring-Loaded Picker", description = "Spring Dash: lunge 12 studs ahead and snatch 4 ripe stalks on the way",
+		rarity = "Uncommon", behavior = "DashHarvest",
+		price = 650, currency = "Cash",
+		reach = 12, laneWidth = 6, maxTargets = 4, cooldownSeconds = 1.5, yieldMultiplier = 1,
+		-- hop 20: about a stud up, back down before the 0.3 s dash ends (14 only lifted 0.34).
+		dash = { speed = 40, hop = 20 },
+		-- The Swing clip: coil (0.14 s), fire at the Dash marker, the lunge, then the spring's
+		-- wobble (motion only; no boing sound). Stalks pop as the player passes them (distance / speed), not on a stagger.
+		swingSeconds = 0.55, snipStaggerSeconds = 0,
+	},
+	-- Catalog: Corn Lasso (Uncommon; creator, Nov 6 2026): 2 stalks, 0.4 s, 25 studs, 1x, raw
+	-- corn, long-distance targeted pull. TargetedPull: the player aims at a ripe stalk (the
+	-- client sends that aim point with the swing) up to 25 studs away; the loop also snags the
+	-- nearest other ripe stalk within loopRadius of it (5.5: one step on the 5-stud grid). The
+	-- server checks the aim against its own stalks and root (ToolRules.lassoTargets). Long-Range
+	-- Retrieval: harvest from a path or outside the field without walking in. Weakness: never
+	-- more than 2 a throw. Price is a first guess between the Twin Sickles ($500) and the Hedge
+	-- Trimmer ($600).
+	CornLasso = {
+		displayName = "Corn Lasso", description = "Lasso the ripe stalk you aim at from up to 25 studs away, plus one beside it",
+		rarity = "Uncommon", behavior = "TargetedPull",
+		price = 550, currency = "Cash",
+		reach = 25, loopRadius = 5.5, maxTargets = 2, cooldownSeconds = 0.4, yieldMultiplier = 1,
+		-- The Swing clip: twirl overhead, release at the Throw marker (the request goes out then),
+		-- follow through. The rope's flight, cinch and the ears riding back are client effects.
+		swingSeconds = 0.38, snipStaggerSeconds = 0.08,
+	},
 }
 local Config = {
 	-- 3 since Nov 4 2026: numeric upgrade levels (profile.upgrades, field.upgrades).
@@ -275,9 +310,17 @@ function Config.validate()
 		assert(Config.Economy.currencies[tool.currency], "Invalid tool currency " .. id)
 		assert(whole(tool.price) and tool.reach > 0, "Invalid tool " .. id)
 		-- Each family needs its own shape: an arc, or a lane narrower than a row gap.
-		if tool.behavior == "LineHarvest" then
+		if tool.behavior == "LineHarvest" or tool.behavior == "DashHarvest" then
 			local width = tool.laneWidth
-			assert(width and width > 0 and width < Config.Plot.spacing * 2, "LineHarvest needs a laneWidth under two row gaps: " .. id)
+			assert(width and width > 0 and width < Config.Plot.spacing * 2, "Lane tools need a laneWidth under two row gaps: " .. id)
+			-- A dash must cover its lane well inside one cooldown, so the next dash starts after it lands.
+			local dash = tool.dash
+			assert(tool.behavior ~= "DashHarvest" or (dash ~= nil and dash.speed > 0 and dash.hop >= 0
+				and tool.reach / dash.speed + (tool.swingSeconds or 0) * 0.5 < tool.cooldownSeconds), "DashHarvest needs a dash that lands inside a cooldown: " .. id)
+		elseif tool.behavior == "TargetedPull" then
+			-- The loop snags neighbours around the aimed stalk; it must stay well inside the reach.
+			local loop = tool.loopRadius
+			assert(loop and loop > 0 and loop < tool.reach, "TargetedPull tools need a loopRadius inside their reach: " .. id)
 		else
 			local arc = tool.arcDegrees
 			assert(arc and arc > 0 and arc <= 360, "Invalid tool arc " .. id)
@@ -285,7 +328,9 @@ function Config.validate()
 		assert(whole(tool.maxTargets) and tool.maxTargets >= 1 and tool.cooldownSeconds > 0, "Invalid tool " .. id)
 		assert(whole(tool.yieldMultiplier) and tool.yieldMultiplier >= 1, "Invalid tool " .. id)
 		assert(tool.behavior == "ArcSweep" or tool.behavior == "SingleTarget" or tool.behavior == "LineHarvest"
-			or tool.behavior == "PullHarvest", "Unimplemented tool behavior " .. id)
+			or tool.behavior == "PullHarvest" or tool.behavior == "DashHarvest" or tool.behavior == "TargetedPull", "Unimplemented tool behavior " .. id)
+		assert(tool.loopRadius == nil or tool.behavior == "TargetedPull", "Only TargetedPull tools have a loop: " .. id)
+		assert(tool.dash == nil or tool.behavior == "DashHarvest", "Only DashHarvest tools dash: " .. id)
 		assert(tool.behavior ~= "SingleTarget" or tool.maxTargets == 1, "SingleTarget tools cut one stalk: " .. id)
 		assert(tool.cooldownSeconds >= (tool.swingSeconds or 0), "Swings must not overlap: " .. id)
 		-- Alternating tools: the side turn keeps each hand's arc in front, and a combo is a

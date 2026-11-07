@@ -122,7 +122,9 @@ local function folder(): Folder
 end
 
 -- A chunky toy ear: a gold cob with a rounded tip and two pale husk leaves, pointing along -Z.
-local function newEar(pull: ToolPresentation.PullVfx): Ear
+-- Hook Pull and Corn Lasso ears share the pool; both looks carry the ear colours.
+type EarLook = { earColor: Color3, huskColor: Color3, trailColors: { Color3 } }
+local function newEar(pull: EarLook): Ear
 	local parts: { BasePart } = {}
 	local offsets: { CFrame } = {}
 	local function add(shape: Enum.PartType, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material): Part
@@ -471,6 +473,75 @@ function ToolEffects.trimStrip(centre: () -> CFrame?, spec: ToolPresentation.Tri
 	end)
 end
 
+-- Spring Dash dust (Spring-Loaded Picker): a low ring of dust puffs on the ground under the
+-- player at take-off and landing. One pooled emitter (built-in smoke texture, nothing to upload),
+-- moved and told to Emit, like the leaves.
+local dustEmitter: ParticleEmitter? = nil
+local dustAnchor: Attachment? = nil
+function ToolEffects.dashDust(root: CFrame, spec: ToolPresentation.DashVfx)
+	local camera = workspace.CurrentCamera
+	local distance = if camera then (camera.CFrame.Position - root.Position).Magnitude else 0
+	if distance > FAR or ToolEffects.particleScale <= 0 then return end
+	if not (dustAnchor and dustAnchor.Parent and dustEmitter) then
+		local anchor = Instance.new("Attachment")
+		anchor.Name = "PopcornDashDust"
+		local e = Instance.new("ParticleEmitter")
+		e.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		e.Enabled = false
+		e.Lifetime = NumberRange.new(0.35, 0.6)
+		e.Speed = NumberRange.new(5, 9)
+		-- Out sideways along the ground, a little up.
+		e.EmissionDirection = Enum.NormalId.Top
+		e.SpreadAngle = Vector2.new(80, 80)
+		e.Acceleration = Vector3.new(0, 3, 0)
+		e.Drag = 5
+		e.Rotation = NumberRange.new(0, 360)
+		e.RotSpeed = NumberRange.new(-90, 90)
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 2) })
+		e.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+		e.LightInfluence = 0.8
+		e.Parent = anchor
+		anchor.Parent = workspace.Terrain
+		dustAnchor, dustEmitter = anchor, e
+	end
+	local anchor, e = dustAnchor :: Attachment, dustEmitter :: ParticleEmitter
+	e.Color = ColorSequence.new(spec.dustColor)
+	anchor.WorldPosition = Vector3.new(root.Position.X, groundUnder(root) + 0.3, root.Position.Z)
+	local n = math.floor(spec.dustCount * ToolEffects.particleScale * (if distance > NEAR then 0.5 else 1) + 0.5)
+	if n > 0 then e:Emit(n) end
+end
+
+-- Spring Dash streak: a ribbon trailing the player's body for the length of the dash. One Trail
+-- per character, made once (local only) between two attachments on the root part, spec.width
+-- studs apart vertically, and switched on for `seconds` plus a little.
+function ToolEffects.dashStreak(root: BasePart, spec: ToolPresentation.DashVfx, seconds: number)
+	if ToolEffects.particleScale <= 0 or seconds <= 0 then return end
+	local trail = root:FindFirstChild("PopcornDashStreak")
+	if not (trail and trail:IsA("Trail")) then
+		local top, bottom = Instance.new("Attachment"), Instance.new("Attachment")
+		top.Name, top.Position, top.Parent = "PopcornDashTop", Vector3.new(0, spec.width / 2, 0.4), root
+		bottom.Name, bottom.Position, bottom.Parent = "PopcornDashBottom", Vector3.new(0, -spec.width / 2, 0.4), root
+		local made = Instance.new("Trail")
+		made.Name = "PopcornDashStreak"
+		made.Attachment0, made.Attachment1 = top, bottom
+		made.MinLength, made.FaceCamera, made.LightEmission = 0.1, false, 0.5
+		made.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 1) })
+		made.WidthScale = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0.3) })
+		made.Enabled = false
+		made.Parent = root
+		trail = made
+	end
+	local t = trail :: Trail
+	t.Lifetime = spec.trailSeconds
+	t.Color = ColorSequence.new(spec.trailColors[1], spec.trailColors[#spec.trailColors])
+	t.Enabled = true
+	local token = os.clock()
+	t:SetAttribute("DashToken", token)
+	task.delay(seconds + 0.05, function()
+		if t.Parent and t:GetAttribute("DashToken") == token then t.Enabled = false end
+	end)
+end
+
 -- Blade spray (Hedge Trimmer): grass flecks from spec.sprayPoint and small sparks from
 -- spec.sparkPoint on the held tool for spec.spraySeconds. The two emitters are made once per
 -- tool (local only, inside its attachments) and switched on and off; at most a few dozen
@@ -544,6 +615,252 @@ function ToolEffects.leafBurst(at: Vector3, count: number, color: Color3?)
 	emitter.Color = ColorSequence.new(color or Color3.new(1, 1, 1))
 	anchor.WorldPosition = at
 	emitter:Emit(n)
+end
+
+
+-- Long-Range Retrieval (Corn Lasso): a rope loop flies from the lasso to the aimed ear, waits for
+-- the server, cinches round each confirmed ear, and the ears ride the rope back to the hand. At
+-- most ROPE_POOL ropes exist (throws overlap: the cycle outlasts the 0.4 s cooldown); a throw
+-- with every rope busy is skipped. Each rope is LOOP_PARTS short cylinder segments laid round a
+-- ring (resized as the loop opens and cinches), a knot and a Beam from the lasso's rope point
+-- to the knot. Ears come from the Hook Pull's pool. One Heartbeat connection moves every rope
+-- with BulkMoveTo and disconnects when none are out. Presentation only: the server has
+-- already decided what the throw took; a refused throw reels back an empty loop.
+local ROPE_POOL = 3
+local LOOP_PARTS = 10
+type Rope = { parts: { BasePart }, knot: BasePart, beam: Beam, far: Attachment, busy: boolean, radius: number }
+type Phase = "out" | "wait" | "cinch" | "back"
+export type LassoThrow = {
+	rope: Rope, spec: ToolPresentation.LassoVfx, anchor: Attachment, start: Vector3, to: Vector3,
+	started: number, flight: number, phase: Phase, phaseAt: number, targets: { Vector3 }?,
+	ears: { Ear }, hand: Vector3, spin: number, done: () -> (), cinched: (Vector3) -> (), caught: (Vector3) -> (),
+}
+local ropes: { Rope } = {}
+local throws: { LassoThrow } = {}
+local lassoMover: RBXScriptConnection? = nil
+
+local function newRope(spec: ToolPresentation.LassoVfx): Rope
+	local parts: { BasePart } = {}
+	for i = 1, LOOP_PARTS do
+		local p = Instance.new("Part")
+		p.Name = "PopcornLassoLoop"
+		p.Shape = Enum.PartType.Cylinder
+		p.Size = Vector3.new(0.4, spec.ropeWidth, spec.ropeWidth)
+		p.Color = if i % 2 == 0 then spec.ropeShade else spec.ropeColor
+		p.Material = Enum.Material.Fabric
+		p.Anchored, p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow = true, false, false, false, false
+		p.CFrame = PARKED
+		p.Parent = folder()
+		table.insert(parts, p)
+	end
+	local knot = Instance.new("Part")
+	knot.Name = "PopcornLassoKnot"
+	knot.Size = Vector3.new(0.24, 0.24, 0.3)
+	knot.Color, knot.Material = spec.ropeShade, Enum.Material.Fabric
+	knot.Anchored, knot.CanCollide, knot.CanQuery, knot.CanTouch, knot.CastShadow = true, false, false, false, false
+	knot.CFrame = PARKED
+	knot.Parent = folder()
+	local far = Instance.new("Attachment")
+	far.Name = "PopcornLassoEnd"
+	far.Parent = workspace.Terrain
+	local beam = Instance.new("Beam")
+	beam.Width0, beam.Width1 = spec.ropeWidth, spec.ropeWidth
+	beam.Color = ColorSequence.new(spec.ropeColor, spec.ropeShade)
+	beam.Transparency = NumberSequence.new(0)
+	beam.LightEmission, beam.LightInfluence, beam.FaceCamera, beam.Segments = 0, 1, true, 16
+	beam.Enabled = false
+	beam.Attachment1 = far
+	beam.Parent = far
+	return { parts = parts, knot = knot, beam = beam, far = far, busy = false, radius = -1 }
+end
+
+-- Lays the rope's loop round `centre` (normal `up`, turned by `spin`) at `radius`, with the knot
+-- on the side facing `toward`, and puts the rope's far end on the knot.
+local function layLoop(rope: Rope, centre: Vector3, up: Vector3, radius: number, spin: number, toward: Vector3, width: number)
+	local flat = toward - centre
+	flat -= up * flat:Dot(up)
+	local u = if flat.Magnitude > 1e-3 then flat.Unit else up:Cross(Vector3.xAxis).Unit
+	local w = up:Cross(u)
+	if math.abs(radius - rope.radius) > 0.005 then
+		local length = 2 * math.pi * radius / LOOP_PARTS * 1.12
+		for _, p in rope.parts do p.Size = Vector3.new(length, width, width) end
+		rope.radius = radius
+	end
+	local cframes = table.create(LOOP_PARTS + 1)
+	for i = 1, LOOP_PARTS do
+		local a0 = spin + 2 * math.pi * (i - 1) / LOOP_PARTS
+		local a1 = spin + 2 * math.pi * i / LOOP_PARTS
+		local p0 = centre + (u * math.cos(a0) + w * math.sin(a0)) * radius
+		local p1 = centre + (u * math.cos(a1) + w * math.sin(a1)) * radius
+		cframes[i] = CFrame.lookAt((p0 + p1) / 2, p1, up) * CFrame.Angles(0, math.rad(90), 0)
+	end
+	local knotAt = centre + u * radius
+	cframes[LOOP_PARTS + 1] = CFrame.lookAt(knotAt, knotAt + u, up)
+	local all = table.clone(rope.parts)
+	table.insert(all, rope.knot)
+	workspace:BulkMoveTo(all, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	-- The far end's axis points up, so a positive CurveSize1 sags the rope just short of the knot.
+	local side = u:Cross(Vector3.yAxis)
+	rope.far.WorldCFrame = CFrame.fromMatrix(knotAt, Vector3.yAxis, if side.Magnitude > 1e-3 then side.Unit else Vector3.zAxis)
+end
+
+local function parkRope(rope: Rope)
+	rope.beam.Enabled = false
+	local all = table.clone(rope.parts)
+	table.insert(all, rope.knot)
+	workspace:BulkMoveTo(all, table.create(#all, PARKED), Enum.BulkMoveMode.FireCFrameChanged)
+	rope.busy = false
+end
+
+local function freeEar(look: ToolPresentation.LassoVfx): Ear?
+	for _, candidate in ears do
+		if not candidate.busy and candidate.parts[1].Parent then return candidate end
+	end
+	if #ears < EAR_POOL then
+		local ear = newEar(look)
+		table.insert(ears, ear)
+		return ear
+	end
+	return nil
+end
+
+local function lassoStep()
+	local clock = os.clock()
+	for i = #throws, 1, -1 do
+		local th = throws[i]
+		local spec = th.spec
+		if th.anchor.Parent then th.hand = th.anchor.WorldPosition end
+		local radius, centre, finished = spec.openRadius, th.to, false
+		local sag = 0
+		if th.phase == "out" then
+			local t = math.clamp((clock - th.started) / th.flight, 0, 1)
+			local lift = Vector3.new(0, spec.rise * (th.to - th.start).Magnitude / 10, 0)
+			centre = bezier(th.start, (th.start + th.to) / 2 + lift, th.to, t)
+			radius = spec.cinchRadius + (spec.openRadius - spec.cinchRadius) * math.min(1, t * 1.8)
+			th.spin = spec.spinTurns * 2 * math.pi * t
+			sag = 0.35
+			if t >= 1 then th.phase, th.phaseAt = "wait", clock end
+		elseif th.phase == "wait" then
+			-- Hovering over the ear, settling a little, until the server answers.
+			centre = th.to - Vector3.new(0, 0.25 * math.clamp((clock - th.phaseAt) / 0.25, 0, 1), 0)
+			sag = 0.5
+			local targets = th.targets
+			if targets then
+				th.phase, th.phaseAt = if #targets > 0 then "cinch" else "back", clock
+				for k, at in targets do
+					th.cinched(at)
+					local ear = freeEar(spec)
+					if ear then
+						ear.busy = true
+						place(ear, CFrame.new(at))
+						ear.trail:Clear()
+						ear.trail.Enabled = true
+						th.ears[k] = ear
+					end
+				end
+				if #targets == 0 then th.to = centre end
+			elseif clock - th.phaseAt > spec.waitSeconds then
+				th.targets = {}
+				th.phase, th.phaseAt = "back", clock
+				th.to = centre
+			end
+		elseif th.phase == "cinch" then
+			local t = math.clamp((clock - th.phaseAt) / spec.cinchSeconds, 0, 1)
+			centre = th.to - Vector3.new(0, 0.25, 0)
+			radius = spec.openRadius + (spec.cinchRadius - spec.openRadius) * (t ^ 0.6)
+			sag = 0.5 * (1 - t)
+			local back = (th.hand - centre)
+			back = if back.Magnitude > 1e-3 then back.Unit else Vector3.zAxis
+			for k, ear in th.ears do
+				-- Snagged neighbours hop into the loop behind the aimed ear, which is already in it.
+				local from = (th.targets :: { Vector3 })[k]
+				local at = if k == 1 then centre else from:Lerp(centre - back * 0.6 * (k - 1), t)
+				place(ear, CFrame.lookAt(at, at + back))
+			end
+			if t >= 1 then
+				th.phase, th.phaseAt = "back", clock
+				th.to = centre
+			end
+		else
+			-- Back along the tightened rope to the hand (followed as the player moves).
+			local t = math.clamp((clock - th.phaseAt) / spec.backSeconds, 0, 1)
+			local eased = t ^ 1.25
+			local from = th.to
+			centre = from:Lerp(th.hand, eased) + Vector3.new(0, math.sin(math.pi * eased) * 0.6, 0)
+			radius = if #th.ears > 0 then spec.cinchRadius else spec.openRadius * (1 - 0.5 * t)
+			th.spin += 0.05
+			local dir = th.hand - from
+			for k, ear in th.ears do
+				local u = math.clamp(eased - 0.12 * (k - 1), 0, 1)
+				local at = from:Lerp(th.hand, u) + Vector3.new(0, math.sin(math.pi * u) * 0.6, 0)
+				place(ear, CFrame.lookAt(at, at + dir) * CFrame.Angles(0, 0, 6 * t))
+			end
+			if t >= 1 then finished = true end
+		end
+		if finished then
+			table.remove(throws, i)
+			for _, ear in th.ears do park(ear) end
+			if #th.ears > 0 then th.caught(th.hand) end
+			parkRope(th.rope)
+			th.done()
+		else
+			layLoop(th.rope, centre, Vector3.yAxis, radius, th.spin, th.hand, spec.ropeWidth)
+			local span = (centre - th.hand).Magnitude
+			th.rope.beam.CurveSize0 = span * 0.18
+			th.rope.beam.CurveSize1 = span * sag * 0.12
+		end
+	end
+	if #throws == 0 and lassoMover then
+		lassoMover:Disconnect()
+		lassoMover = nil
+	end
+end
+
+-- Throws a rope from `anchor` (the lasso's rope point) to `to` (the aimed ear, or a spot on the
+-- ground for a throw at nothing). `cinched(at)` runs for each confirmed stalk as the loop
+-- tightens, `caught(hand)` once when the ears reach the hand, `done()` when the rope is back
+-- (always, even for a skipped throw, so the held loop reappears). Returns nil when skipped.
+function ToolEffects.lassoThrow(anchor: Attachment, to: Vector3, spec: ToolPresentation.LassoVfx,
+	cinched: (Vector3) -> (), caught: (Vector3) -> (), done: () -> ()): LassoThrow?
+	local camera = workspace.CurrentCamera
+	local start = anchor.WorldPosition
+	if (camera and (camera.CFrame.Position - start).Magnitude > FAR) or ToolEffects.particleScale <= 0 then
+		done()
+		return nil
+	end
+	local rope: Rope? = nil
+	for _, candidate in ropes do
+		if not candidate.busy and candidate.knot.Parent then
+			rope = candidate
+			break
+		end
+	end
+	if not rope and #ropes < ROPE_POOL then
+		rope = newRope(spec)
+		table.insert(ropes, rope :: Rope)
+	end
+	if not rope then
+		done()
+		return nil
+	end
+	local r = rope :: Rope
+	r.busy = true
+	r.beam.Attachment0 = anchor
+	r.beam.Enabled = true
+	local th: LassoThrow = {
+		rope = r, spec = spec, anchor = anchor, start = start, to = to, started = os.clock(),
+		flight = math.max(0.06, (to - start).Magnitude / spec.speed), phase = "out", phaseAt = os.clock(),
+		targets = nil, ears = {}, hand = start, spin = 0, done = done, cinched = cinched, caught = caught,
+	}
+	table.insert(throws, th)
+	if not lassoMover then lassoMover = RunService.Heartbeat:Connect(lassoStep) end
+	return th
+end
+
+-- The server's answer for a throw: the confirmed stalks' ear positions (aimed one first), or an
+-- empty list for a refused throw. A throw still in flight uses it when it lands.
+function ToolEffects.lassoReply(th: LassoThrow, targets: { Vector3 })
+	if th.targets == nil then th.targets = targets end
 end
 
 return ToolEffects

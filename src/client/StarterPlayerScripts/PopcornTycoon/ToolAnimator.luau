@@ -98,12 +98,29 @@ export type Player = {
 	playing: (self: Player) -> boolean,
 }
 
+-- Stretching parts (ToolPresentation model.stretch, the Spring-Loaded Picker's coil): the part's
+-- front end follows the `follow` motor's slide along tool X and its rear end stays at its own
+-- motor's pivot. With slide d and rest length L it is resized along its StretchAxis (set by
+-- ToolModels) to L + d and its own motor moves it d / 2 forward. Returns the stretch factor.
+function ToolAnimator.applyStretch(motor: Motor6D, follow: Motor6D, length: number): number?
+	local part = motor.Part1
+	local rest, axis = if part then part:GetAttribute("StretchRest") else nil, if part then part:GetAttribute("StretchAxis") else nil
+	if not part or typeof(rest) ~= "Vector3" or typeof(axis) ~= "Vector3" then return nil end
+	local slide = follow.Transform.Position.X
+	local factor = math.max(0.2, (length + slide) / length)
+	local size = rest + axis * rest:Dot(axis) * (factor - 1)
+	if (part.Size - size).Magnitude > 1e-4 then part.Size = size end
+	motor.Transform = CFrame.new(slide / 2, 0, 0)
+	return factor
+end
+
 -- Starts layering on a character. Call stop() when the tool is put away or the character goes.
 -- `held` names joints the clips hold outright instead of layering on the Animator: their pose
 -- replaces whatever walk/run animation would move them, at full weight (the Twin Sickles' left
 -- arm, which no default tool hold keeps still the way it keeps the right one). R15 only: R6
--- joints have different axes, so they keep layering.
-function ToolAnimator.attach(character: Model, held: { string }?): Player
+-- joints have different axes, so they keep layering. `stretch` is the tool's model.stretch,
+-- applied every frame after the pose.
+function ToolAnimator.attach(character: Model, held: { string }?, stretch: { [string]: { motor: string, follow: string, length: number } }?): Player
 	local holds: { [string]: boolean } = {}
 	if held and character:FindFirstChild("UpperTorso") then
 		for _, name in held do holds[name] = true end
@@ -176,6 +193,14 @@ function ToolAnimator.attach(character: Model, held: { string }?): Player
 			local t = ((now - idleStarted) / clip.seconds) % 1
 			-- Ease the idle back in over 0.2 s after a one-shot so it never snaps.
 			apply(ToolAnimator.sample(clip, t), math.clamp((now - idleStarted) / 0.2, 0, 1))
+		end
+		if stretch then
+			for _, spec in stretch do
+				local own, follow = joint(spec.motor), joint(spec.follow)
+				if own and follow and own:IsA("Motor6D") and follow:IsA("Motor6D") then
+					ToolAnimator.applyStretch(own, follow, spec.length)
+				end
+			end
 		end
 	end
 

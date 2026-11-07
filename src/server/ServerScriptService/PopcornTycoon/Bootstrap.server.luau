@@ -42,14 +42,15 @@ shop.Parent = remotes
 local upgradeRequest = Instance.new("RemoteEvent")
 upgradeRequest.Name = "UpgradeRequest"
 upgradeRequest.Parent = remotes
--- Swung tools: (toolId) only, fired by the client when it actually plays a swing (Nov 6 2026).
+-- Swung tools: (toolId, aim?), fired by the client when it actually plays a swing (Nov 6 2026);
+-- aim is the targeted tools' aim point (Corn Lasso), checked by the server like everything else.
 -- Tool.Activated replicated every click, so spam-clicking harvested on clicks the client never
 -- animated; the server still checks equip, cadence and targets in HarvestService.swing.
 local swingRequest = Instance.new("RemoteEvent")
 swingRequest.Name = "ToolSwing"
 swingRequest.Parent = remotes
-swingRequest.OnServerEvent:Connect(function(player: Player, toolId: unknown)
-	Tools.swing(player, toolId)
+swingRequest.OnServerEvent:Connect(function(player: Player, toolId: unknown, aim: unknown)
+	Tools.swing(player, toolId, aim)
 end)
 -- Owner-only Developer Panel: (requestId, command, args) -> response. Created only in Studio
 -- (AdminConfig); every request is authorized and validated again by AdminService.

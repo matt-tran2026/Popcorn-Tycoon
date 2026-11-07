@@ -87,7 +87,10 @@ end
 -- Turns the tool's parts into one assembly: meshes named in look.model.joints get a Motor6D
 -- from the Handle (named joint.motor) about the tool frame's Y axis through joint.pivot; the
 -- rest are welded to the Handle, or to the part look.model.welds names. `frame` is the tool
--- frame in world space (grip point at its origin).
+-- frame in world space (grip point at its origin). A joint with `on` hangs from that mesh
+-- instead of the Handle (it rides that mesh's own joint). Stretching meshes (look.model.stretch)
+-- are marked with the part-space axis that runs along tool X and their rest size, which
+-- ToolAnimator needs to resize them.
 local function rig(handle: BasePart, parts: { BasePart }, frame: CFrame, look: ToolPresentation.Presentation)
 	local byName: { [string]: BasePart } = {}
 	for _, part in parts do byName[part.Name] = part end
@@ -98,10 +101,19 @@ local function rig(handle: BasePart, parts: { BasePart }, frame: CFrame, look: T
 			continue
 		elseif joint then
 			local pivot = frame * CFrame.new(joint.pivot)
+			local base = (if joint.on then byName[joint.on] else nil) or handle
 			local motor = Instance.new("Motor6D")
-			motor.Name, motor.Part0, motor.Part1 = joint.motor, handle, part
-			motor.C0, motor.C1 = handle.CFrame:ToObjectSpace(pivot), part.CFrame:ToObjectSpace(pivot)
-			motor.Parent = handle
+			motor.Name, motor.Part0, motor.Part1 = joint.motor, base, part
+			motor.C0, motor.C1 = base.CFrame:ToObjectSpace(pivot), part.CFrame:ToObjectSpace(pivot)
+			motor.Parent = base
+			local stretch = (look.model.stretch or {})[part.Name]
+			if stretch then
+				local along = part.CFrame:VectorToObjectSpace(frame.XVector)
+				local ax, ay, az = math.abs(along.X), math.abs(along.Y), math.abs(along.Z)
+				local axis = if ax >= ay and ax >= az then Vector3.xAxis elseif ay >= az then Vector3.yAxis else Vector3.zAxis
+				part:SetAttribute("StretchAxis", axis)
+				part:SetAttribute("StretchRest", part.Size)
+			end
 		else
 			local weld = Instance.new("WeldConstraint")
 			weld.Part0, weld.Part1 = byName[welds[part.Name] or ""] or handle, part
@@ -469,10 +481,142 @@ function ToolModels.hedgeTrimmer(): Tool
 	return tool
 end
 
+-- Part-built spring-loaded picker, used until the Blender template is imported. Built straight
+-- in the tool frame (X along the barrel toward the claw, Y the thin axis, Z up from the grip to
+-- the barrel; grip point on the D grip's rear bar at the origin) with the Blender model's mesh
+-- names, joints (Plunger rod with the jaws on it, Latch, stretching Spring) and points, in the
+-- design canvas's colours. Blender (x, y, z) -> (x, z, y).
+function ToolModels.springLoadedPicker(): Tool
+	local look = assert(ToolPresentation.get("SpringLoadedPicker"))
+	local tool = Instance.new("Tool")
+	tool.Name = "SpringLoadedPicker"
+	tool:SetAttribute("ToolId", "SpringLoadedPicker")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Spring Dash: lunge 12 studs ahead and snatch 4 ripe stalks on the way"
+	local plastic, metal = Enum.Material.SmoothPlastic, Enum.Material.Metal
+	local red, dark = Color3.fromRGB(217, 52, 43), Color3.fromRGB(60, 65, 73)
+	local steel, iron = Color3.fromRGB(180, 188, 198), Color3.fromRGB(125, 133, 143)
+	local axisY = 0.6 -- barrel height above the grip (tool Z)
+	local function box(name: string, size: Vector3, at: Vector3, color: Color3, material: Enum.Material, tilt: number?): Part
+		return piece(tool, name, size, CFrame.new(at) * CFrame.Angles(0, math.rad(tilt or 0), 0), color, material)
+	end
+	local function drum(name: string, x0: number, x1: number, diameter: number, color: Color3, material: Enum.Material): Part
+		local p = piece(tool, name, Vector3.new(x1 - x0, diameter, diameter), CFrame.new((x0 + x1) / 2, 0, axisY), color, material)
+		p.Shape = Enum.PartType.Cylinder
+		return p
+	end
+	-- D grip: top bar (the Handle), rear bar (the hand's grip), bottom bar, housing, rear collar.
+	local handle = box("PickerHandle", Vector3.new(1.1, 0.4, 0.36), Vector3.new(0.42, 0, 0.71), red, plastic)
+	box("PickerGripBar", Vector3.new(0.38, 0.4, 1.5), Vector3.new(0, 0, 0), red, plastic, -9)
+	box("PickerLoopBottom", Vector3.new(0.75, 0.4, 0.36), Vector3.new(0.45, 0, -0.7), red, plastic)
+	box("PickerHousing", Vector3.new(0.6, 0.6, 1.08), Vector3.new(1.0, 0, 0.52), red, plastic)
+	drum("PickerRearCollar", 1.28, 1.5, 1.04, red, plastic)
+	box("PickerTrigger", Vector3.new(0.18, 0.16, 0.3), Vector3.new(0.55, 0, 0.4), dark, plastic)
+	box("PickerSlide", Vector3.new(1.3, 0.14, 0.14), Vector3.new(1.65, 0.19, 0.09), steel, metal)
+	-- Moving parts, each one piece so the motors can move them.
+	local spring = drum("PickerSpring", 1.5, 3.0, 0.84, steel, metal)
+	local rod = drum("PickerRod", 1.3, 3.57, 0.2, iron, metal)
+	box("PickerClevis", Vector3.new(0.3, 0.3, 0.52), Vector3.new(3.65, 0, axisY), steel, metal)
+	local head = drum("PickerHead", 3.0, 3.22, 0.92, red, plastic)
+	drum("PickerNose", 3.22, 3.54, 0.36, red, plastic)
+	local jawTop = box("PickerJawTop", Vector3.new(0.9, 0.18, 0.18), Vector3.new(4.08, 0, axisY + 0.36), steel, metal, -22)
+	local jawBottom = box("PickerJawBottom", Vector3.new(0.9, 0.18, 0.18), Vector3.new(4.08, 0, axisY - 0.36), steel, metal, 22)
+	box("PickerPadTop", Vector3.new(0.2, 0.2, 0.15), Vector3.new(4.45, 0, axisY + 0.25), Color3.fromRGB(227, 154, 59), plastic)
+	box("PickerPadBottom", Vector3.new(0.2, 0.2, 0.15), Vector3.new(4.45, 0, axisY - 0.25), Color3.fromRGB(227, 154, 59), plastic)
+	local latch = box("PickerLatch", Vector3.new(0.12, 0.06, 0.36), Vector3.new(0.9, 0.37, 0.27), steel, metal, 25)
+	-- Riders: the clevis, nose and head go with the rod, each pad with its jaw; the rest is the grip.
+	local riders: { [string]: BasePart } = {
+		PickerClevis = rod, PickerNose = head, PickerPadTop = jawTop, PickerPadBottom = jawBottom,
+	}
+	local moving = { [spring] = true, [rod] = true, [head] = true, [jawTop] = true, [jawBottom] = true, [latch] = true }
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= handle and not moving[child] then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = riders[child.Name] or handle, child, child
+		end
+	end
+	rig(handle, { handle :: BasePart, spring, rod, head, jawTop, jawBottom, latch }, CFrame.identity, look)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, handle.CFrame:PointToObjectSpace(point), handle
+	end
+	handle.Name = "Handle"
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
+-- Part-built corn lasso, used until the Blender template is imported. Built straight in the
+-- tool frame (X along the grip toward the rope, Y the rings' normal, Z the side the rope hangs;
+-- grip point at the origin) with the Blender model's mesh names, the Loop joint and the points,
+-- in the design canvas's colours. Rope rings are short cylinder segments. Every piece of the
+-- loop rides the LassoLoop part and carries the LassoLoopPiece attribute, so the client can
+-- hide the whole held loop while the thrown rope is out. Blender (x, y, z) -> (x, z, y).
+function ToolModels.cornLasso(): Tool
+	local look = assert(ToolPresentation.get("CornLasso"))
+	local tool = Instance.new("Tool")
+	tool.Name = "CornLasso"
+	tool:SetAttribute("ToolId", "CornLasso")
+	tool.CanBeDropped, tool.RequiresHandle = false, true
+	tool.ToolTip = "Lasso the ripe stalk you aim at from up to 25 studs away"
+	local leather, metal, fabric = Enum.Material.Leather, Enum.Material.Metal, Enum.Material.Fabric
+	local brown, steel = Color3.fromRGB(142, 78, 40), Color3.fromRGB(143, 148, 154)
+	local rope, ropeDark = Color3.fromRGB(200, 165, 119), Color3.fromRGB(156, 124, 82)
+	local function drum(name: string, x0: number, x1: number, diameter: number, color: Color3, material: Enum.Material): Part
+		local p = piece(tool, name, Vector3.new(x1 - x0, diameter, diameter), CFrame.new((x0 + x1) / 2, 0, 0), color, material)
+		p.Shape = Enum.PartType.Cylinder
+		return p
+	end
+	-- A rope segment between two tool-frame points (a cylinder along its X).
+	local function segment(name: string, a: Vector3, b: Vector3, color: Color3): Part
+		local mid, length = (a + b) / 2, (b - a).Magnitude
+		local p = piece(tool, name, Vector3.new(length * 1.08, 0.14, 0.14),
+			CFrame.lookAt(mid, b) * CFrame.Angles(0, math.rad(90), 0), color, fabric)
+		p.Shape = Enum.PartType.Cylinder
+		return p
+	end
+	-- A ring of rope in the X/Z plane (the rings' normal is tool Y).
+	local function ring(name: string, centre: Vector3, radius: number, count: number): { Part }
+		local list: { Part } = {}
+		for i = 1, count do
+			local a0, a1 = 2 * math.pi * (i - 1) / count, 2 * math.pi * i / count
+			local p0 = centre + Vector3.new(math.cos(a0), 0, math.sin(a0)) * radius
+			local p1 = centre + Vector3.new(math.cos(a1), 0, math.sin(a1)) * radius
+			table.insert(list, segment(name, p0, p1, if i % 2 == 0 then ropeDark else rope))
+		end
+		return list
+	end
+	local handle = drum("LassoHandle", -0.85, 0.8, 0.37, brown, leather)
+	drum("LassoFittings", 0.78, 1.12, 0.46, steel, metal)
+	drum("LassoButtCap", -1.15, -0.83, 0.44, steel, metal)
+	piece(tool, "LassoTassels", Vector3.new(0.09, 0.08, 0.7), CFrame.new(-1.28, 0, 0.42), Color3.fromRGB(160, 89, 44), leather)
+	for _, part in ring("LassoCoilRing", Vector3.new(1.55, 0, 0.75), 0.5, 10) do part.Name = "LassoCoilRing" end
+	local coil = segment("LassoCoil", Vector3.new(1.08, 0, 0.16), Vector3.new(1.5, 0, 0.26), rope)
+	-- The loop: lead from the collar to the honda, the open ring, and a knot; all ride LassoLoop.
+	local loop = segment("LassoLoop", Vector3.new(1.12, 0, 0.05), Vector3.new(2.3, 0, 0.4), rope)
+	loop:SetAttribute("LassoLoopPiece", true)
+	for _, part in ring("LassoLoopRing", Vector3.new(3.0, 0, 0.95), 0.85, 12) do part:SetAttribute("LassoLoopPiece", true) end
+	local knot = piece(tool, "LassoHonda", Vector3.new(0.26, 0.22, 0.22), CFrame.new(2.3, 0, 0.4), ropeDark, fabric)
+	knot:SetAttribute("LassoLoopPiece", true)
+	for _, child in tool:GetChildren() do
+		if child:IsA("BasePart") and child ~= handle and child ~= loop and child ~= coil then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0, weld.Part1, weld.Parent = if child:GetAttribute("LassoLoopPiece") then loop else handle, child, child
+		end
+	end
+	rig(handle, { handle :: BasePart, loop, coil }, CFrame.identity, look)
+	for name, point in look.model.points do
+		local attachment = Instance.new("Attachment")
+		attachment.Name, attachment.Position, attachment.Parent = name, handle.CFrame:PointToObjectSpace(point), handle
+	end
+	handle.Name = "Handle"
+	tool.Grip = handle.CFrame:Inverse() * look.model.grip
+	return tool
+end
+
 local procedural: { [string]: () -> Tool } = {
 	Sickle = ToolModels.sickle, CornClippers = ToolModels.cornClippers, Pitchfork = ToolModels.pitchfork,
 	HarvestHook = ToolModels.harvestHook, TwinSickles = ToolModels.twinSickles, LongScythe = ToolModels.longScythe,
-	HedgeTrimmer = ToolModels.hedgeTrimmer,
+	HedgeTrimmer = ToolModels.hedgeTrimmer, SpringLoadedPicker = ToolModels.springLoadedPicker, CornLasso = ToolModels.cornLasso,
 }
 
 -- Dual-wield tools (look.model.offhand): while the Tool is equipped, the server puts a copy of
